@@ -70,6 +70,45 @@ def auth_me(current_user: User = Depends(get_current_user)):
         "is_active": current_user.is_active,
     }
 
+    }
+
+
+@app.get("/auth/me")
+def auth_me(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "full_name": current_user.full_name,
+        "is_admin": current_user.is_admin,
+        "is_active": current_user.is_active,
+    }
+
+
+
+
+
+@app.get("/auth/me")
+def auth_me(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "full_name": current_user.full_name,
+        "is_admin": current_user.is_admin,
+        "is_active": current_user.is_active,
+    }
+
+
+@app.get("/auth/me")
+def auth_me(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "full_name": current_user.full_name,
+        "is_admin": current_user.is_admin,
+        "is_active": current_user.is_active,
+    }
+
+
 
 @app.get("/admin/users")
 def admin_list_users(
@@ -136,12 +175,17 @@ def admin_update_user(
     if "full_name" in payload:
         user.full_name = (payload.get("full_name") or "").strip() or None
     if "is_admin" in payload:
+
         if user.id == current_user.id and not bool(payload.get("is_admin")):
             raise HTTPException(status_code=400, detail="You cannot remove your own admin role")
         user.is_admin = bool(payload.get("is_admin"))
     if "is_active" in payload:
         if user.id == current_user.id and not bool(payload.get("is_active")):
             raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
+
+        user.is_admin = bool(payload.get("is_admin"))
+    if "is_active" in payload:
+
         user.is_active = bool(payload.get("is_active"))
     if payload.get("password"):
         if len(payload["password"]) < 8:
@@ -151,6 +195,7 @@ def admin_update_user(
     db.commit()
     db.refresh(user)
     return {"id": user.id, "username": user.username, "is_admin": user.is_admin, "is_active": user.is_active}
+
 
 
 @app.delete("/admin/users/{user_id}")
@@ -168,6 +213,8 @@ def admin_delete_user(
     db.delete(user)
     db.commit()
     return {"message": "User deleted", "id": user_id}
+
+
 
 
 @app.get("/")

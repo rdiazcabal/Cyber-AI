@@ -92,6 +92,7 @@ def bootstrap_admin_user():
                 )
             )
             db.commit()
+
             return
 
         has_changes = False
@@ -107,5 +108,6 @@ def bootstrap_admin_user():
 
         if has_changes:
             db.commit()
+
     finally:
         db.close()

@@ -490,6 +490,49 @@ pre {
   margin-bottom: 10px;
 }
 
+
+
+.auth-shell {
+  max-width: 430px;
+  margin: 70px auto;
+}
+
+.input-row {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+input, select {
+  width: 100%;
+  background: #020617;
+  color: #e5e7eb;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+input:focus, select:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 4px rgba(56,189,248,.12);
+  outline: none;
+}
+
+.hidden { display: none !important; }
+
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.user-table th,
+.user-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 8px;
+  font-size: 13px;
+  text-align: left;
+}
+
 @media (max-width: 1250px) {
   .cards { grid-template-columns: repeat(3, 1fr); }
   .grid { grid-template-columns: 1fr; }
@@ -509,7 +552,18 @@ pre {
 
 <body>
 
-<div class="app">
+<div id="loginView" class="auth-shell">
+  <div class="panel">
+    <h3>Ingreso a Cyber-AI</h3>
+    <div class="panel-subtitle">Autenticación local en SQLite dentro del contenedor.</div>
+    <div class="input-row"><label>Usuario</label><input id="loginUsername" value="admin"></div>
+    <div class="input-row"><label>Contraseña</label><input id="loginPassword" type="password" value="CyberAI123!"></div>
+    <button onclick="login()">Iniciar sesión</button>
+    <div id="loginStatus" class="status-line">Esperando autenticación...</div>
+  </div>
+</div>
+
+<div id="appView" class="app hidden">
 
 <aside>
   <div class="brand">
@@ -527,6 +581,10 @@ pre {
   <div class="nav-item">🧠 MITRE Coverage</div>
   <div class="nav-item">🌍 Threat Intel</div>
   <div class="nav-item">🤖 ML Anomaly</div>
+  <div class="nav-title">Admin</div>
+  <div class="nav-item">👤 Usuarios locales</div>
+  <div id="sessionUser" class="nav-item">🔐 No autenticado</div>
+  <button class="secondary" onclick="logout()">Cerrar sesión</button>
 </aside>
 
 <main>
@@ -647,10 +705,174 @@ pre {
   <div id="anomalyPanel" class="empty">No anomaly detection data available.</div>
 </div>
 
+
+<div id="adminPanel" class="panel hidden">
+  <h3>Administración de usuarios</h3>
+  <div class="panel-subtitle">Crear y actualizar usuarios SQLite sin salir del template actual.</div>
+
+  <div class="grid">
+    <div>
+      <div class="input-row"><label>Usuario</label><input id="newUsername" placeholder="analyst01"></div>
+      <div class="input-row"><label>Nombre completo</label><input id="newFullname" placeholder="SOC Analyst"></div>
+      <div class="input-row"><label>Contraseña</label><input id="newPassword" type="password" placeholder="mínimo 8 caracteres"></div>
+      <div class="input-row"><label>Rol</label>
+        <select id="newRole">
+          <option value="false">Analista</option>
+          <option value="true">Administrador</option>
+        </select>
+      </div>
+      <button onclick="createUser()">Crear usuario</button>
+      <div id="adminStatus" class="status-line">Solo administradores pueden gestionar usuarios.</div>
+    </div>
+
+    <div>
+      <table class="user-table">
+        <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead>
+        <tbody id="usersTable"><tr><td colspan="5" class="empty">Sin datos</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 </main>
 </div>
 
 <script>
+
+let authToken = localStorage.getItem("cyberToken") || "";
+let currentUser = null;
+
+function authHeaders() {
+  return {
+    "Content-Type": "application/json",
+    ...(authToken ? {"Authorization": `Bearer ${authToken}`} : {})
+  };
+}
+
+function setAppVisibility(isLogged) {
+  document.getElementById("loginView").classList.toggle("hidden", isLogged);
+  document.getElementById("appView").classList.toggle("hidden", !isLogged);
+}
+
+async function login() {
+  const username = document.getElementById("loginUsername").value;
+  const password = document.getElementById("loginPassword").value;
+
+  const form = new URLSearchParams();
+  form.append("username", username);
+  form.append("password", password);
+
+  const res = await fetch("/auth/login", {
+    method: "POST",
+    headers: {"Content-Type": "application/x-www-form-urlencoded"},
+    body: form
+  });
+
+  if (!res.ok) {
+    document.getElementById("loginStatus").innerText = "Credenciales inválidas.";
+    return;
+  }
+
+  const data = await res.json();
+  authToken = data.access_token;
+  localStorage.setItem("cyberToken", authToken);
+  document.getElementById("loginStatus").innerText = "Autenticación exitosa.";
+
+  await loadSession();
+}
+
+function logout() {
+  authToken = "";
+  currentUser = null;
+  localStorage.removeItem("cyberToken");
+  setAppVisibility(false);
+}
+
+async function loadSession() {
+  if (!authToken) {
+    setAppVisibility(false);
+    return;
+  }
+
+  const res = await fetch("/auth/me", {headers: {"Authorization": `Bearer ${authToken}`}});
+  if (!res.ok) {
+    logout();
+    return;
+  }
+
+  currentUser = await res.json();
+  document.getElementById("sessionUser").innerText = `🔐 ${currentUser.username} (${currentUser.is_admin ? "Admin" : "Analyst"})`;
+  document.getElementById("adminPanel").classList.toggle("hidden", !currentUser.is_admin);
+  setAppVisibility(true);
+
+  if (currentUser.is_admin) {
+    await loadUsers();
+  }
+}
+
+async function loadUsers() {
+  const tbody = document.getElementById("usersTable");
+  const res = await fetch("/admin/users", {headers: {"Authorization": `Bearer ${authToken}`}});
+  if (!res.ok) {
+    document.getElementById("adminStatus").innerText = "No autorizado para listar usuarios.";
+    return;
+  }
+
+  const users = await res.json();
+  tbody.innerHTML = users.map(u => `
+    <tr>
+      <td>${u.username}</td>
+      <td>${u.full_name || "-"}</td>
+      <td>${u.is_admin ? "Admin" : "Analyst"}</td>
+      <td>${u.is_active ? "Activo" : "Inactivo"}</td>
+      <td><button class="secondary" onclick="toggleUser(${u.id}, ${u.is_active})">${u.is_active ? "Desactivar" : "Activar"}</button></td>
+    </tr>
+  `).join("");
+}
+
+async function createUser() {
+  const payload = {
+    username: document.getElementById("newUsername").value,
+    full_name: document.getElementById("newFullname").value,
+    password: document.getElementById("newPassword").value,
+    is_admin: document.getElementById("newRole").value === "true"
+  };
+
+  const res = await fetch("/admin/users", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    document.getElementById("adminStatus").innerText = `Error: ${data.detail || "No se pudo crear"}`;
+    return;
+  }
+
+  document.getElementById("adminStatus").innerText = `Usuario ${data.username} creado.`;
+  document.getElementById("newUsername").value = "";
+  document.getElementById("newFullname").value = "";
+  document.getElementById("newPassword").value = "";
+  await loadUsers();
+}
+
+async function toggleUser(id, isActive) {
+  const res = await fetch(`/admin/users/${id}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify({is_active: !isActive})
+  });
+
+  if (!res.ok) {
+    document.getElementById("adminStatus").innerText = "No se pudo actualizar el usuario.";
+    return;
+  }
+
+  document.getElementById("adminStatus").innerText = "Usuario actualizado.";
+  await loadUsers();
+}
+
 
 function loadSample(){
 document.getElementById("eventInput").value=JSON.stringify({
@@ -726,7 +948,7 @@ try {
 
   let res=await fetch("/correlate",{
     method:"POST",
-    headers:{"Content-Type":"application/json"},
+    headers:authHeaders(),
     body:JSON.stringify(input)
   });
 
@@ -1063,6 +1285,8 @@ function renderMitreCoverage(coverage){
   panel.className = "";
   panel.innerHTML = html;
 }
+
+loadSession();
 
 </script>
 

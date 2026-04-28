@@ -558,6 +558,7 @@ input:focus, select:focus {
     <div class="panel-subtitle">Autenticación local en SQLite dentro del contenedor.</div>
     <div class="input-row"><label>Usuario</label><input id="loginUsername" value="admin"></div>
     <div class="input-row"><label>Contraseña</label><input id="loginPassword" type="password" value="CyberAI123!"></div>
+    <button onclick="handleLogin()">Iniciar sesión</button>
     <button onclick="login()">Iniciar sesión</button>
     <div id="loginStatus" class="status-line">Esperando autenticación...</div>
   </div>
@@ -758,6 +759,7 @@ function setAppVisibility(isLogged) {
   document.getElementById("appView").classList.toggle("hidden", !isLogged);
 }
 
+async function handleLogin() {
 async function login() {
   const username = document.getElementById("loginUsername").value;
   const password = document.getElementById("loginPassword").value;

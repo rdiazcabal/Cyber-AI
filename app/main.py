@@ -71,7 +71,7 @@ def auth_me(current_user: User = Depends(get_current_user)):
     }
 
 
-    }
+
 
 
 @app.get("/auth/me")
@@ -82,9 +82,6 @@ def auth_me(current_user: User = Depends(get_current_user)):
         "full_name": current_user.full_name,
         "is_admin": current_user.is_admin,
         "is_active": current_user.is_active,
-    }
-
-
     }
 
 

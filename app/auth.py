@@ -92,5 +92,22 @@ def bootstrap_admin_user():
                 )
             )
             db.commit()
+
+            return
+
+        has_changes = False
+        if not user.is_admin:
+            user.is_admin = True
+            has_changes = True
+        if not user.is_active:
+            user.is_active = True
+            has_changes = True
+        if not verify_password(ADMIN_PASSWORD, user.password_hash):
+            user.password_hash = hash_password(ADMIN_PASSWORD)
+            has_changes = True
+
+        if has_changes:
+            db.commit()
+
     finally:
         db.close()

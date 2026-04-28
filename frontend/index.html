@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cyber-AI SOC</title>
+
+<style>
+:root {
+  --bg: #020617;
+  --sidebar: #0f172a;
+  --panel: #0b1220;
+  --panel-2: #0f172a;
+  --border: #1e293b;
+  --border-soft: #334155;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --blue: #38bdf8;
+  --purple: #a78bfa;
+  --green: #22c55e;
+  --red: #ef4444;
+  --orange: #f97316;
+  --yellow: #eab308;
+  --shadow: 0 18px 50px rgba(0,0,0,.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(56,189,248,.08), transparent 32%),
+    radial-gradient(circle at top right, rgba(167,139,250,.08), transparent 32%),
+    var(--bg);
+  color: var(--text);
+  font-family: Inter, Arial, sans-serif;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100vh;
+}
+
+aside {
+  background: linear-gradient(180deg, #0f172a, #020617);
+  padding: 22px;
+  border-right: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 26px;
+}
+
+.logo {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  box-shadow: 0 10px 30px rgba(37,99,235,.35);
+}
+
+.brand h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.brand small {
+  color: var(--muted);
+}
+
+.nav-title {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin: 22px 0 10px;
+}
+
+.nav-item {
+  padding: 12px;
+  background: rgba(15, 23, 42, .8);
+  margin-bottom: 8px;
+  border-radius: 12px;
+  color: #cbd5e1;
+  border: 1px solid transparent;
+}
+
+.nav-item:hover {
+  border-color: var(--border-soft);
+  background: #111827;
+}
+
+main {
+  padding: 24px;
+  overflow: auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+}
+
+.header p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.api-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(20,83,45,.45);
+  color: #bbf7d0;
+  border: 1px solid rgba(34,197,94,.3);
+  padding: 9px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.pulse {
+  width: 8px;
+  height: 8px;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 0 6px rgba(34,197,94,.12);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(15,23,42,.98), rgba(11,18,32,.98));
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  min-height: 112px;
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .18;
+  background: radial-gradient(circle at top right, var(--accent, #38bdf8), transparent 38%);
+  pointer-events: none;
+}
+
+.card-label {
+  position: relative;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-weight: 700;
+}
+
+.card-value {
+  position: relative;
+  margin: 12px 0 0;
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+
+.card-foot {
+  position: relative;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.card-total { --accent: var(--blue); }
+.card-risk { --accent: var(--purple); }
+.card-patterns { --accent: #06b6d4; }
+.card-critical { --accent: var(--red); }
+.card-high { --accent: var(--orange); }
+.card-medium { --accent: var(--yellow); }
+.card-low { --accent: var(--green); }
+
+.card-total .card-value { color: var(--blue); }
+.card-risk .card-value { color: var(--purple); }
+.card-patterns .card-value { color: #67e8f9; }
+.card-critical .card-value { color: #fca5a5; }
+.card-high .card-value { color: #fdba74; }
+.card-medium .card-value { color: #fde047; }
+.card-low .card-value { color: #86efac; }
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.1fr .9fr;
+  gap: 18px;
+}
+
+.panel {
+  background: rgba(15,23,42,.88);
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.panel h3 {
+  margin: 0 0 14px;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+
+.panel-subtitle {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: -8px;
+  margin-bottom: 14px;
+}
+
+textarea {
+  width: 100%;
+  height: 280px;
+  background: #020617;
+  color: #86efac;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  padding: 14px;
+  outline: none;
+  resize: vertical;
+  font-family: Consolas, monospace;
+  font-size: 13px;
+}
+
+textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 4px rgba(56,189,248,.12);
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+button {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg,#2563eb,#7c3aed);
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: #111827;
+  border: 1px solid var(--border-soft);
+  color: #cbd5e1;
+}
+
+button:hover {
+  filter: brightness(1.08);
+}
+
+.status-line {
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pattern-card {
+  background: #020617;
+  border: 1px solid var(--border-soft);
+  padding: 14px;
+  margin-top: 12px;
+  border-radius: 14px;
+}
+
+.pattern-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.pattern-title {
+  font-weight: 800;
+}
+
+.pattern-meta {
+  color: #cbd5e1;
+  line-height: 1.55;
+}
+
+pre {
+  background: #020617;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-soft);
+  overflow: auto;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.timeline-item {
+  position: relative;
+  border-left: 3px solid var(--border-soft);
+  padding-left: 14px;
+  margin-bottom: 14px;
+}
+
+.timeline-item::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 4px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 0 5px rgba(56,189,248,.12);
+}
+
+.timeline-title {
+  font-weight: 800;
+}
+
+.timeline-meta {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.pill {
+  display: inline-block;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pill-critical { background: #7f1d1d; color: #fecaca; }
+.pill-high { background: #7c2d12; color: #fed7aa; }
+.pill-medium { background: #713f12; color: #fef08a; }
+.pill-low { background: #14532d; color: #bbf7d0; }
+.pill-info { background: #164e63; color: #a5f3fc; }
+
+.kv-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.kv {
+  background: rgba(15,23,42,.8);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.kv-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.kv-value {
+  font-weight: 800;
+  margin-top: 6px;
+}
+
+.empty {
+  color: var(--muted);
+  background: #020617;
+  border: 1px dashed var(--border-soft);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.detection-feed {
+  display: grid;
+  gap: 12px;
+}
+
+.detection-row {
+  background: #020617;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 160px 1fr 120px;
+  gap: 14px;
+  align-items: center;
+}
+
+.detection-title {
+  font-weight: 900;
+  margin-bottom: 4px;
+}
+
+.detection-sub {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.confidence-bar {
+  height: 9px;
+  background: #111827;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.confidence-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #a78bfa);
+}
+
+.incident-card {
+  background:
+    linear-gradient(135deg, rgba(127,29,29,.28), transparent 42%),
+    #020617;
+  border: 1px solid rgba(239,68,68,.35);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.attack-chain {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.chain-step {
+  background: #111827;
+  border: 1px solid var(--border-soft);
+  padding: 8px 10px;
+  border-radius: 999px;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mitre-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+
+.mitre-card {
+  background: #020617;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.mitre-card h4 {
+  margin: 0 0 8px;
+}
+
+.mitre-count {
+  color: var(--blue);
+  font-size: 28px;
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 1250px) {
+  .cards { grid-template-columns: repeat(3, 1fr); }
+  .grid { grid-template-columns: 1fr; }
+  .mitre-grid { grid-template-columns: repeat(2, 1fr); }
+  .detection-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; }
+  aside { display: none; }
+  .cards { grid-template-columns: repeat(2, 1fr); }
+  .actions { grid-template-columns: 1fr; }
+  .kv-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<aside>
+  <div class="brand">
+    <div class="logo">🛡</div>
+    <div>
+      <h2>Cyber-AI</h2>
+      <small>AI SOC Assistant</small>
+    </div>
+  </div>
+
+  <div class="nav-title">Security</div>
+  <div class="nav-item">📊 Dashboard</div>
+  <div class="nav-item">🚨 Detection Feed</div>
+  <div class="nav-item">🧩 Incident Panel</div>
+  <div class="nav-item">🧠 MITRE Coverage</div>
+  <div class="nav-item">🌍 Threat Intel</div>
+  <div class="nav-item">🤖 ML Anomaly</div>
+</aside>
+
+<main>
+
+<div class="header">
+  <div>
+    <h1>Security Operations Dashboard</h1>
+    <p>Multi-cloud SOC correlation · Threat Intelligence · ML anomaly detection · MITRE ATT&CK</p>
+  </div>
+  <div class="api-status"><span class="pulse"></span> API Online</div>
+</div>
+
+<div class="cards">
+  <div class="card card-total">
+    <div class="card-label">Total Findings</div>
+    <h2 id="totalCount" class="card-value">0</h2>
+    <div class="card-foot">Eventos normalizados</div>
+  </div>
+
+  <div class="card card-risk">
+    <div class="card-label">Risk Score</div>
+    <h2 id="riskScore" class="card-value">0</h2>
+    <div class="card-foot">Score correlado</div>
+  </div>
+
+  <div class="card card-patterns">
+    <div class="card-label">Patterns</div>
+    <h2 id="patternsCount" class="card-value">0</h2>
+    <div class="card-foot">TTPs detectados</div>
+  </div>
+
+  <div class="card card-critical">
+    <div class="card-label">Critical</div>
+    <h2 id="criticalCount" class="card-value">0</h2>
+    <div class="card-foot">Severidad ≥ 9</div>
+  </div>
+
+  <div class="card card-high">
+    <div class="card-label">High</div>
+    <h2 id="highCount" class="card-value">0</h2>
+    <div class="card-foot">Severidad 7–8.9</div>
+  </div>
+
+  <div class="card card-medium">
+    <div class="card-label">Medium</div>
+    <h2 id="mediumCount" class="card-value">0</h2>
+    <div class="card-foot">Severidad 4–6.9</div>
+  </div>
+
+  <div class="card card-low">
+    <div class="card-label">Low</div>
+    <h2 id="lowCount" class="card-value">0</h2>
+    <div class="card-foot">Severidad &lt; 4</div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="panel">
+    <h3>Input Security Events</h3>
+    <div class="panel-subtitle">Pega eventos JSON con array <b>events</b>. También puedes usar el sample.</div>
+    <textarea id="eventInput"></textarea>
+
+    <div class="actions">
+      <button class="secondary" onclick="loadSample()">Load Sample</button>
+      <button class="secondary" onclick="clearInput()">Clear</button>
+      <button onclick="analyze()">Analyze</button>
+    </div>
+
+    <div id="statusLine" class="status-line">Waiting for analysis...</div>
+  </div>
+
+  <div class="panel">
+    <h3>Attack Timeline</h3>
+    <div class="panel-subtitle">Secuencia correlada de eventos normalizados.</div>
+    <div id="timeline" class="empty">No timeline data yet.</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h3>Incident Summary</h3>
+  <div class="panel-subtitle">Resumen del incidente principal basado en la detección con mayor confianza.</div>
+  <div id="incidentPanel" class="empty">No incident detected yet.</div>
+</div>
+
+<div class="panel">
+  <h3>Detection Feed</h3>
+  <div class="panel-subtitle">Detecciones estilo CrowdStrike con severidad, confianza, entidades y MITRE.</div>
+  <div id="detectionPanel" class="empty">No detections yet.</div>
+</div>
+
+<div class="panel">
+  <h3>MITRE Coverage</h3>
+  <div class="panel-subtitle">Cobertura táctica/técnica basada en los eventos correlados.</div>
+  <div id="mitrePanel" class="empty">No MITRE coverage yet.</div>
+</div>
+
+<div class="panel">
+  <h3>Detected Patterns</h3>
+  <div class="panel-subtitle">Kill Chain, MITRE ATT&CK, Attack Type y playbook recomendado.</div>
+  <div id="patternsPanel" class="empty">No patterns detected yet.</div>
+</div>
+
+<div class="panel">
+  <h3>Indicators of Compromise</h3>
+  <div class="panel-subtitle">IPs, usuarios y recursos extraídos automáticamente.</div>
+  <div id="iocPanel" class="empty">No IOCs extracted yet.</div>
+</div>
+
+<div class="panel">
+  <h3>Threat Intelligence</h3>
+  <div class="panel-subtitle">Reputación de IPs usando AbuseIPDB.</div>
+  <div id="threatIntelPanel" class="empty">No threat intelligence data available.</div>
+</div>
+
+<div class="panel">
+  <h3>ML Anomaly Detection</h3>
+  <div class="panel-subtitle">Análisis de anomalías usando Isolation Forest.</div>
+  <div id="anomalyPanel" class="empty">No anomaly detection data available.</div>
+</div>
+
+</main>
+</div>
+
+<script>
+
+function loadSample(){
+document.getElementById("eventInput").value=JSON.stringify({
+events:[
+{
+service:"CloudTrail",
+severity:8.5,
+eventName:"ConsoleLogin",
+userIdentity: {
+  type: "IAMUser",
+  userName: "admin-user"
+},
+sourceIPAddress:"185.220.101.1",
+description:"Successful login without MFA from suspicious IP."
+},
+{
+service:"CloudTrail",
+severity:9.1,
+eventName:"CreateAccessKey",
+userIdentity: {
+  type: "IAMUser",
+  userName: "admin-user"
+},
+sourceIPAddress:"185.220.101.1",
+description:"Access key created after suspicious login."
+},
+{
+service:"IAM",
+severity:7.8,
+eventName:"AttachUserPolicy",
+userIdentity: {
+  type: "IAMUser",
+  userName: "admin-user"
+},
+sourceIPAddress:"185.220.101.1",
+description:"AdministratorAccess policy attached."
+},
+{
+service:"S3",
+severity:6.4,
+eventName:"PutBucketPolicy",
+bucket:"prod-data",
+publicAccess:true,
+sourceIPAddress:"185.220.101.1",
+description:"Bucket exposed to public."
+},
+{
+service:"GuardDuty",
+severity:9.3,
+type:"CryptoCurrency:EC2/BitcoinTool.B!DNS",
+resource: {
+  instanceId: "i-0123456789"
+},
+network: {
+  remoteIp: "34.120.55.1"
+},
+description:"Crypto mining activity detected."
+}
+]
+},null,2);
+}
+
+function clearInput(){
+document.getElementById("eventInput").value="";
+document.getElementById("statusLine").innerText="Input cleared.";
+}
+
+async function analyze(){
+
+try {
+  document.getElementById("statusLine").innerText="Analyzing security events...";
+  let input=JSON.parse(document.getElementById("eventInput").value);
+
+  let res=await fetch("/correlate",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(input)
+  });
+
+  let data=await res.json();
+
+  document.getElementById("riskScore").innerText=data.risk_score ?? 0;
+  document.getElementById("patternsCount").innerText=(data.patterns_detected || []).length;
+
+  renderTimeline(data.normalized_events || []);
+  renderPatterns(data.patterns_detected || []);
+  renderIOCs(data.iocs || {});
+  renderThreatIntel(data.threat_intel || {});
+  renderAnomalies(data.anomaly_detection || {});
+  renderDetections(data.detections || []);
+  renderIncident(data || {});
+  renderMitreCoverage(data.mitre_coverage || {});
+  updateSeverityCounters(data.normalized_events || []);
+
+  document.getElementById("statusLine").innerText="Analysis completed successfully.";
+} catch (error) {
+  document.getElementById("statusLine").innerText="ERROR: " + error.message;
+}
+
+}
+
+function updateSeverityCounters(events) {
+  let critical = 0, high = 0, medium = 0, low = 0;
+
+  events.forEach(e => {
+    const sev = Number(e.severity || 0);
+
+    if (sev >= 9) critical++;
+    else if (sev >= 7) high++;
+    else if (sev >= 4) medium++;
+    else low++;
+  });
+
+  document.getElementById("criticalCount").innerText = critical;
+  document.getElementById("highCount").innerText = high;
+  document.getElementById("mediumCount").innerText = medium;
+  document.getElementById("lowCount").innerText = low;
+  document.getElementById("totalCount").innerText = events.length;
+}
+
+function renderTimeline(events){
+let html="";
+events.forEach((e,i)=>{
+html+=`
+<div class="timeline-item">
+  <div class="timeline-title">Step ${i+1}: ${e.eventName || "Unknown"}</div>
+  <div class="timeline-meta">${e.service || "Unknown"} · User: ${e.user || "N/A"} · IP: ${e.source_ip || "N/A"} · Severity: ${e.severity ?? "N/A"}</div>
+</div>`;
+});
+document.getElementById("timeline").className = events.length ? "" : "empty";
+document.getElementById("timeline").innerHTML=html || `No timeline data yet.`;
+}
+
+function patternPillClass(severity){
+  const s = String(severity || "").toLowerCase();
+  if (s === "critical") return "pill-critical";
+  if (s === "high") return "pill-high";
+  if (s === "medium") return "pill-medium";
+  return "pill-low";
+}
+
+function renderPatterns(patterns){
+let html="";
+patterns.forEach(p=>{
+html+=`
+<div class="pattern-card">
+  <div class="pattern-header">
+    <span class="pill ${patternPillClass(p.severity)}">${p.severity || "N/A"}</span>
+    <span class="pattern-title">${p.name || "Unknown Pattern"}</span>
+  </div>
+  <div class="pattern-meta">
+    ${p.description || ""}<br>
+    <b>Kill Chain:</b> ${p.kill_chain_phase || "N/A"}<br>
+    <b>Attack Type:</b> ${p.attack_type || "N/A"}<br>
+    <b>MITRE:</b> ${typeof p.mitre === "string" ? p.mitre : JSON.stringify(p.mitre)}
+  </div>
+  <ul>${(p.playbook || []).map(x=>`<li>${x}</li>`).join("")}</ul>
+</div>
+`;
+});
+document.getElementById("patternsPanel").className = patterns.length ? "" : "empty";
+document.getElementById("patternsPanel").innerHTML=html || `No patterns detected yet.`;
+}
+
+function renderIOCs(iocs){
+const ips = iocs?.ips || [];
+const users = iocs?.users || [];
+const resources = iocs?.resources || [];
+
+document.getElementById("iocPanel").className = "";
+document.getElementById("iocPanel").innerHTML=`
+<div class="kv-grid">
+  <div class="kv">
+    <div class="kv-label">IPs</div>
+    <div class="kv-value">${ips.length}</div>
+  </div>
+  <div class="kv">
+    <div class="kv-label">Users</div>
+    <div class="kv-value">${users.length}</div>
+  </div>
+  <div class="kv">
+    <div class="kv-label">Resources</div>
+    <div class="kv-value">${resources.length}</div>
+  </div>
+  <div class="kv">
+    <div class="kv-label">IOC Total</div>
+    <div class="kv-value">${ips.length + users.length + resources.length}</div>
+  </div>
+</div>
+<div class="pattern-card">
+  <b>IPs</b><pre>${JSON.stringify(ips,null,2)}</pre>
+  <b>Users</b><pre>${JSON.stringify(users,null,2)}</pre>
+  <b>Resources</b><pre>${JSON.stringify(resources,null,2)}</pre>
+</div>
+`;
+}
+
+function renderThreatIntel(threatIntel){
+  const panel = document.getElementById("threatIntelPanel");
+
+  if (!threatIntel || !threatIntel.ips || threatIntel.ips.length === 0) {
+    panel.className = "empty";
+    panel.innerHTML = `No threat intelligence data available.`;
+    return;
+  }
+
+  let html = "";
+
+  threatIntel.ips.forEach(ip=>{
+    const score = ip.abuse_confidence_score ?? 0;
+    const pill = score >= 80 ? "pill-critical" : score >= 50 ? "pill-high" : "pill-low";
+
+    html+=`
+<div class="pattern-card">
+  <div class="pattern-header">
+    <span class="pill ${pill}">Abuse Score: ${score}</span>
+    <span class="pattern-title">${ip.ip}</span>
+  </div>
+  <div class="pattern-meta">
+    <b>Country:</b> ${ip.country_code || "N/A"}<br>
+    <b>ISP:</b> ${ip.isp || "N/A"}<br>
+    <b>Domain:</b> ${ip.domain || "N/A"}<br>
+    <b>Total Reports:</b> ${ip.total_reports ?? "N/A"}<br>
+    <b>Provider:</b> ${ip.provider || "N/A"}
+  </div>
+</div>
+`;
+  });
+
+  panel.className = "";
+  panel.innerHTML = html;
+}
+
+function renderAnomalies(anomaly){
+  const panel = document.getElementById("anomalyPanel");
+
+  if (!anomaly) {
+    panel.className = "empty";
+    panel.innerHTML = `No anomaly detection data available.`;
+    return;
+  }
+
+  const score = anomaly.anomaly_score ?? 0;
+  const anomalies = anomaly.anomalies || [];
+  const pill = score >= 75 ? "pill-critical" : score >= 40 ? "pill-high" : "pill-low";
+
+  panel.className = "";
+  panel.innerHTML=`
+<div class="pattern-card">
+  <div class="pattern-header">
+    <span class="pill ${pill}">Anomaly Score: ${score}</span>
+    <span class="pattern-title">ML Anomaly Detection</span>
+  </div>
+  <div class="pattern-meta">
+    <b>Anomalies Found:</b> ${anomalies.length}<br>
+    <b>Status:</b> ${anomalies.length > 0 ? "Anomalous behavior detected" : "No anomalies detected"}
+  </div>
+</div>
+<pre>${JSON.stringify(anomalies,null,2)}</pre>
+`;
+}
+
+function renderDetections(detections){
+  const panel = document.getElementById("detectionPanel");
+
+  if (!detections || detections.length === 0) {
+    panel.className = "empty";
+    panel.innerHTML = "No detections yet.";
+    return;
+  }
+
+  let html = `<div class="detection-feed">`;
+
+  detections.forEach(d => {
+    const sevClass = patternPillClass(d.severity);
+    const confidence = d.confidence ?? 0;
+    const users = d.entities?.users || [];
+    const ips = d.entities?.ips || [];
+    const resources = d.entities?.resources || [];
+    const mitre = d.mitre || {};
+
+    html += `
+      <div class="detection-row">
+        <div>
+          <span class="pill ${sevClass}">${d.severity || "N/A"}</span>
+          <div class="detection-sub" style="margin-top:8px;">Confidence ${confidence}%</div>
+          <div class="confidence-bar"><div class="confidence-fill" style="width:${confidence}%"></div></div>
+        </div>
+
+        <div>
+          <div class="detection-title">${d.detection_name || "Unknown Detection"}</div>
+          <div class="detection-sub">${d.behavior || ""}</div>
+          <div class="pattern-meta" style="margin-top:8px;">
+            <b>Attack Type:</b> ${d.attack_type || "N/A"}<br>
+            <b>MITRE:</b> ${mitre.technique_id || "N/A"} - ${mitre.technique || "N/A"}<br>
+            <b>Entities:</b> Users(${users.join(", ") || "N/A"}) · IPs(${ips.join(", ") || "N/A"}) · Resources(${resources.join(", ") || "N/A"})
+          </div>
+        </div>
+
+        <div>
+          <span class="pill pill-info">${mitre.tactic || "Unknown"}</span>
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+
+  panel.className = "";
+  panel.innerHTML = html;
+}
+
+function renderIncident(data){
+  const panel = document.getElementById("incidentPanel");
+  const detections = data.detections || [];
+
+  if (detections.length === 0) {
+    panel.className = "empty";
+    panel.innerHTML = "No incident detected yet.";
+    return;
+  }
+
+  const sorted = [...detections].sort((a,b) => (b.confidence || 0) - (a.confidence || 0));
+  const primary = sorted[0];
+  const chain = Object.keys(data.mitre_coverage || {});
+  const entities = primary.entities || {};
+  const users = entities.users || [];
+  const ips = entities.ips || [];
+  const resources = entities.resources || [];
+  const response = primary.recommended_response || [];
+  const mitre = primary.mitre || {};
+
+  panel.className = "";
+  panel.innerHTML = `
+    <div class="incident-card">
+      <div class="pattern-header">
+        <span class="pill ${patternPillClass(primary.severity)}">${primary.severity || "N/A"}</span>
+        <span class="pill pill-info">Confidence ${primary.confidence ?? 0}%</span>
+        <span class="pill pill-info">${mitre.technique_id || "MITRE N/A"}</span>
+      </div>
+
+      <h2 style="margin:10px 0 8px;">${primary.detection_name || "Security Incident"}</h2>
+
+      <div class="pattern-meta">
+        <b>Attack Type:</b> ${primary.attack_type || "N/A"}<br>
+        <b>Behavior:</b> ${primary.behavior || "N/A"}<br>
+        <b>MITRE:</b> ${mitre.tactic || "N/A"} / ${mitre.technique || "N/A"} / ${mitre.subtechnique || "N/A"}
+      </div>
+
+      <div class="attack-chain">
+        ${chain.map(step => `<span class="chain-step">${step}</span>`).join("") || `<span class="chain-step">No chain available</span>`}
+      </div>
+
+      <div class="kv-grid" style="margin-top:14px;">
+        <div class="kv">
+          <div class="kv-label">Users</div>
+          <div class="kv-value">${users.join(", ") || "N/A"}</div>
+        </div>
+        <div class="kv">
+          <div class="kv-label">IPs</div>
+          <div class="kv-value">${ips.join(", ") || "N/A"}</div>
+        </div>
+        <div class="kv">
+          <div class="kv-label">Resources</div>
+          <div class="kv-value">${resources.join(", ") || "N/A"}</div>
+        </div>
+        <div class="kv">
+          <div class="kv-label">Detections</div>
+          <div class="kv-value">${detections.length}</div>
+        </div>
+      </div>
+
+      <div class="pattern-card">
+        <b>Recommended Response</b>
+        <ul>${response.map(x => `<li>${x}</li>`).join("")}</ul>
+      </div>
+    </div>
+  `;
+}
+
+function renderMitreCoverage(coverage){
+  const panel = document.getElementById("mitrePanel");
+  const tactics = Object.keys(coverage || {});
+
+  if (tactics.length === 0) {
+    panel.className = "empty";
+    panel.innerHTML = "No MITRE coverage yet.";
+    return;
+  }
+
+  let html = `<div class="mitre-grid">`;
+
+  tactics.forEach(tactic => {
+    const item = coverage[tactic] || {};
+    const techniques = item.techniques || [];
+
+    html += `
+      <div class="mitre-card">
+        <h4>${tactic}</h4>
+        <div class="mitre-count">${item.count || 0}</div>
+        <ul>
+          ${techniques.map(t => `<li>${t.technique_id} - ${t.technique}</li>`).join("")}
+        </ul>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+
+  panel.className = "";
+  panel.innerHTML = html;
+}
+
+</script>
+
+</body>
+</html>

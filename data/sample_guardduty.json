@@ -1,0 +1,6 @@
+{
+  "service": "GuardDuty",
+  "severity": 8.2,
+  "type": "UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration",
+  "description": "Credentials from EC2 used from external IP"
+}

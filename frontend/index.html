@@ -555,11 +555,10 @@ input:focus, select:focus {
 <div id="loginView" class="auth-shell">
   <div class="panel">
     <h3>Ingreso a Cyber-AI</h3>
-    <div class="panel-subtitle">Autenticación local en SQLite dentro del contenedor.</div>
+    <div class="panel-subtitle">Autenticación Cyber-AI.</div>
     <div class="input-row"><label>Usuario</label><input id="loginUsername" value="admin"></div>
     <div class="input-row"><label>Contraseña</label><input id="loginPassword" type="password" value="CyberAI123!"></div>
     <button onclick="handleLogin()">Iniciar sesión</button>
-    <button onclick="login()">Iniciar sesión</button>
     <div id="loginStatus" class="status-line">Esperando autenticación...</div>
   </div>
 </div>
@@ -583,7 +582,7 @@ input:focus, select:focus {
   <div class="nav-item">🌍 Threat Intel</div>
   <div class="nav-item">🤖 ML Anomaly</div>
   <div class="nav-title">Admin</div>
-  <div class="nav-item">👤 Usuarios locales</div>
+  <a class="nav-item hidden" id="navUsuarios" href="/admin">👤 Usuarios locales</a>
   <div id="sessionUser" class="nav-item">🔐 No autenticado</div>
   <button class="secondary" onclick="logout()">Cerrar sesión</button>
 </aside>
@@ -707,42 +706,11 @@ input:focus, select:focus {
 </div>
 
 
-<div id="adminPanel" class="panel hidden">
-  <h3>Administración de usuarios</h3>
-  <div class="panel-subtitle">Crear y actualizar usuarios SQLite sin salir del template actual.</div>
-
-  <div class="grid">
-    <div>
-      <div class="input-row"><label>Usuario</label><input id="newUsername" placeholder="analyst01"></div>
-      <div class="input-row"><label>Nombre completo</label><input id="newFullname" placeholder="SOC Analyst"></div>
-      <div class="input-row"><label>Contraseña</label><input id="newPassword" type="password" placeholder="mínimo 8 caracteres"></div>
-      <div class="input-row"><label>Rol</label>
-        <select id="newRole">
-          <option value="false">Analista</option>
-          <option value="true">Administrador</option>
-        </select>
-      </div>
-      <button onclick="createUser()">Crear usuario</button>
-      <div id="adminStatus" class="status-line">Solo administradores pueden gestionar usuarios.</div>
-    </div>
-
-    <div>
-      <table class="user-table">
-        <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead>
-
-        <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead>
-        <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead>
-
-        <tbody id="usersTable"><tr><td colspan="5" class="empty">Sin datos</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
 </main>
 </div>
 
 <script>
+
 
 let authToken = localStorage.getItem("cyberToken") || "";
 let currentUser = null;
@@ -760,7 +728,6 @@ function setAppVisibility(isLogged) {
 }
 
 async function handleLogin() {
-async function login() {
   const username = document.getElementById("loginUsername").value;
   const password = document.getElementById("loginPassword").value;
 
@@ -808,125 +775,12 @@ async function loadSession() {
 
   currentUser = await res.json();
   document.getElementById("sessionUser").innerText = `🔐 ${currentUser.username} (${currentUser.is_admin ? "Admin" : "Analyst"})`;
-  document.getElementById("adminPanel").classList.toggle("hidden", !currentUser.is_admin);
+  const navUsuarios = document.getElementById("navUsuarios");
+  if (navUsuarios) {
+    navUsuarios.classList.toggle("hidden", !currentUser.is_admin);
+  }
   setAppVisibility(true);
-
-  if (currentUser.is_admin) {
-    await loadUsers();
-  }
 }
-
-async function loadUsers() {
-  const tbody = document.getElementById("usersTable");
-  const res = await fetch("/admin/users", {headers: {"Authorization": `Bearer ${authToken}`}});
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    document.getElementById("adminStatus").innerText = `No autorizado para listar usuarios: ${error.detail || res.status}`;
-    document.getElementById("adminStatus").innerText = "No autorizado para listar usuarios.";
-    return;
-  }
-
-  const users = await res.json();
-  if (!users.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="empty">Sin usuarios creados.</td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = users.map(u => `
-    <tr>
-      <td>${u.username}</td>
-      <td>${u.full_name || "-"}</td>
-      <td>${u.is_admin ? "Admin" : "Analyst"}</td>
-      <td>${u.is_active ? "Activo" : "Inactivo"}</td>
-      <td>
-        <button class="secondary" onclick="toggleUserState(${u.id}, ${u.is_active})">${u.is_active ? "Desactivar" : "Activar"}</button>
-        <button class="secondary" onclick="toggleUserRole(${u.id}, ${u.is_admin})">${u.is_admin ? "Quitar Admin" : "Hacer Admin"}</button>
-        <button class="secondary" onclick="deleteUser(${u.id})">Eliminar</button>
-      </td>
-      <td><button class="secondary" onclick="toggleUser(${u.id}, ${u.is_active})">${u.is_active ? "Desactivar" : "Activar"}</button></td>
-    </tr>
-  `).join("");
-}
-
-async function createUser() {
-  const payload = {
-    username: document.getElementById("newUsername").value,
-    full_name: document.getElementById("newFullname").value,
-    password: document.getElementById("newPassword").value,
-    is_admin: document.getElementById("newRole").value === "true"
-  };
-
-  const res = await fetch("/admin/users", {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(payload)
-  });
-
-  const data = await res.json();
-  if (!res.ok) {
-    document.getElementById("adminStatus").innerText = `Error: ${data.detail || "No se pudo crear"}`;
-    return;
-  }
-
-  document.getElementById("adminStatus").innerText = `Usuario ${data.username} creado.`;
-  document.getElementById("newUsername").value = "";
-  document.getElementById("newFullname").value = "";
-  document.getElementById("newPassword").value = "";
-  await loadUsers();
-}
-
-async function toggleUserState(id, isActive) {
-async function toggleUser(id, isActive) {
-  const res = await fetch(`/admin/users/${id}`, {
-    method: "PUT",
-    headers: authHeaders(),
-    body: JSON.stringify({is_active: !isActive})
-  });
-
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    document.getElementById("adminStatus").innerText = `No se pudo actualizar estado: ${error.detail || res.status}`;
-    document.getElementById("adminStatus").innerText = "No se pudo actualizar el usuario.";
-    return;
-  }
-
-  document.getElementById("adminStatus").innerText = "Usuario actualizado.";
-  await loadUsers();
-}
-
-async function toggleUserRole(id, isAdmin) {
-  const res = await fetch(`/admin/users/${id}`, {
-    method: "PUT",
-    headers: authHeaders(),
-    body: JSON.stringify({is_admin: !isAdmin})
-  });
-
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    document.getElementById("adminStatus").innerText = `No se pudo actualizar rol: ${error.detail || res.status}`;
-    return;
-  }
-
-  document.getElementById("adminStatus").innerText = "Rol actualizado.";
-  await loadUsers();
-}
-
-async function deleteUser(id) {
-  const res = await fetch(`/admin/users/${id}`, {
-    method: "DELETE",
-    headers: {"Authorization": `Bearer ${authToken}`}
-  });
-
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    document.getElementById("adminStatus").innerText = `No se pudo eliminar: ${error.detail || res.status}`;
-    return;
-  }
-
-  document.getElementById("adminStatus").innerText = "Usuario eliminado.";
-  await loadUsers();
-}
-
 
 function loadSample(){
 document.getElementById("eventInput").value=JSON.stringify({

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
+from fastapi import Body
 from app.analyzer import analyze_security_event
 from app.aws_client import get_guardduty_findings
 from app.notifier import send_slack_alert
@@ -181,9 +182,6 @@ def admin_update_user(
         if user.id == current_user.id and not bool(payload.get("is_active")):
             raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
 
-        user.is_admin = bool(payload.get("is_admin"))
-    if "is_active" in payload:
-
         user.is_active = bool(payload.get("is_active"))
     if payload.get("password"):
         if len(payload["password"]) < 8:
@@ -197,6 +195,7 @@ def admin_update_user(
 
 
 @app.delete("/admin/users/{user_id}")
+
 def admin_delete_user(
     user_id: int,
     db: Session = Depends(get_db),
@@ -218,6 +217,11 @@ def admin_delete_user(
 @app.get("/")
 def home():
     return FileResponse("frontend/index.html")
+
+
+@app.get("/admin")
+def admin_page():
+    return FileResponse("frontend/admin.html")
 
 
 @app.get("/health")

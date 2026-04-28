@@ -21,26 +21,153 @@ from app.detection_engine import run_detections
 from app.mitre_mapper import build_mitre_coverage
 
 from app.database import Base, engine, get_db
-from app.models import AnalysisReport
-from app.auth import authenticate_user, create_access_token, get_current_user
+from app.models import AnalysisReport, User
+from app.auth import (
+    authenticate_user,
+    bootstrap_admin_user,
+    create_access_token,
+    get_current_user,
+    hash_password,
+    require_admin,
+)
 from app.pdf_report import generate_pdf_report
 
 app = FastAPI(title="Cyber-AI")
 Base.metadata.create_all(bind=engine)
+bootstrap_admin_user()
 
 @app.post("/auth/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(form_data.username, form_data.password)
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
+    user = authenticate_user(db, form_data.username, form_data.password)
 
     if not user:
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    token = create_access_token({"sub": user["username"]})
+    token = create_access_token({"sub": user.username})
 
     return {
         "access_token": token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "full_name": user.full_name,
+            "is_admin": user.is_admin,
+        },
     }
+
+
+@app.get("/auth/me")
+def auth_me(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "full_name": current_user.full_name,
+        "is_admin": current_user.is_admin,
+        "is_active": current_user.is_active,
+    }
+
+
+@app.get("/admin/users")
+def admin_list_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    users = db.query(User).order_by(User.created_at.desc()).all()
+    return [
+        {
+            "id": user.id,
+            "username": user.username,
+            "full_name": user.full_name,
+            "is_admin": user.is_admin,
+            "is_active": user.is_active,
+            "created_at": user.created_at,
+        }
+        for user in users
+    ]
+
+
+@app.post("/admin/users")
+def admin_create_user(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    username = (payload.get("username") or "").strip()
+    password = payload.get("password") or ""
+    full_name = (payload.get("full_name") or "").strip() or None
+    is_admin = bool(payload.get("is_admin", False))
+
+    if len(username) < 3:
+        raise HTTPException(status_code=400, detail="Username must have at least 3 characters")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must have at least 8 characters")
+    if db.query(User).filter(User.username == username).first():
+        raise HTTPException(status_code=409, detail="Username already exists")
+
+    user = User(
+        username=username,
+        password_hash=hash_password(password),
+        full_name=full_name,
+        is_admin=is_admin,
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return {"id": user.id, "username": user.username, "full_name": user.full_name, "is_admin": user.is_admin}
+
+
+@app.put("/admin/users/{user_id}")
+def admin_update_user(
+    user_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if "full_name" in payload:
+        user.full_name = (payload.get("full_name") or "").strip() or None
+    if "is_admin" in payload:
+        if user.id == current_user.id and not bool(payload.get("is_admin")):
+            raise HTTPException(status_code=400, detail="You cannot remove your own admin role")
+        user.is_admin = bool(payload.get("is_admin"))
+    if "is_active" in payload:
+        if user.id == current_user.id and not bool(payload.get("is_active")):
+            raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
+        user.is_active = bool(payload.get("is_active"))
+    if payload.get("password"):
+        if len(payload["password"]) < 8:
+            raise HTTPException(status_code=400, detail="Password must have at least 8 characters")
+        user.password_hash = hash_password(payload["password"])
+
+    db.commit()
+    db.refresh(user)
+    return {"id": user.id, "username": user.username, "is_admin": user.is_admin, "is_active": user.is_active}
+
+
+@app.delete("/admin/users/{user_id}")
+def admin_delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+
+    db.delete(user)
+    db.commit()
+    return {"message": "User deleted", "id": user_id}
 
 
 @app.get("/")

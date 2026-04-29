@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi import UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi import Body
 from app.analyzer import analyze_security_event
@@ -424,3 +425,87 @@ def export_report_pdf(
             "Content-Disposition": f"attachment; filename=cyber-ai-report-{report.id}.pdf"
         }
     )
+
+@app.post("/upload-analyze-save")
+async def upload_analyze_save(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    allowed_extensions = [".json", ".txt", ".log"]
+    filename = file.filename or "uploaded-file"
+
+    if not any(filename.lower().endswith(ext) for ext in allowed_extensions):
+        raise HTTPException(
+            status_code=400,
+            detail="Only .json, .txt and .log files are allowed"
+        )
+
+    content_bytes = await file.read()
+
+    if len(content_bytes) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=400,
+            detail="File too large. Maximum allowed size is 5MB"
+        )
+
+    raw_text = content_bytes.decode("utf-8", errors="ignore").strip()
+
+    if not raw_text:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
+    try:
+        parsed_json = json.loads(raw_text)
+        if isinstance(parsed_json, dict) and "events" in parsed_json:
+            data = parsed_json
+        elif isinstance(parsed_json, list):
+            data = {"events": parsed_json}
+        else:
+            data = {"events": [parsed_json]}
+    except Exception:
+        parsed = parse_input(raw_text)
+        data = {
+            "events": [
+                {
+                    "service": parsed.get("provider", "GENERIC"),
+                    "eventName": "UploadedLog",
+                    "severity": 5,
+                    "description": raw_text[:4000],
+                    "raw": parsed,
+                }
+            ]
+        }
+
+    events = data.get("events", [])
+
+    if not events:
+        raise HTTPException(status_code=400, detail="No events found in uploaded file")
+
+    result = correlate_events(events)
+
+    detections = run_detections(events, result.get("normalized_events", []))
+    mitre_coverage = build_mitre_coverage(events)
+    threat_intel = enrich_iocs(result.get("iocs", {}))
+    anomaly_detection = detect_anomalies(result.get("normalized_events", []))
+
+    result["threat_intel"] = threat_intel
+    result["anomaly_detection"] = anomaly_detection
+    result["detections"] = detections
+    result["mitre_coverage"] = mitre_coverage
+
+    report = AnalysisReport(
+        title=f"Uploaded analysis - {filename}",
+        risk_score=result.get("risk_score", 0),
+        raw_input=json.dumps(data),
+        result_json=json.dumps(result)
+    )
+
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+
+    return {
+        "report_id": report.id,
+        "filename": filename,
+        "result": result
+    }

@@ -276,7 +276,7 @@ textarea:focus {
 
 .actions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
 }
 
@@ -662,12 +662,17 @@ input:focus, select:focus {
     <h3>Input Security Events</h3>
     <div class="panel-subtitle">Pega eventos JSON con array <b>events</b>. También puedes usar el sample.</div>
     <textarea id="eventInput"></textarea>
+    <div class="input-row" style="margin-top:12px;">
+  <label>Cargar archivo de eventos/logs</label>
+  <input id="logFileInput" type="file" accept=".json,.txt,.log">
+</div>
 
-    <div class="actions">
-      <button class="secondary" onclick="loadSample()">Load Sample</button>
-      <button class="secondary" onclick="clearInput()">Clear</button>
-      <button onclick="analyze()">Analyze</button>
-    </div>
+<div class="actions">
+  <button class="secondary" onclick="loadSample()">Load Sample</button>
+  <button class="secondary" onclick="clearInput()">Clear</button>
+  <button class="secondary" onclick="uploadAnalyze()">Upload & Analyze</button>
+  <button onclick="analyze()">Analyze</button>
+</div>
 
     <div id="statusLine" class="status-line">Waiting for analysis...</div>
   </div>
@@ -721,6 +726,11 @@ input:focus, select:focus {
   <div id="anomalyPanel" class="empty">No anomaly detection data available.</div>
 </div>
 
+<div class="panel">
+  <h3>Analysis History</h3>
+  <div class="panel-subtitle">Historial de análisis guardados en la base de datos.</div>
+  <div id="reportsPanel" class="empty">No reports yet.</div>
+</div>
 
 </main>
 </div>
@@ -779,8 +789,8 @@ function logout() {
 
 async function loadSession() {
   if (!authToken) {
-    setAppVisibility(false);
-    return;
+  setAppVisibility(true);
+  await loadReports();
   }
 
   const res = await fetch("/auth/me", {headers: {"Authorization": `Bearer ${authToken}`}});
@@ -870,13 +880,22 @@ try {
   document.getElementById("statusLine").innerText="Analyzing security events...";
   let input=JSON.parse(document.getElementById("eventInput").value);
 
-  let res=await fetch("/correlate",{
+  let res=await fetch("/reports/analyze-save",{
     method:"POST",
     headers:authHeaders(),
-    body:JSON.stringify(input)
+    body:JSON.stringify({
+      title: "Manual SOC Analysis",
+      events: input.events || []
+    })
   });
 
-  let data=await res.json();
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText);
+  }
+
+  let saved=await res.json();
+  let data=saved.result;
 
   document.getElementById("riskScore").innerText=data.risk_score ?? 0;
   document.getElementById("patternsCount").innerText=(data.patterns_detected || []).length;
@@ -891,7 +910,9 @@ try {
   renderMitreCoverage(data.mitre_coverage || {});
   updateSeverityCounters(data.normalized_events || []);
 
-  document.getElementById("statusLine").innerText="Analysis completed successfully.";
+  await loadReports();
+
+  document.getElementById("statusLine").innerText="Analysis completed and saved successfully.";
 } catch (error) {
   document.getElementById("statusLine").innerText="ERROR: " + error.message;
 }
@@ -1208,6 +1229,104 @@ function renderMitreCoverage(coverage){
 
   panel.className = "";
   panel.innerHTML = html;
+}
+
+async function loadReports() {
+  try {
+    const res = await fetch("/reports", {
+      headers: {
+        ...(authToken ? {"Authorization": `Bearer ${authToken}`} : {})
+      }
+    });
+
+    if (!res.ok) {
+      return;
+    }
+
+    const reports = await res.json();
+    renderReports(reports);
+  } catch (error) {
+    console.error("Error loading reports", error);
+  }
+}
+
+function renderReports(reports) {
+  const panel = document.getElementById("reportsPanel");
+
+  if (!reports || reports.length === 0) {
+    panel.className = "empty";
+    panel.innerHTML = "No reports yet.";
+    return;
+  }
+
+  panel.className = "";
+
+  panel.innerHTML = `
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Title</th>
+          <th>Risk</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${reports.map(r => `
+          <tr>
+            <td>${r.id}</td>
+            <td>${r.title || "Untitled"}</td>
+            <td>${r.risk_score ?? 0}</td>
+            <td>${r.created_at ? new Date(r.created_at).toLocaleString() : "N/A"}</td>
+            <td>
+              <button class="secondary" onclick="loadReportDetail(${r.id})">View</button>
+              <button class="secondary" onclick="downloadReportPdf(${r.id})">PDF</button>
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+async function loadReportDetail(reportId) {
+  try {
+    const res = await fetch(`/reports/${reportId}`, {
+      headers: {
+        ...(authToken ? {"Authorization": `Bearer ${authToken}`} : {})
+      }
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(errorText);
+    }
+
+    const report = await res.json();
+    const data = report.result;
+
+    document.getElementById("riskScore").innerText = data.risk_score ?? 0;
+    document.getElementById("patternsCount").innerText = (data.patterns_detected || []).length;
+
+    renderTimeline(data.normalized_events || []);
+    renderPatterns(data.patterns_detected || []);
+    renderIOCs(data.iocs || {});
+    renderThreatIntel(data.threat_intel || {});
+    renderAnomalies(data.anomaly_detection || {});
+    renderDetections(data.detections || []);
+    renderIncident(data || {});
+    renderMitreCoverage(data.mitre_coverage || {});
+    updateSeverityCounters(data.normalized_events || []);
+
+    document.getElementById("statusLine").innerText = `Loaded report ID ${reportId}`;
+  } catch (error) {
+    document.getElementById("statusLine").innerText = "ERROR: " + error.message;
+  }
+}
+
+function downloadReportPdf(reportId) {
+  window.open(`/reports/${reportId}/pdf`, "_blank");
 }
 
 loadSession();

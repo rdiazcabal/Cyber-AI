@@ -1,3 +1,5 @@
+from fileinput import filename
+
 from fastapi import FastAPI, Request
 from fastapi import UploadFile, File
 from fastapi.responses import FileResponse
@@ -23,7 +25,7 @@ from app.detection_engine import run_detections
 from app.mitre_mapper import build_mitre_coverage
 
 from app.database import Base, engine, get_db
-from app.models import AnalysisReport, User
+from app.models import AnalysisReport, User, Company
 from app.auth import (
     authenticate_user,
     bootstrap_admin_user,
@@ -31,6 +33,7 @@ from app.auth import (
     get_current_user,
     hash_password,
     require_admin,
+    require_super_admin,
 )
 from app.pdf_report import generate_pdf_report
 
@@ -57,71 +60,100 @@ def login(
             "id": user.id,
             "username": user.username,
             "full_name": user.full_name,
-            "is_admin": user.is_admin,
+            "role": user.role,
+            "company_id": user.company_id,
+            "company_name": user.company.name if user.company else None,
         },
     }
 
-
 @app.get("/auth/me")
 def auth_me(current_user: User = Depends(get_current_user)):
     return {
         "id": current_user.id,
         "username": current_user.username,
         "full_name": current_user.full_name,
-        "is_admin": current_user.is_admin,
+        "role": current_user.role,
+        "company_id": current_user.company_id,
+        "company_name": current_user.company.name if current_user.company else None,
         "is_active": current_user.is_active,
     }
 
+@app.get("/admin/companies")
+def admin_list_companies(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    if current_user.role == "super_admin":
+        companies = db.query(Company).order_by(Company.name.asc()).all()
+    else:
+        companies = (
+            db.query(Company)
+            .filter(Company.id == current_user.company_id)
+            .order_by(Company.name.asc())
+            .all()
+        )
 
-@app.get("/auth/me")
-def auth_me(current_user: User = Depends(get_current_user)):
+    return [
+        {
+            "id": company.id,
+            "name": company.name,
+            "is_active": company.is_active,
+            "created_at": company.created_at,
+        }
+        for company in companies
+    ]
+
+
+@app.post("/admin/companies")
+def admin_create_company(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    name = (payload.get("name") or "").strip()
+
+    if len(name) < 2:
+        raise HTTPException(status_code=400, detail="Company name must have at least 2 characters")
+
+    existing = db.query(Company).filter(Company.name == name).first()
+    if existing:
+        return {
+            "id": existing.id,
+            "name": existing.name,
+            "is_active": existing.is_active,
+        }
+
+    company = Company(name=name, is_active=True)
+    db.add(company)
+    db.commit()
+    db.refresh(company)
+
     return {
-        "id": current_user.id,
-        "username": current_user.username,
-        "full_name": current_user.full_name,
-        "is_admin": current_user.is_admin,
-        "is_active": current_user.is_active,
+        "id": company.id,
+        "name": company.name,
+        "is_active": company.is_active,
     }
-
-
-
-
-
-@app.get("/auth/me")
-def auth_me(current_user: User = Depends(get_current_user)):
-    return {
-        "id": current_user.id,
-        "username": current_user.username,
-        "full_name": current_user.full_name,
-        "is_admin": current_user.is_admin,
-        "is_active": current_user.is_active,
-    }
-
-
-@app.get("/auth/me")
-def auth_me(current_user: User = Depends(get_current_user)):
-    return {
-        "id": current_user.id,
-        "username": current_user.username,
-        "full_name": current_user.full_name,
-        "is_admin": current_user.is_admin,
-        "is_active": current_user.is_active,
-    }
-
-
 
 @app.get("/admin/users")
 def admin_list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    users = db.query(User).order_by(User.created_at.desc()).all()
+    query = db.query(User)
+
+    if current_user.role != "super_admin":
+        query = query.filter(User.company_id == current_user.company_id)
+
+    users = query.order_by(User.created_at.desc()).all()
+
     return [
         {
             "id": user.id,
             "username": user.username,
             "full_name": user.full_name,
-            "is_admin": user.is_admin,
+            "role": user.role,
+            "company_id": user.company_id,
+            "company_name": user.company.name if user.company else None,
             "is_active": user.is_active,
             "created_at": user.created_at,
         }
@@ -138,12 +170,38 @@ def admin_create_user(
     username = (payload.get("username") or "").strip()
     password = payload.get("password") or ""
     full_name = (payload.get("full_name") or "").strip() or None
-    is_admin = bool(payload.get("is_admin", False))
+    role = payload.get("role") or "analyst"
+
+    allowed_roles = ["analyst", "company_admin", "super_admin"]
+
+    if role not in allowed_roles:
+        raise HTTPException(status_code=400, detail="Invalid role")
+
+    if current_user.role != "super_admin" and role == "super_admin":
+        raise HTTPException(status_code=403, detail="Company admin cannot create super admin")
+
+    if current_user.role == "super_admin":
+        company_id = payload.get("company_id")
+        if not company_id:
+            raise HTTPException(status_code=400, detail="Company is required")
+    else:
+        company_id = current_user.company_id
+
+    company = (
+        db.query(Company)
+        .filter(Company.id == int(company_id), Company.is_active == True)
+        .first()
+    )
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
 
     if len(username) < 3:
         raise HTTPException(status_code=400, detail="Username must have at least 3 characters")
+
     if len(password) < 8:
         raise HTTPException(status_code=400, detail="Password must have at least 8 characters")
+
     if db.query(User).filter(User.username == username).first():
         raise HTTPException(status_code=409, detail="Username already exists")
 
@@ -151,14 +209,25 @@ def admin_create_user(
         username=username,
         password_hash=hash_password(password),
         full_name=full_name,
-        is_admin=is_admin,
+        role=role,
+        company_id=company.id,
         is_active=True,
+        is_admin=role in ["super_admin", "company_admin"],
     )
+
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    return {"id": user.id, "username": user.username, "full_name": user.full_name, "is_admin": user.is_admin}
+    return {
+        "id": user.id,
+        "username": user.username,
+        "full_name": user.full_name,
+        "role": user.role,
+        "company_id": user.company_id,
+        "company_name": user.company.name if user.company else None,
+        "is_active": user.is_active,
+    }
 
 
 @app.put("/admin/users/{user_id}")
@@ -168,22 +237,50 @@ def admin_update_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    user = db.query(User).filter(User.id == user_id).first()
+    query = db.query(User).filter(User.id == user_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(User.company_id == current_user.company_id)
+
+    user = query.first()
+
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     if "full_name" in payload:
         user.full_name = (payload.get("full_name") or "").strip() or None
-    if "is_admin" in payload:
 
-        if user.id == current_user.id and not bool(payload.get("is_admin")):
-            raise HTTPException(status_code=400, detail="You cannot remove your own admin role")
-        user.is_admin = bool(payload.get("is_admin"))
+    if "role" in payload:
+        new_role = payload.get("role")
+
+        if new_role not in ["analyst", "company_admin", "super_admin"]:
+            raise HTTPException(status_code=400, detail="Invalid role")
+
+        if current_user.role != "super_admin" and new_role == "super_admin":
+            raise HTTPException(status_code=403, detail="Company admin cannot assign super admin")
+
+        if user.id == current_user.id and new_role != current_user.role:
+            raise HTTPException(status_code=400, detail="You cannot change your own role")
+
+        user.role = new_role
+        user.is_admin = new_role in ["super_admin", "company_admin"]
+
+    if "company_id" in payload and current_user.role == "super_admin":
+        company = (
+            db.query(Company)
+            .filter(Company.id == int(payload.get("company_id")), Company.is_active == True)
+            .first()
+        )
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+        user.company_id = company.id
+
     if "is_active" in payload:
         if user.id == current_user.id and not bool(payload.get("is_active")):
             raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
 
         user.is_active = bool(payload.get("is_active"))
+
     if payload.get("password"):
         if len(payload["password"]) < 8:
             raise HTTPException(status_code=400, detail="Password must have at least 8 characters")
@@ -191,25 +288,39 @@ def admin_update_user(
 
     db.commit()
     db.refresh(user)
-    return {"id": user.id, "username": user.username, "is_admin": user.is_admin, "is_active": user.is_active}
+
+    return {
+        "id": user.id,
+        "username": user.username,
+        "role": user.role,
+        "company_id": user.company_id,
+        "is_active": user.is_active,
+    }
 
 
 
 @app.delete("/admin/users/{user_id}")
-
 def admin_delete_user(
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    user = db.query(User).filter(User.id == user_id).first()
+    query = db.query(User).filter(User.id == user_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(User.company_id == current_user.company_id)
+
+    user = query.first()
+
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot delete your own account")
 
     db.delete(user)
     db.commit()
+
     return {"message": "User deleted", "id": user_id}
 
 
@@ -353,10 +464,11 @@ def analyze_and_save(
     result["mitre_coverage"] = mitre_coverage
 
     report = AnalysisReport(
-        title=data.get("title", "Cyber-AI SOC Analysis"),
-        risk_score=result.get("risk_score", 0),
-        raw_input=json.dumps(data),
-        result_json=json.dumps(result)
+            company_id=current_user.company_id,
+            title=f"Uploaded analysis - {filename}",
+            risk_score=result.get("risk_score", 0),
+            raw_input=json.dumps(data),
+            result_json=json.dumps(result)
     )
 
     db.add(report)
@@ -373,10 +485,15 @@ def list_reports(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    reports = db.query(AnalysisReport).order_by(AnalysisReport.created_at.desc()).all()
+    query = db.query(AnalysisReport)
+    if current_user.role != "super_admin":
+        query = query.filter(AnalysisReport.company_id == current_user.company_id)
+    reports = query.order_by(AnalysisReport.created_at.desc()).all()
 
     return [
         {
+            "company_id": report.company_id,
+            "company_name": report.company.name if report.company else None,
             "id": report.id,
             "title": report.title,
             "risk_score": report.risk_score,
@@ -391,7 +508,12 @@ def get_report(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    report = db.query(AnalysisReport).filter(AnalysisReport.id == report_id).first()
+    query = db.query(AnalysisReport).filter(AnalysisReport.id == report_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(AnalysisReport.company_id == current_user.company_id)
+
+    report = query.first()
 
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -411,7 +533,7 @@ def export_report_pdf(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    report = db.query(AnalysisReport).filter(AnalysisReport.id == report_id).first()
+    query = db.query(AnalysisReport).filter(AnalysisReport.id == report_id)
 
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")

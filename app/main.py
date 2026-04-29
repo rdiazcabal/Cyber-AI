@@ -51,6 +51,10 @@ def login(
     if not user:
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
+    company = None
+    if user.company_id:
+        company = db.query(Company).filter(Company.id == user.company_id).first()
+
     token = create_access_token({"sub": user.username})
 
     return {
@@ -62,19 +66,27 @@ def login(
             "full_name": user.full_name,
             "role": user.role,
             "company_id": user.company_id,
-            "company_name": user.company.name if user.company else None,
+            "company_name": company.name if company else None,
         },
     }
 
+
 @app.get("/auth/me")
-def auth_me(current_user: User = Depends(get_current_user)):
+def auth_me(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    company = None
+    if current_user.company_id:
+        company = db.query(Company).filter(Company.id == current_user.company_id).first()
+
     return {
         "id": current_user.id,
         "username": current_user.username,
         "full_name": current_user.full_name,
         "role": current_user.role,
         "company_id": current_user.company_id,
-        "company_name": current_user.company.name if current_user.company else None,
+        "company_name": company.name if company else None,
         "is_active": current_user.is_active,
     }
 
@@ -102,7 +114,6 @@ def admin_list_companies(
         }
         for company in companies
     ]
-
 
 @app.post("/admin/companies")
 def admin_create_company(
@@ -146,20 +157,27 @@ def admin_list_users(
 
     users = query.order_by(User.created_at.desc()).all()
 
-    return [
-        {
-            "id": user.id,
-            "username": user.username,
-            "full_name": user.full_name,
-            "role": user.role,
-            "company_id": user.company_id,
-            "company_name": user.company.name if user.company else None,
-            "is_active": user.is_active,
-            "created_at": user.created_at,
-        }
-        for user in users
-    ]
+    result = []
 
+    for user in users:
+        company = None
+        if user.company_id:
+            company = db.query(Company).filter(Company.id == user.company_id).first()
+
+        result.append(
+            {
+                "id": user.id,
+                "username": user.username,
+                "full_name": user.full_name,
+                "role": user.role,
+                "company_id": user.company_id,
+                "company_name": company.name if company else None,
+                "is_active": user.is_active,
+                "created_at": user.created_at,
+            }
+        )
+
+    return result
 
 @app.post("/admin/users")
 def admin_create_user(
@@ -225,10 +243,9 @@ def admin_create_user(
         "full_name": user.full_name,
         "role": user.role,
         "company_id": user.company_id,
-        "company_name": user.company.name if user.company else None,
+        "company_name": company.name,
         "is_active": user.is_active,
     }
-
 
 @app.put("/admin/users/{user_id}")
 def admin_update_user(
@@ -297,8 +314,6 @@ def admin_update_user(
         "is_active": user.is_active,
     }
 
-
-
 @app.delete("/admin/users/{user_id}")
 def admin_delete_user(
     user_id: int,
@@ -322,8 +337,6 @@ def admin_delete_user(
     db.commit()
 
     return {"message": "User deleted", "id": user_id}
-
-
 
 
 @app.get("/")

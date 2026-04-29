@@ -1337,9 +1337,16 @@ async function loadReportDetail(reportId) {
 
 async function downloadReportPdf(reportId) {
   try {
+    if (!authToken) {
+      document.getElementById("statusLine").innerText = "Session expired. Please login again.";
+      logout();
+      return;
+    }
+
     const res = await fetch(`/reports/${reportId}/pdf`, {
+      method: "GET",
       headers: {
-        ...(authToken ? {"Authorization": `Bearer ${authToken}`} : {})
+        "Authorization": `Bearer ${authToken}`
       }
     });
 
@@ -1360,9 +1367,11 @@ async function downloadReportPdf(reportId) {
     a.remove();
     window.URL.revokeObjectURL(url);
 
-    document.getElementById("statusLine").innerText = `PDF downloaded for report ID ${reportId}`;
+    document.getElementById("statusLine").innerText =
+      `PDF downloaded for report ID ${reportId}`;
   } catch (error) {
-    document.getElementById("statusLine").innerText = "ERROR downloading PDF: " + error.message;
+    document.getElementById("statusLine").innerText =
+      "ERROR downloading PDF: " + error.message;
   }
 }
 

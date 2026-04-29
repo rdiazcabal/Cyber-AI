@@ -571,9 +571,16 @@ input:focus, select:focus {
 <div id="loginView" class="auth-shell">
   <div class="panel">
     <h3>Ingreso a Cyber-AI</h3>
-    <div class="panel-subtitle">Autenticación Cyber-AI.</div>
-    <div class="input-row"><label>Usuario</label><input id="loginUsername" value="admin"></div>
-    <div class="input-row"><label>Contraseña</label><input id="loginPassword" type="password" value="CyberAI123!"></div>
+    <div class="panel-subtitle"> Ingresa con el usuario y contraseña asignados por el administrador.</div>
+    <div class="input-row">
+      <label>Usuario</label>
+      <input id="loginUsername" placeholder="Escribe tu usuario asignado">
+    </div>
+
+    <div class="input-row">
+      <label>Contraseña</label>
+      <input id="loginPassword" type="password" placeholder="Escribe tu contraseña">
+    </div>
     <button onclick="handleLogin()">Iniciar sesión</button>
     <div id="loginStatus" class="status-line">Esperando autenticación...</div>
   </div>

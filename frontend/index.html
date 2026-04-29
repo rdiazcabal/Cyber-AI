@@ -789,23 +789,33 @@ function logout() {
 
 async function loadSession() {
   if (!authToken) {
-  setAppVisibility(true);
-  await loadReports();
+    setAppVisibility(false);
+    return;
   }
 
-  const res = await fetch("/auth/me", {headers: {"Authorization": `Bearer ${authToken}`}});
+  const res = await fetch("/auth/me", {
+    headers: {
+      "Authorization": `Bearer ${authToken}`
+    }
+  });
+
   if (!res.ok) {
     logout();
     return;
   }
 
   currentUser = await res.json();
-  document.getElementById("sessionUser").innerText = `🔐 ${currentUser.username} (${currentUser.is_admin ? "Admin" : "Analyst"})`;
+
+  document.getElementById("sessionUser").innerText =
+    `🔐 ${currentUser.username} (${currentUser.is_admin ? "Admin" : "Analyst"})`;
+
   const navUsuarios = document.getElementById("navUsuarios");
   if (navUsuarios) {
     navUsuarios.classList.toggle("hidden", !currentUser.is_admin);
   }
+
   setAppVisibility(true);
+  await loadReports();
 }
 
 function loadSample(){
@@ -1325,8 +1335,35 @@ async function loadReportDetail(reportId) {
   }
 }
 
-function downloadReportPdf(reportId) {
-  window.open(`/reports/${reportId}/pdf`, "_blank");
+async function downloadReportPdf(reportId) {
+  try {
+    const res = await fetch(`/reports/${reportId}/pdf`, {
+      headers: {
+        ...(authToken ? {"Authorization": `Bearer ${authToken}`} : {})
+      }
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(errorText);
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `cyber-ai-report-${reportId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    document.getElementById("statusLine").innerText = `PDF downloaded for report ID ${reportId}`;
+  } catch (error) {
+    document.getElementById("statusLine").innerText = "ERROR downloading PDF: " + error.message;
+  }
 }
 
 loadSession();

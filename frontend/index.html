@@ -85,17 +85,33 @@ aside {
 }
 
 .nav-item {
-  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 14px;
+
   background: rgba(15, 23, 42, .8);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   border-radius: 12px;
+
   color: #cbd5e1;
   border: 1px solid transparent;
+  text-decoration: none;
+
+  line-height: 1.2;
+  position: relative;
 }
 
 .nav-item:hover {
   border-color: var(--border-soft);
   background: #111827;
+}
+
+aside button.secondary {
+  margin-top: 8px;
 }
 
 main {

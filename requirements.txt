@@ -14,3 +14,4 @@ passlib[bcrypt]
 python-jose[cryptography]
 reportlab
 python-multipart
+psycopg2-binary

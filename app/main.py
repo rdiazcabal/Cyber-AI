@@ -224,14 +224,13 @@ def admin_create_user(
         raise HTTPException(status_code=409, detail="Username already exists")
 
     user = User(
-        username=username,
-        password_hash=hash_password(password),
-        full_name=full_name,
-        role=role,
-        company_id=company.id,
-        is_active=True,
-        is_admin=role in ["super_admin", "company_admin"],
-    )
+    username=username,
+    password_hash=hash_password(password),
+    full_name=full_name,
+    role=role,
+    company_id=company.id,
+    is_active=True,
+)
 
     db.add(user)
     db.commit()
@@ -280,7 +279,7 @@ def admin_update_user(
             raise HTTPException(status_code=400, detail="You cannot change your own role")
 
         user.role = new_role
-        user.is_admin = new_role in ["super_admin", "company_admin"]
+        #user.is_admin = new_role in ["super_admin", "company_admin"]
 
     if "company_id" in payload and current_user.role == "super_admin":
         company = (
@@ -456,7 +455,7 @@ def correlate(data: dict):
 def analyze_and_save(
     data: dict,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     events = data.get("events", [])
 
@@ -467,7 +466,6 @@ def analyze_and_save(
 
     detections = run_detections(events, result.get("normalized_events", []))
     mitre_coverage = build_mitre_coverage(events)
-
     threat_intel = enrich_iocs(result.get("iocs", {}))
     anomaly_detection = detect_anomalies(result.get("normalized_events", []))
 
@@ -477,11 +475,11 @@ def analyze_and_save(
     result["mitre_coverage"] = mitre_coverage
 
     report = AnalysisReport(
-            company_id=current_user.company_id,
-            title=f"Uploaded analysis - {filename}",
-            risk_score=result.get("risk_score", 0),
-            raw_input=json.dumps(data),
-            result_json=json.dumps(result)
+        company_id=current_user.company_id,
+        title=data.get("title", "Cyber-AI SOC Analysis"),
+        risk_score=result.get("risk_score", 0),
+        raw_input=json.dumps(data),
+        result_json=json.dumps(result)
     )
 
     db.add(report)
@@ -496,24 +494,34 @@ def analyze_and_save(
 @app.get("/reports")
 def list_reports(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(AnalysisReport)
+
     if current_user.role != "super_admin":
         query = query.filter(AnalysisReport.company_id == current_user.company_id)
+
     reports = query.order_by(AnalysisReport.created_at.desc()).all()
 
-    return [
-        {
-            "company_id": report.company_id,
-            "company_name": report.company.name if report.company else None,
-            "id": report.id,
-            "title": report.title,
-            "risk_score": report.risk_score,
-            "created_at": report.created_at
-        }
-        for report in reports
-    ]
+    result = []
+
+    for report in reports:
+        company = None
+        if report.company_id:
+            company = db.query(Company).filter(Company.id == report.company_id).first()
+
+        result.append(
+            {
+                "company_id": report.company_id,
+                "company_name": company.name if company else None,
+                "id": report.id,
+                "title": report.title,
+                "risk_score": report.risk_score,
+                "created_at": report.created_at,
+            }
+        )
+
+    return result
 
 @app.get("/reports/{report_id}")
 def get_report(
@@ -544,9 +552,14 @@ def get_report(
 def export_report_pdf(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(AnalysisReport).filter(AnalysisReport.id == report_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(AnalysisReport.company_id == current_user.company_id)
+
+    report = query.first()
 
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -629,10 +642,11 @@ async def upload_analyze_save(
     result["mitre_coverage"] = mitre_coverage
 
     report = AnalysisReport(
-        title=f"Uploaded analysis - {filename}",
-        risk_score=result.get("risk_score", 0),
-        raw_input=json.dumps(data),
-        result_json=json.dumps(result)
+    company_id=current_user.company_id,
+    title=f"Uploaded analysis - {filename}",
+    risk_score=result.get("risk_score", 0),
+    raw_input=json.dumps(data),
+    result_json=json.dumps(result)
     )
 
     db.add(report)

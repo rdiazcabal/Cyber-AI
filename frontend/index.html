@@ -4,25 +4,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cyber-AI SOC</title>
+  <title>2inc-cyberpro | Security Operations</title>
 
   <style>
     :root {
-      --bg: #020617;
-      --sidebar: #0f172a;
-      --panel: #0b1220;
-      --panel-2: #0f172a;
-      --border: #1e293b;
-      --border-soft: #334155;
-      --text: #e5e7eb;
-      --muted: #94a3b8;
-      --blue: #38bdf8;
-      --purple: #a78bfa;
+      --bg: #030303;
+      --sidebar: #050505;
+      --panel: #0b0b0b;
+      --panel-2: #111111;
+      --border: #2a2416;
+      --border-soft: #4b3a16;
+      --text: #f5f5f5;
+      --muted: #a3a3a3;
+      --gold: #d4af37;
+      --gold-soft: #f6d365;
+      --gold-dark: #8a6a12;
+      --blue: #d4af37;
+      --purple: #f6d365;
       --green: #22c55e;
       --red: #ef4444;
       --orange: #f97316;
       --yellow: #eab308;
-      --shadow: 0 18px 50px rgba(0, 0, 0, .35);
+      --shadow: 0 18px 50px rgba(0, 0, 0, .55);
     }
 
     * {
@@ -32,9 +35,9 @@
     body {
       margin: 0;
       background:
-        radial-gradient(circle at top left, rgba(56, 189, 248, .08), transparent 32%),
-        radial-gradient(circle at top right, rgba(167, 139, 250, .08), transparent 32%),
-        var(--bg);
+        radial-gradient(circle at top left, rgba(212, 175, 55, .12), transparent 32%),
+        radial-gradient(circle at top right, rgba(246, 211, 101, .08), transparent 30%),
+        linear-gradient(180deg, #050505, #000000);
       color: var(--text);
       font-family: Inter, Arial, sans-serif;
     }
@@ -46,7 +49,7 @@
     }
 
     aside {
-      background: linear-gradient(180deg, #0f172a, #020617);
+      background: linear-gradient(180deg, #080808, #000000);
       padding: 22px;
       border-right: 1px solid var(--border);
     }
@@ -59,19 +62,22 @@
     }
 
     .logo {
-      width: 38px;
-      height: 38px;
+      width: 42px;
+      height: 42px;
       display: grid;
       place-items: center;
-      border-radius: 12px;
-      background: linear-gradient(135deg, #2563eb, #7c3aed);
-      box-shadow: 0 10px 30px rgba(37, 99, 235, .35);
+      border-radius: 14px;
+      background: linear-gradient(135deg, #d4af37, #f6d365);
+      box-shadow: 0 10px 30px rgba(212, 175, 55, .28);
     }
 
-    .brand h2 {
-      margin: 0;
-      font-size: 20px;
+    .logo-image {
+      background: #000;
+      border: 1px solid rgba(212, 175, 55, .45);
+      box-shadow: 0 10px 30px rgba(212, 175, 55, .25);
+      overflow: hidden;
     }
+
 
     .brand small {
       color: var(--muted);
@@ -143,12 +149,12 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: rgba(20, 83, 45, .45);
-      color: #bbf7d0;
-      border: 1px solid rgba(34, 197, 94, .3);
+      background: rgba(212, 175, 55, .12);
+      color: #f6d365;
+      border: 1px solid rgba(212, 175, 55, .35);
       padding: 9px 14px;
       border-radius: 999px;
-      font-weight: 700;
+      font-weight: 800;
       font-size: 13px;
     }
 
@@ -327,9 +333,9 @@
       padding: 12px;
       border: none;
       border-radius: 12px;
-      background: linear-gradient(135deg, #2563eb, #7c3aed);
-      color: white;
-      font-weight: 800;
+      background: linear-gradient(135deg, #b8860b, #d4af37, #f6d365);
+      color: #050505;
+      font-weight: 900;
       cursor: pointer;
     }
 
@@ -659,13 +665,18 @@
 
   <div id="loginView" class="auth-shell">
     <div class="panel">
-      <h3>Ingreso a Cyber-AI</h3>
-      <div class="panel-subtitle"> Ingresa con el usuario y contraseña asignados por el administrador.</div>
+      <div style="display:flex;justify-content:center;margin-bottom:14px;">
+        <img src="/assets/2inc-cyberpro-logo.png" alt="2inc-cyberpro"
+          style="width:92px;height:92px;border-radius:22px;border:1px solid rgba(212,175,55,.45);box-shadow:0 18px 50px rgba(212,175,55,.22);">
+      </div>
+      <h3 style="text-align:center;">Ingreso a 2inc-cyberpro</h3>
+      <div class="panel-subtitle" style="text-align:center;">
+        AI-powered security investigation platform.
+      </div>
       <div class="input-row">
         <label>Usuario</label>
         <input id="loginUsername" placeholder="Escribe tu usuario asignado">
       </div>
-
       <div class="input-row">
         <label>Contraseña</label>
         <input id="loginPassword" type="password" placeholder="Escribe tu contraseña">
@@ -679,10 +690,12 @@
 
     <aside>
       <div class="brand">
-        <div class="logo">🛡</div>
+        <div class="logo logo-image">
+          <img src="/assets/2inc-cyberpro-logo.png" alt="2inc-cyberpro">
+        </div>
         <div>
-          <h2>Cyber-AI</h2>
-          <small>AI SOC Assistant</small>
+          <h2>2inc-cyberpro</h2>
+          <small>AI Security Operations</small>
         </div>
       </div>
 
@@ -703,7 +716,7 @@
 
       <div class="header">
         <div>
-          <h1>Security Operations Dashboard</h1>
+          <h1>2Inc CyberPro Security Dashboard</h1>
           <p>Multi-cloud SOC correlation · Threat Intelligence · ML anomaly detection · MITRE ATT&CK</p>
         </div>
         <div class="api-status"><span class="pulse"></span> API Online</div>
@@ -812,7 +825,7 @@
 
       <div class="panel">
         <h3>Threat Intelligence</h3>
-        <div class="panel-subtitle">Reputación de IPs usando AbuseIPDB.</div>
+        <div class="panel-subtitle">Reputación de IP's.</div>
         <div id="threatIntelPanel" class="empty">No threat intelligence data available.</div>
       </div>
 

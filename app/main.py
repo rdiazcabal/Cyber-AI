@@ -23,6 +23,7 @@ from app.threat_intel import enrich_iocs
 from app.anomaly import detect_anomalies
 from app.detection_engine import run_detections
 from app.mitre_mapper import build_mitre_coverage
+from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, engine, get_db
 from app.models import AnalysisReport, User, Company
@@ -40,6 +41,8 @@ from app.pdf_report import generate_pdf_report
 app = FastAPI(title="Cyber-AI")
 Base.metadata.create_all(bind=engine)
 bootstrap_admin_user()
+
+app.mount("/assets", StaticFiles(directory="frontend/assets"), name="assets")
 
 @app.post("/auth/login")
 def login(

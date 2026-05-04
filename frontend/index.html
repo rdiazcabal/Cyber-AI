@@ -67,15 +67,22 @@
       display: grid;
       place-items: center;
       border-radius: 14px;
-      background: linear-gradient(135deg, #d4af37, #f6d365);
+      background: #000;
       box-shadow: 0 10px 30px rgba(212, 175, 55, .28);
+      flex: 0 0 auto;
     }
 
     .logo-image {
-      background: #000;
-      border: 1px solid rgba(212, 175, 55, .45);
-      box-shadow: 0 10px 30px rgba(212, 175, 55, .25);
+      border: 1px solid rgba(212, 175, 55, .65);
       overflow: hidden;
+    }
+
+    .logo-image img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+      padding: 3px;
     }
 
 
@@ -694,7 +701,7 @@
           <img src="/assets/2inc-cyberpro-logo.png" alt="2inc-cyberpro">
         </div>
         <div>
-          <h2>2inc-cyberpro</h2>
+          <h2>2Inc-CyberPro</h2>
           <small>AI Security Operations</small>
         </div>
       </div>

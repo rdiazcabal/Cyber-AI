@@ -96,3 +96,36 @@ def extract_indicators(text: str):
             indicators.append(word)
 
     return indicators
+
+IOC_IP_REGEX = r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b"
+IOC_DOMAIN_REGEX = r"\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b"
+IOC_URL_REGEX = r"https?://[^\s\"'<>]+"
+IOC_SHA256_REGEX = r"\b[a-fA-F0-9]{64}\b"
+IOC_MD5_REGEX = r"\b[a-fA-F0-9]{32}\b"
+
+
+def extract_iocs_from_text(raw_text: str) -> dict:
+    """
+    Extracts basic IOCs from any raw log/text.
+    Does not replace your existing parse_input().
+    """
+    if not raw_text:
+        return {
+            "ips": [],
+            "domains": [],
+            "urls": [],
+            "hashes": []
+        }
+
+    ips = sorted(set(re.findall(IOC_IP_REGEX, raw_text)))
+    urls = sorted(set(re.findall(IOC_URL_REGEX, raw_text)))
+    domains = sorted(set(re.findall(IOC_DOMAIN_REGEX, raw_text)))
+    hashes = sorted(set(re.findall(IOC_SHA256_REGEX, raw_text) + re.findall(IOC_MD5_REGEX, raw_text)))
+
+    # Avoid counting domains already inside URLs too aggressively, but keep simple for MVP
+    return {
+        "ips": ips,
+        "domains": domains,
+        "urls": urls,
+        "hashes": hashes
+    }

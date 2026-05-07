@@ -4,10 +4,10 @@ from fastapi import FastAPI, Request
 from fastapi import UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi import Body
-from app.analyzer import analyze_security_event
+from app.analyzer import analyze_security_event, analyze_security_event_structured
 from app.aws_client import get_guardduty_findings
 from app.notifier import send_slack_alert
-from app.normalizer import parse_input
+from app.normalizer import parse_input, extract_iocs_from_text
 from app.correlator import correlate_events
 from app.threat_intel import enrich_iocs
 from app.anomaly import detect_anomalies
@@ -24,6 +24,10 @@ from app.anomaly import detect_anomalies
 from app.detection_engine import run_detections
 from app.mitre_mapper import build_mitre_coverage
 from fastapi.staticfiles import StaticFiles
+from app.normalizer import extract_iocs
+from app.threat_intel import check_ip_abuse
+from app.analyzer import analyze_with_groq
+
 
 from app.database import Base, engine, get_db
 from app.models import AnalysisReport, User, Company
@@ -38,11 +42,12 @@ from app.auth import (
 )
 from app.pdf_report import generate_pdf_report
 
-app = FastAPI(title="Cyber-AI")
+app = FastAPI(title="2 Inc CyberPro")
 Base.metadata.create_all(bind=engine)
 bootstrap_admin_user()
 
 app.mount("/assets", StaticFiles(directory="frontend/assets"), name="assets")
+
 
 @app.post("/auth/login")
 def login(
@@ -355,6 +360,76 @@ def admin_page():
 def health_check():
     return {"status": "ok"}
 
+def build_ai_threat_enrichment(data: dict, result: dict) -> dict:
+    """
+    Adds Groq structured analysis + IOC extraction + AbuseIPDB enrichment
+    without removing existing correlation/detection features.
+    """
+    raw_text = json.dumps(data, default=str)
+
+    structured_ai = analyze_security_event_structured(data)
+    extracted_iocs = extract_iocs_from_text(raw_text)
+
+    existing_iocs = result.get("iocs", {}) or {}
+
+    combined_ips = sorted(set(
+        (existing_iocs.get("ips", []) or []) +
+        (existing_iocs.get("ip_addresses", []) or []) +
+        (structured_ai.get("ips", []) or []) +
+        (extracted_iocs.get("ips", []) or [])
+    ))
+
+    combined_domains = sorted(set(
+        (structured_ai.get("domains", []) or []) +
+        (extracted_iocs.get("domains", []) or [])
+    ))
+
+    combined_urls = sorted(set(
+        (structured_ai.get("urls", []) or []) +
+        (extracted_iocs.get("urls", []) or [])
+    ))
+
+    combined_hashes = sorted(set(
+        extracted_iocs.get("hashes", []) or []
+    ))
+
+    final_iocs = {
+        "ips": combined_ips,
+        "domains": combined_domains,
+        "urls": combined_urls,
+        "hashes": combined_hashes,
+        "users": structured_ai.get("users", []) or [],
+        "resources": structured_ai.get("resources", []) or [],
+        "actions": structured_ai.get("actions", []) or [],
+    }
+
+    threat_intel = enrich_iocs(final_iocs)
+
+    abuse_scores = [
+        item.get("abuse_confidence_score", 0)
+        for item in threat_intel.get("ips", [])
+        if item.get("available") is True
+    ]
+
+    abuse_score = max(abuse_scores, default=0)
+    ai_score = structured_ai.get("risk_score", result.get("risk_score", 50) or 50)
+
+    try:
+        final_score = int((int(ai_score) * 0.6) + (int(abuse_score) * 0.4))
+    except Exception:
+        final_score = result.get("risk_score", 50) or 50
+
+    result["iocs"] = final_iocs
+    result["threat_intel"] = threat_intel
+    result["ai_structured_analysis"] = structured_ai
+    result["ai_metadata"] = {
+        "model_used": structured_ai.get("model_used"),
+        "prompt_version": structured_ai.get("prompt_version"),
+        "confidence": structured_ai.get("confidence"),
+    }
+    result["risk_score"] = final_score
+
+    return result
 
 @app.post("/analyze")
 def analyze(event: dict):
@@ -465,18 +540,22 @@ def analyze_and_save(
     if not events:
         raise HTTPException(status_code=400, detail="No events provided")
 
+    # CORE EXISTENTE
     result = correlate_events(events)
 
     detections = run_detections(events, result.get("normalized_events", []))
     mitre_coverage = build_mitre_coverage(events)
-    threat_intel = enrich_iocs(result.get("iocs", {}))
     anomaly_detection = detect_anomalies(result.get("normalized_events", []))
 
-    result["threat_intel"] = threat_intel
+    # MANTENER FEATURES EXISTENTES
     result["anomaly_detection"] = anomaly_detection
     result["detections"] = detections
     result["mitre_coverage"] = mitre_coverage
 
+    # NUEVO: ENRIQUECIMIENTO IA + IOC + ABUSEIP
+    result = build_ai_threat_enrichment(data, result)
+
+    # GUARDADO
     report = AnalysisReport(
         company_id=current_user.company_id,
         title=data.get("title", "Cyber-AI SOC Analysis"),
@@ -525,6 +604,47 @@ def list_reports(
         )
 
     return result
+
+@app.get("/threat/search")
+def search_threat(
+    query: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    clean_query = (query or "").strip()
+
+    if len(clean_query) < 3:
+        raise HTTPException(status_code=400, detail="Query must have at least 3 characters")
+
+    reports_query = db.query(AnalysisReport)
+
+    if current_user.role != "super_admin":
+        reports_query = reports_query.filter(AnalysisReport.company_id == current_user.company_id)
+
+    reports = reports_query.order_by(AnalysisReport.created_at.desc()).all()
+
+    matches = []
+
+    for report in reports:
+        raw_text = report.raw_input or ""
+        result_text = report.result_json or ""
+
+        if clean_query.lower() in raw_text.lower() or clean_query.lower() in result_text.lower():
+            matches.append(
+                {
+                    "id": report.id,
+                    "title": report.title,
+                    "risk_score": report.risk_score,
+                    "created_at": report.created_at,
+                    "match": clean_query,
+                }
+            )
+
+    return {
+        "query": clean_query,
+        "count": len(matches),
+        "results": matches
+    }
 
 @app.get("/reports/{report_id}")
 def get_report(
@@ -632,24 +752,28 @@ async def upload_analyze_save(
     if not events:
         raise HTTPException(status_code=400, detail="No events found in uploaded file")
 
+    # CORE EXISTENTE
     result = correlate_events(events)
 
     detections = run_detections(events, result.get("normalized_events", []))
     mitre_coverage = build_mitre_coverage(events)
-    threat_intel = enrich_iocs(result.get("iocs", {}))
     anomaly_detection = detect_anomalies(result.get("normalized_events", []))
 
-    result["threat_intel"] = threat_intel
+    # MANTENER FEATURES EXISTENTES
     result["anomaly_detection"] = anomaly_detection
     result["detections"] = detections
     result["mitre_coverage"] = mitre_coverage
 
+    # 🔥 NUEVO: IA + IOC + ABUSEIP + SCORE
+    result = build_ai_threat_enrichment(data, result)
+
+    # GUARDADO
     report = AnalysisReport(
-    company_id=current_user.company_id,
-    title=f"Uploaded analysis - {filename}",
-    risk_score=result.get("risk_score", 0),
-    raw_input=json.dumps(data),
-    result_json=json.dumps(result)
+        company_id=current_user.company_id,
+        title=f"Uploaded analysis - {filename}",
+        risk_score=result.get("risk_score", 0),
+        raw_input=json.dumps(data),
+        result_json=json.dumps(result)
     )
 
     db.add(report)

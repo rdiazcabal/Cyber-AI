@@ -77,3 +77,117 @@ def analyze_security_event(event) -> str:
 
     except Exception as e:
         return f"ERROR GROQ: {str(e)}"
+
+def analyze_security_event_structured(event) -> dict:
+    """
+    Structured Groq analysis for internal scoring, IOC extraction and threat search.
+    This does NOT replace analyze_security_event().
+    It complements the existing Spanish human-readable SOC report.
+    """
+    try:
+        if isinstance(event, str):
+            event_text = event
+        else:
+            event_text = json.dumps(event, indent=2)
+
+        prompt = f"""
+Eres un analista SOC senior especializado en multi-cloud security.
+
+Analiza el siguiente evento/log y responde SOLO en JSON válido.
+No agregues markdown, no agregues explicaciones fuera del JSON.
+
+INPUT:
+{event_text}
+
+OUTPUT JSON EXACTO:
+{{
+  "provider": "AWS|Azure|GCP|Linux|Web|Firewall|Generic",
+  "summary": "",
+  "severity": "Low|Medium|High|Critical",
+  "risk_score": 0,
+  "ips": [],
+  "domains": [],
+  "urls": [],
+  "users": [],
+  "resources": [],
+  "actions": [],
+  "mitre_techniques": [],
+  "evidence": [],
+  "recommendations": [],
+  "confidence": 0.0,
+  "model_used": "{MODEL}",
+  "prompt_version": "structured-v1"
+}}
+"""
+
+        completion = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Eres un analista SOC senior. "
+                        "Devuelve SOLO JSON válido. "
+                        "No inventes evidencia. "
+                        "No uses markdown."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.1,
+            max_tokens=1000
+        )
+
+        content = completion.choices[0].message.content.strip()
+
+        # Remove accidental markdown fences if the model returns them
+        if content.startswith("```"):
+            content = content.replace("```json", "").replace("```", "").strip()
+
+        parsed = json.loads(content)
+
+        return {
+            "provider": parsed.get("provider", "Generic"),
+            "summary": parsed.get("summary", ""),
+            "severity": parsed.get("severity", "Medium"),
+            "risk_score": int(parsed.get("risk_score", 50) or 50),
+            "ips": parsed.get("ips", []) or [],
+            "domains": parsed.get("domains", []) or [],
+            "urls": parsed.get("urls", []) or [],
+            "users": parsed.get("users", []) or [],
+            "resources": parsed.get("resources", []) or [],
+            "actions": parsed.get("actions", []) or [],
+            "mitre_techniques": parsed.get("mitre_techniques", []) or [],
+            "evidence": parsed.get("evidence", []) or [],
+            "recommendations": parsed.get("recommendations", []) or [],
+            "confidence": float(parsed.get("confidence", 0.5) or 0.5),
+            "model_used": parsed.get("model_used", MODEL),
+            "prompt_version": parsed.get("prompt_version", "structured-v1"),
+        }
+
+    except Exception as e:
+        return {
+            "provider": "Generic",
+            "summary": "Structured AI analysis unavailable.",
+            "severity": "Medium",
+            "risk_score": 50,
+            "ips": [],
+            "domains": [],
+            "urls": [],
+            "users": [],
+            "resources": [],
+            "actions": [],
+            "mitre_techniques": [],
+            "evidence": [],
+            "recommendations": [
+                "Review the raw event manually.",
+                "Validate whether Groq API credentials and model configuration are correct."
+            ],
+            "confidence": 0.5,
+            "model_used": MODEL,
+            "prompt_version": "structured-v1",
+            "error": str(e)
+        }

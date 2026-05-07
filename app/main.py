@@ -29,6 +29,8 @@ from app.threat_intel import check_ip_abuse
 from app.analyzer import analyze_with_groq
 
 
+
+
 from app.database import Base, engine, get_db
 from app.models import AnalysisReport, User, Company
 from app.auth import (
@@ -77,7 +79,6 @@ def login(
             "company_name": company.name if company else None,
         },
     }
-
 
 @app.get("/auth/me")
 def auth_me(
@@ -592,13 +593,52 @@ def list_reports(
         if report.company_id:
             company = db.query(Company).filter(Company.id == report.company_id).first()
 
+        # 🔥 NUEVO: Parse result_json (para SOC insights)
+        severity = "Unknown"
+        summary = None
+        ioc_count = 0
+
+        try:
+            parsed = json.loads(report.result_json or "{}")
+
+            ai_struct = parsed.get("ai_structured_analysis", {})
+
+            severity = ai_struct.get("severity", "Unknown")
+            summary = ai_struct.get("summary")
+
+            iocs = parsed.get("iocs", {})
+            ioc_count = (
+                len(iocs.get("ips", [])) +
+                len(iocs.get("domains", [])) +
+                len(iocs.get("urls", []))
+            )
+
+        except:
+            pass
+
+        # 🔥 NUEVO: Buscar case asociado
+        case = db.query(SecurityCase).filter(SecurityCase.report_id == report.id).first()
+
+        case_status = case.status if case else None
+        case_id = case.id if case else None
+
         result.append(
             {
                 "company_id": report.company_id,
                 "company_name": company.name if company else None,
+
                 "id": report.id,
                 "title": report.title,
+
                 "risk_score": report.risk_score,
+                "severity": severity,
+                "summary": summary,
+
+                "ioc_count": ioc_count,
+
+                "case_id": case_id,
+                "case_status": case_status,
+
                 "created_at": report.created_at,
             }
         )
@@ -611,37 +651,39 @@ def search_threat(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    clean_query = (query or "").strip()
-
-    if len(clean_query) < 3:
-        raise HTTPException(status_code=400, detail="Query must have at least 3 characters")
+    query = query.strip().lower()
 
     reports_query = db.query(AnalysisReport)
 
     if current_user.role != "super_admin":
-        reports_query = reports_query.filter(AnalysisReport.company_id == current_user.company_id)
+        reports_query = reports_query.filter(
+            AnalysisReport.company_id == current_user.company_id
+        )
 
-    reports = reports_query.order_by(AnalysisReport.created_at.desc()).all()
+    reports = reports_query.all()
 
     matches = []
 
-    for report in reports:
-        raw_text = report.raw_input or ""
-        result_text = report.result_json or ""
+    for r in reports:
+        try:
+            result = json.loads(r.result_json)
+            iocs = result.get("iocs", {})
 
-        if clean_query.lower() in raw_text.lower() or clean_query.lower() in result_text.lower():
-            matches.append(
-                {
-                    "id": report.id,
-                    "title": report.title,
-                    "risk_score": report.risk_score,
-                    "created_at": report.created_at,
-                    "match": clean_query,
-                }
-            )
+            if (
+                query in json.dumps(iocs).lower()
+                or query in r.raw_input.lower()
+            ):
+                matches.append({
+                    "report_id": r.id,
+                    "risk_score": r.risk_score,
+                    "created_at": r.created_at,
+                    "iocs": iocs
+                })
+        except:
+            continue
 
     return {
-        "query": clean_query,
+        "query": query,
         "count": len(matches),
         "results": matches
     }
@@ -784,4 +826,27 @@ async def upload_analyze_save(
         "report_id": report.id,
         "filename": filename,
         "result": result
+    }
+
+@app.get("/soc/overview")
+def soc_overview(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    cases_query = db.query(SecurityCase)
+
+    if current_user.role != "super_admin":
+        cases_query = cases_query.filter(
+            SecurityCase.company_id == current_user.company_id
+        )
+
+    cases = cases_query.all()
+
+    open_cases = [c for c in cases if c.status == "open"]
+    critical_cases = [c for c in cases if c.severity == "Critical"]
+
+    return {
+        "total_cases": len(cases),
+        "open_cases": len(open_cases),
+        "critical_cases": len(critical_cases),
     }

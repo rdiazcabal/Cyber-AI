@@ -40,3 +40,27 @@ class User(Base):
 
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class SecurityCase(Base):
+    __tablename__ = "security_cases"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"))
+    report_id = Column(Integer, ForeignKey("analysis_reports.id"))
+
+    title = Column(String)
+    severity = Column(String)
+    status = Column(String, default="open")  # open, investigating, resolved
+    assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class IOCObservation(Base):
+    __tablename__ = "ioc_observations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
+    ioc = Column(String, index=True)
+    type = Column(String)  # ip, domain, url, hash
+    report_id = Column(Integer, ForeignKey("analysis_reports.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)

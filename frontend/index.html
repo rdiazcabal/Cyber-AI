@@ -1563,6 +1563,37 @@
       }
     }
 
+    async function showSOC() {
+      document.getElementById("dashboardView").classList.add("hidden");
+      document.getElementById("historyView").classList.add("hidden");
+      document.getElementById("socView").classList.remove("hidden");
+
+      setActiveMenu("soc");
+
+      await loadSOCOverview();
+    }
+
+    async function loadSOCOverview() {
+      try {
+        const res = await fetch("/soc/overview", {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+
+        document.getElementById("socTotalCases").innerText = data.total_cases || 0;
+        document.getElementById("socOpenCases").innerText = data.open_cases || 0;
+        document.getElementById("socCriticalCases").innerText = data.critical_cases || 0;
+
+      } catch (err) {
+        console.error("SOC load error", err);
+      }
+    }
+
     loadSession();
 
   </script>

@@ -715,6 +715,9 @@
       <a class="nav-item" id="historyNav" href="javascript:void(0)" onclick="showHistory()">
         📜 Analysis History
       </a>
+      <a class="nav-item" id="socNav" href="javascript:void(0)" onclick="showSOC()">
+        🛡️ SOC Overview
+      </a>
       <div class="nav-title">Admin</div>
       <a class="nav-item hidden" id="navUsuarios" href="/admin">👤 Usuarios locales</a>
       <div id="sessionUser" class="nav-item">🔐 No autenticado</div>
@@ -892,7 +895,53 @@
           </div>
 
         </div>
+        <!-- SOC VIEW -->
+        <div id="socView" class="hidden">
 
+          <div class="header">
+            <div>
+              <h1>SOC Overview</h1>
+              <p>Security Operations Center dashboard · Cases · Alerts · Critical incidents</p>
+            </div>
+
+            <div class="api-status">
+              <span class="pulse"></span> SOC Active
+            </div>
+          </div>
+
+          <div class="cards">
+
+            <div class="card card-total">
+              <div class="card-label">Total Cases</div>
+              <h2 id="socTotalCases" class="card-value">0</h2>
+              <div class="card-foot">Casos registrados</div>
+            </div>
+
+            <div class="card card-high">
+              <div class="card-label">Open Cases</div>
+              <h2 id="socOpenCases" class="card-value">0</h2>
+              <div class="card-foot">Casos abiertos</div>
+            </div>
+
+            <div class="card card-critical">
+              <div class="card-label">Critical Cases</div>
+              <h2 id="socCriticalCases" class="card-value">0</h2>
+              <div class="card-foot">Casos críticos</div>
+            </div>
+
+          </div>
+
+          <div class="panel">
+            <h3>SOC Status</h3>
+            <div class="panel-subtitle">
+              Vista inicial del centro de operaciones de seguridad.
+            </div>
+            <div id="socStatusPanel" class="empty">
+              Waiting for SOC data...
+            </div>
+          </div>
+
+        </div>
     </main>
   </div>
 
@@ -901,16 +950,28 @@
       document.getElementById("dashboardView").classList.remove("hidden");
       document.getElementById("historyView").classList.add("hidden");
 
+      const socView = document.getElementById("socView");
+      if (socView) socView.classList.add("hidden");
+
       document.getElementById("dashboardNav").classList.add("active");
       document.getElementById("historyNav").classList.remove("active");
+
+      const socNav = document.getElementById("socNav");
+      if (socNav) socNav.classList.remove("active");
     }
 
     async function showHistory() {
       document.getElementById("dashboardView").classList.add("hidden");
       document.getElementById("historyView").classList.remove("hidden");
 
+      const socView = document.getElementById("socView");
+      if (socView) socView.classList.add("hidden");
+
       document.getElementById("dashboardNav").classList.remove("active");
       document.getElementById("historyNav").classList.add("active");
+
+      const socNav = document.getElementById("socNav");
+      if (socNav) socNav.classList.remove("active");
 
       await loadReports();
     }
@@ -1566,9 +1627,15 @@
     async function showSOC() {
       document.getElementById("dashboardView").classList.add("hidden");
       document.getElementById("historyView").classList.add("hidden");
-      document.getElementById("socView").classList.remove("hidden");
 
-      setActiveMenu("soc");
+      const socView = document.getElementById("socView");
+      if (socView) socView.classList.remove("hidden");
+
+      document.getElementById("dashboardNav").classList.remove("active");
+      document.getElementById("historyNav").classList.remove("active");
+
+      const socNav = document.getElementById("socNav");
+      if (socNav) socNav.classList.add("active");
 
       await loadSOCOverview();
     }
@@ -1581,16 +1648,39 @@
           }
         });
 
-        if (!res.ok) return;
+        if (!res.ok) {
+          const errorText = await res.text();
+          document.getElementById("socStatusPanel").innerText =
+            `Could not load SOC overview: ${errorText}`;
+          return;
+        }
 
         const data = await res.json();
 
-        document.getElementById("socTotalCases").innerText = data.total_cases || 0;
-        document.getElementById("socOpenCases").innerText = data.open_cases || 0;
-        document.getElementById("socCriticalCases").innerText = data.critical_cases || 0;
+        document.getElementById("socTotalCases").innerText = data.total_cases ?? 0;
+        document.getElementById("socOpenCases").innerText = data.open_cases ?? 0;
+        document.getElementById("socCriticalCases").innerText = data.critical_cases ?? 0;
+
+        document.getElementById("socStatusPanel").innerHTML = `
+      <div class="kv-grid">
+        <div class="kv">
+          <div class="kv-label">Total Cases</div>
+          <div class="kv-value">${data.total_cases ?? 0}</div>
+        </div>
+        <div class="kv">
+          <div class="kv-label">Open Cases</div>
+          <div class="kv-value">${data.open_cases ?? 0}</div>
+        </div>
+        <div class="kv">
+          <div class="kv-label">Critical Cases</div>
+          <div class="kv-value">${data.critical_cases ?? 0}</div>
+        </div>
+      </div>
+    `;
 
       } catch (err) {
-        console.error("SOC load error", err);
+        document.getElementById("socStatusPanel").innerText =
+          `SOC load error: ${err.message}`;
       }
     }
 

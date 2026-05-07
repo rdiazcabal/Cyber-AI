@@ -45,14 +45,12 @@ class SecurityCase(Base):
     __tablename__ = "security_cases"
 
     id = Column(Integer, primary_key=True, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id"))
-    report_id = Column(Integer, ForeignKey("analysis_reports.id"))
-
-    title = Column(String)
-    severity = Column(String)
-    status = Column(String, default="open")  # open, investigating, resolved
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
+    report_id = Column(Integer, ForeignKey("analysis_reports.id"), nullable=True)
+    title = Column(String(255), nullable=False)
+    severity = Column(String(30), nullable=False, default="Medium")
+    status = Column(String(30), nullable=False, default="open")
     assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True)
-
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class IOCObservation(Base):

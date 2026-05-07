@@ -1,9 +1,11 @@
-from fileinput import filename
+import json
 
-from fastapi import FastAPI, Request
-from fastapi import UploadFile, File
-from fastapi.responses import FileResponse
-from fastapi import Body
+from fastapi import FastAPI, Request, UploadFile, File, Depends, HTTPException
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
+
 from app.analyzer import analyze_security_event, analyze_security_event_structured
 from app.aws_client import get_guardduty_findings
 from app.notifier import send_slack_alert
@@ -13,26 +15,8 @@ from app.threat_intel import enrich_iocs
 from app.anomaly import detect_anomalies
 from app.detection_engine import run_detections
 from app.mitre_mapper import build_mitre_coverage
-import json
-from fastapi import Depends, HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
-from app.correlator import correlate_events
-from app.threat_intel import enrich_iocs
-from app.anomaly import detect_anomalies
-from app.detection_engine import run_detections
-from app.mitre_mapper import build_mitre_coverage
-from fastapi.staticfiles import StaticFiles
-from app.normalizer import extract_iocs
-from app.threat_intel import check_ip_abuse
-from app.analyzer import analyze_with_groq
-
-
-
-
 from app.database import Base, engine, get_db
-from app.models import AnalysisReport, User, Company
+from app.models import AnalysisReport, User, Company, SecurityCase
 from app.auth import (
     authenticate_user,
     bootstrap_admin_user,

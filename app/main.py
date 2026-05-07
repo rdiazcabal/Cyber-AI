@@ -330,16 +330,13 @@ def admin_delete_user(
 
     return {"message": "User deleted", "id": user_id}
 
-
 @app.get("/")
 def home():
     return FileResponse("frontend/index.html")
 
-
 @app.get("/admin")
 def admin_page():
     return FileResponse("frontend/admin.html")
-
 
 @app.get("/health")
 def health_check():
@@ -416,11 +413,62 @@ def build_ai_threat_enrichment(data: dict, result: dict) -> dict:
 
     return result
 
+def create_security_case_if_needed(
+    db: Session,
+    current_user: User,
+    report: AnalysisReport,
+    result: dict
+):
+    ai_struct = result.get("ai_structured_analysis", {}) or {}
+
+    severity = ai_struct.get("severity", "Medium")
+    risk_score = int(result.get("risk_score", 0) or 0)
+    summary = ai_struct.get("summary") or report.title
+
+    should_create_case = (
+        severity in ["High", "Critical"]
+        or risk_score >= 70
+    )
+
+    if not should_create_case:
+        return None
+
+    existing_case = (
+        db.query(SecurityCase)
+        .filter(SecurityCase.report_id == report.id)
+        .first()
+    )
+
+    if existing_case:
+        return existing_case
+
+    case = SecurityCase(
+        company_id=current_user.company_id,
+        report_id=report.id,
+        title=f"{severity} Security Incident - Report #{report.id}",
+        severity=severity,
+        status="open",
+    )
+
+    db.add(case)
+    db.commit()
+    db.refresh(case)
+
+    if severity == "Critical":
+        send_slack_alert(
+            f"🚨 CRITICAL SOC CASE\n"
+            f"Company ID: {current_user.company_id}\n"
+            f"Report ID: {report.id}\n"
+            f"Risk Score: {risk_score}\n"
+            f"Summary: {summary}"
+        )
+
+    return case
+
 @app.post("/analyze")
 def analyze(event: dict):
     result = analyze_security_event(event)
     return {"analysis": result}
-
 
 @app.get("/aws/guardduty/findings")
 def aws_guardduty_findings():
@@ -429,7 +477,6 @@ def aws_guardduty_findings():
         "count": len(findings),
         "findings": findings
     }
-
 
 @app.get("/aws/guardduty/analyze")
 def analyze_guardduty_findings():
@@ -451,7 +498,6 @@ def analyze_guardduty_findings():
         "results": results
     }
 
-
 @app.post("/webhook/aws")
 async def aws_webhook(request: Request):
     body = await request.json()
@@ -461,7 +507,6 @@ async def aws_webhook(request: Request):
     send_slack_alert(analysis)
 
     return {"status": "processed"}
-
 
 @app.post("/analyze-any")
 async def analyze_any(request: Request):
@@ -553,8 +598,16 @@ def analyze_and_save(
     db.commit()
     db.refresh(report)
 
+    case = create_security_case_if_needed(
+    db=db,
+    current_user=current_user,
+    report=report,
+    result=result
+    )
+
     return {
         "report_id": report.id,
+        "case_id": case.id if case else None,
         "result": result
     }
 
@@ -806,8 +859,16 @@ async def upload_analyze_save(
     db.commit()
     db.refresh(report)
 
+    case = create_security_case_if_needed(
+        db=db,
+        current_user=current_user,
+        report=report,
+        result=result
+    )
+
     return {
         "report_id": report.id,
+        "case_id": case.id if case else None,
         "filename": filename,
         "result": result
     }

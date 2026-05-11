@@ -905,29 +905,48 @@ def soc_overview(
     }
 
 @app.get("/compliance/cis8/overview")
-def cis_overview(
+def cis8_overview(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(AnalysisReport)
 
     if current_user.role != "super_admin":
-        query = query.filter(
-            AnalysisReport.company_id == current_user.company_id
-        )
+        query = query.filter(AnalysisReport.company_id == current_user.company_id)
 
-    reports = query.all()
+    reports = query.order_by(AnalysisReport.created_at.desc()).all()
 
     cis_counter = {}
+    total_reports = 0
+    mapped_reports = 0
 
-    for r in reports:
+    for report in reports:
+        total_reports += 1
+
         try:
-            data = json.loads(r.result_json)
-            cis = data.get("cis_controls", [])
+            parsed = json.loads(report.result_json or "{}")
+            cis_controls = parsed.get("cis_controls", []) or []
 
-            for c in cis:
-                cis_counter[c] = cis_counter.get(c, 0) + 1
-        except:
+            if cis_controls:
+                mapped_reports += 1
+
+            for control in cis_controls:
+                cis_counter[control] = cis_counter.get(control, 0) + 1
+
+        except Exception:
             continue
 
-    return cis_counter
+    controls = [
+        {
+            "control": control,
+            "count": count
+        }
+        for control, count in sorted(cis_counter.items())
+    ]
+
+    return {
+        "total_reports": total_reports,
+        "mapped_reports": mapped_reports,
+        "total_controls_detected": len(cis_counter),
+        "controls": controls
+    }

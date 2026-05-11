@@ -718,6 +718,7 @@
       <a class="nav-item" id="socNav" href="javascript:void(0)" onclick="showSOC()">
         🛡️ SOC Overview
       </a>
+      <a class="nav-item" onclick="showCIS()">📊 CIS Compliance</a>
       <div class="nav-title">Admin</div>
       <a class="nav-item hidden" id="navUsuarios" href="/admin">👤 Usuarios locales</a>
       <div id="sessionUser" class="nav-item">🔐 No autenticado</div>
@@ -1638,6 +1639,18 @@
       if (socNav) socNav.classList.add("active");
 
       await loadSOCOverview();
+    }
+
+    async function showCIS() {
+      const res = await fetch("/compliance/cis8/overview", {
+        headers: {
+          Authorization: `Bearer ${authToken}`
+        }
+      });
+
+      const data = await res.json();
+
+      console.log("CIS:", data);
     }
 
     async function loadSOCOverview() {

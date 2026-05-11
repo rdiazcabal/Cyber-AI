@@ -12,6 +12,9 @@ from app.notifier import send_slack_alert
 from app.normalizer import parse_input, extract_iocs_from_text
 from app.correlator import correlate_events
 from app.threat_intel import enrich_iocs
+from app.detection_engine import run_detections
+from app.mitre_mapper import build_mitre_coverage
+from app.cis_mapper import map_to_cis
 from app.anomaly import detect_anomalies
 from app.detection_engine import run_detections
 from app.mitre_mapper import build_mitre_coverage
@@ -582,13 +585,17 @@ def analyze_and_save(
     result["detections"] = detections
     result["mitre_coverage"] = mitre_coverage
 
+    # CIS CONTROLS V8 MAPPING
+    cis_controls = map_to_cis(detections, result)
+    result["cis_controls"] = cis_controls
+
     # NUEVO: ENRIQUECIMIENTO IA + IOC + ABUSEIP
     result = build_ai_threat_enrichment(data, result)
 
     # GUARDADO
     report = AnalysisReport(
         company_id=current_user.company_id,
-        title=data.get("title", "Cyber-AI SOC Analysis"),
+        title=data.get("title", "2 Inc-CyberPro SOC Analysis"),
         risk_score=result.get("risk_score", 0),
         raw_input=json.dumps(data),
         result_json=json.dumps(result)
@@ -599,15 +606,16 @@ def analyze_and_save(
     db.refresh(report)
 
     case = create_security_case_if_needed(
-    db=db,
-    current_user=current_user,
-    report=report,
-    result=result
+        db=db,
+        current_user=current_user,
+        report=report,
+        result=result
     )
 
     return {
         "report_id": report.id,
         "case_id": case.id if case else None,
+        "cis_controls": result.get("cis_controls", []),
         "result": result
     }
 
@@ -895,3 +903,31 @@ def soc_overview(
         "open_cases": len(open_cases),
         "critical_cases": len(critical_cases),
     }
+
+@app.get("/compliance/cis8/overview")
+def cis_overview(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(AnalysisReport)
+
+    if current_user.role != "super_admin":
+        query = query.filter(
+            AnalysisReport.company_id == current_user.company_id
+        )
+
+    reports = query.all()
+
+    cis_counter = {}
+
+    for r in reports:
+        try:
+            data = json.loads(r.result_json)
+            cis = data.get("cis_controls", [])
+
+            for c in cis:
+                cis_counter[c] = cis_counter.get(c, 0) + 1
+        except:
+            continue
+
+    return cis_counter

@@ -1117,21 +1117,97 @@
 
         document.getElementById("cisControlsPanel").className = "";
 
-        document.getElementById("cisControlsPanel").innerHTML = controls.map(item => `
-      <div class="pattern-card">
-        <div class="pattern-header">
-          <span class="pill pill-info">${item.count} findings</span>
-          <span class="pattern-title">${item.control}</span>
+        document.getElementById("cisControlsPanel").innerHTML = controls.map((item, index) => {
+          const findings = item.findings || [];
+
+          const findingsHtml = findings.map(f => `
+        <div class="pattern-card" style="margin-left:18px;border-color:rgba(212,175,55,.30);">
+          <div class="pattern-header">
+            <span class="pill ${getSeverityPillClass(f.severity)}">${f.severity || "Unknown"}</span>
+            <span class="pill pill-info">Risk ${f.risk_score ?? 0}</span>
+            <span class="pattern-title">Report #${f.report_id} · ${escapeHtml(f.title || "Untitled")}</span>
+          </div>
+
+          <div class="pattern-meta">
+            ${escapeHtml(f.summary || "No summary available")}
+          </div>
+
+          <div class="pattern-meta" style="margin-top:8px;">
+            Created: ${formatDate(f.created_at)}
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+            <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+              onclick="viewReport(${f.report_id})">
+              View
+            </button>
+
+            <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+              onclick="downloadReportPDF(${f.report_id})">
+              PDF
+            </button>
+          </div>
         </div>
-        <div class="pattern-meta">
-          Este control CIS fue identificado en ${item.count} análisis guardado(s).
+      `).join("");
+
+          return `
+        <div class="pattern-card cis-control-card" onclick="toggleCISFindings(${index})" style="cursor:pointer;">
+          <div class="pattern-header">
+            <span class="pill pill-info">${item.count} findings</span>
+            <span class="pattern-title">${escapeHtml(item.control)}</span>
+            <span class="pattern-meta" style="margin-left:auto;">Click to expand</span>
+          </div>
+
+          <div class="pattern-meta">
+            Este control CIS fue identificado en ${item.count} análisis guardado(s).
+          </div>
         </div>
-      </div>
-    `).join("");
+
+        <div id="cisFindings-${index}" class="hidden">
+          ${findingsHtml || `<div class="empty" style="margin-left:18px;">No findings available.</div>`}
+        </div>
+      `;
+        }).join("");
 
       } catch (err) {
         document.getElementById("cisControlsPanel").innerText =
           `CIS load error: ${err.message}`;
+      }
+    }
+
+    function toggleCISFindings(index) {
+      const el = document.getElementById(`cisFindings-${index}`);
+      if (!el) return;
+      el.classList.toggle("hidden");
+    }
+
+    function getSeverityPillClass(severity) {
+      const s = String(severity || "").toLowerCase();
+
+      if (s === "critical") return "pill-critical";
+      if (s === "high") return "pill-high";
+      if (s === "medium") return "pill-medium";
+      if (s === "low") return "pill-low";
+
+      return "pill-info";
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function formatDate(value) {
+      if (!value) return "N/A";
+
+      try {
+        return new Date(value).toLocaleString();
+      } catch {
+        return value;
       }
     }
 
@@ -1822,6 +1898,31 @@
         document.getElementById("socStatusPanel").innerText =
           `SOC load error: ${err.message}`;
       }
+    }
+
+    async function viewReport(reportId) {
+      try {
+        const res = await fetch(`/reports/${reportId}`, {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          alert("No se pudo cargar el reporte.");
+          return;
+        }
+
+        const data = await res.json();
+        alert(JSON.stringify(data, null, 2));
+
+      } catch (err) {
+        alert(`Error loading report: ${err.message}`);
+      }
+    }
+
+    function downloadReportPDF(reportId) {
+      window.open(`/reports/${reportId}/pdf?token=${encodeURIComponent(authToken)}`, "_blank");
     }
 
     loadSession();

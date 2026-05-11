@@ -916,7 +916,7 @@ def cis8_overview(
 
     reports = query.order_by(AnalysisReport.created_at.desc()).all()
 
-    cis_counter = {}
+    cis_map = {}
     total_reports = 0
     mapped_reports = 0
 
@@ -930,23 +930,43 @@ def cis8_overview(
             if cis_controls:
                 mapped_reports += 1
 
+            ai_struct = parsed.get("ai_structured_analysis", {}) or {}
+
+            finding = {
+                "report_id": report.id,
+                "title": report.title,
+                "risk_score": report.risk_score,
+                "severity": ai_struct.get("severity", "Unknown"),
+                "summary": ai_struct.get("summary") or "No summary available",
+                "created_at": report.created_at,
+            }
+
             for control in cis_controls:
-                cis_counter[control] = cis_counter.get(control, 0) + 1
+                if control not in cis_map:
+                    cis_map[control] = {
+                        "control": control,
+                        "count": 0,
+                        "findings": []
+                    }
+
+                cis_map[control]["count"] += 1
+                cis_map[control]["findings"].append(finding)
 
         except Exception:
             continue
 
     controls = [
         {
-            "control": control,
-            "count": count
+            "control": item["control"],
+            "count": item["count"],
+            "findings": item["findings"]
         }
-        for control, count in sorted(cis_counter.items())
+        for item in sorted(cis_map.values(), key=lambda x: x["control"])
     ]
 
     return {
         "total_reports": total_reports,
         "mapped_reports": mapped_reports,
-        "total_controls_detected": len(cis_counter),
+        "total_controls_detected": len(cis_map),
         "controls": controls
     }

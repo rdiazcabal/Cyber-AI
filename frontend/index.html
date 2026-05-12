@@ -718,6 +718,9 @@
       <a class="nav-item" id="socNav" href="javascript:void(0)" onclick="showSOC()">
         🛡️ SOC Overview
       </a>
+      <a class="nav-item" id="casesNav" href="javascript:void(0)" onclick="showCases()">
+        🧩 Case Management
+      </a>
       <a class="nav-item" id="cisNav" href="javascript:void(0)" onclick="showCIS()">
         📊 CIS 8 Compliance
       </a>
@@ -990,7 +993,41 @@
               No CIS controls detected yet.
             </div>
           </div>
+        </div>
+        <!-- CASE MANAGEMENT VIEW -->
+        <div id="casesView" class="hidden">
+          <div class="header">
+            <div>
+              <h1>Case Management</h1>
+              <p>Investigación, asignación, notas y seguimiento de incidentes.</p>
+            </div>
 
+            <div class="api-status">
+              <span class="pulse"></span> Cases Active
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Security Cases</h3>
+            <div class="panel-subtitle">
+              Casos generados automáticamente por análisis High/Critical o Risk Score alto.
+            </div>
+
+            <div id="casesPanel" class="empty">
+              No cases loaded yet.
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Case Details</h3>
+            <div class="panel-subtitle">
+              Selecciona un caso para revisar detalles, actualizar estado y agregar notas.
+            </div>
+
+            <div id="caseDetailsPanel" class="empty">
+              No case selected.
+            </div>
+          </div>
         </div>
     </main>
   </div>
@@ -1014,6 +1051,12 @@
 
       const cisNav = document.getElementById("cisNav");
       if (cisNav) cisNav.classList.remove("active");
+
+      const casesView = document.getElementById("casesView");
+      if (casesView) casesView.classList.add("hidden");
+
+      const casesNav = document.getElementById("casesNav");
+      if (casesNav) casesNav.classList.remove("active");
     }
 
     async function showHistory() {
@@ -1034,6 +1077,12 @@
 
       const cisNav = document.getElementById("cisNav");
       if (cisNav) cisNav.classList.remove("active");
+
+      const casesView = document.getElementById("casesView");
+      if (casesView) casesView.classList.add("hidden");
+
+      const casesNav = document.getElementById("casesNav");
+      if (casesNav) casesNav.classList.remove("active");
 
       await loadReports();
     }
@@ -1057,6 +1106,12 @@
       const cisNav = document.getElementById("cisNav");
       if (cisNav) cisNav.classList.remove("active");
 
+      const casesView = document.getElementById("casesView");
+      if (casesView) casesView.classList.add("hidden");
+
+      const casesNav = document.getElementById("casesNav");
+      if (casesNav) casesNav.classList.remove("active");
+
       await loadSOCOverview();
     }
 
@@ -1079,7 +1134,344 @@
       const cisNav = document.getElementById("cisNav");
       if (cisNav) cisNav.classList.add("active");
 
+      const casesView = document.getElementById("casesView");
+      if (casesView) casesView.classList.add("hidden");
+
+      const casesNav = document.getElementById("casesNav");
+      if (casesNav) casesNav.classList.remove("active");
+
       await loadCISOverview();
+    }
+
+    async function showCases() {
+      document.getElementById("dashboardView").classList.add("hidden");
+      document.getElementById("historyView").classList.add("hidden");
+
+      const socView = document.getElementById("socView");
+      if (socView) socView.classList.add("hidden");
+
+      const cisView = document.getElementById("cisView");
+      if (cisView) cisView.classList.add("hidden");
+
+      const casesView = document.getElementById("casesView");
+      if (casesView) casesView.classList.remove("hidden");
+
+      document.getElementById("dashboardNav").classList.remove("active");
+      document.getElementById("historyNav").classList.remove("active");
+
+      const socNav = document.getElementById("socNav");
+      if (socNav) socNav.classList.remove("active");
+
+      const cisNav = document.getElementById("cisNav");
+      if (cisNav) cisNav.classList.remove("active");
+
+      const casesNav = document.getElementById("casesNav");
+      if (casesNav) casesNav.classList.add("active");
+
+      await loadCases();
+    }
+
+    async function loadCases() {
+      const panel = document.getElementById("casesPanel");
+
+      if (!panel) return;
+
+      try {
+        const res = await fetch("/cases", {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          panel.className = "empty";
+          panel.innerText = `Could not load cases: ${errorText}`;
+          return;
+        }
+
+        const cases = await res.json();
+
+        if (!cases.length) {
+          panel.className = "empty";
+          panel.innerText = "No cases found.";
+          return;
+        }
+
+        panel.className = "";
+
+        panel.innerHTML = `
+      <table class="user-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Severity</th>
+            <th>Status</th>
+            <th>Title</th>
+            <th>Report</th>
+            <th>Assigned</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${cases.map(c => `
+            <tr>
+              <td>${c.id}</td>
+              <td>
+                <span class="pill ${getSeverityPillClass(c.severity)}">
+                  ${escapeHtml(c.severity || "Unknown")}
+                </span>
+              </td>
+              <td>${escapeHtml(c.status || "open")}</td>
+              <td>${escapeHtml(c.title || "Untitled")}</td>
+              <td>${c.report_id ? `#${c.report_id}` : "N/A"}</td>
+              <td>${escapeHtml(c.assigned_to_username || "Unassigned")}</td>
+              <td>${formatDate(c.created_at)}</td>
+              <td>
+                <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+                  onclick="viewCase(${c.id})">
+                  Open
+                </button>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+
+      } catch (err) {
+        panel.className = "empty";
+        panel.innerText = `Cases load error: ${err.message}`;
+      }
+    }
+
+    async function viewCase(caseId) {
+      const panel = document.getElementById("caseDetailsPanel");
+
+      try {
+        const res = await fetch(`/cases/${caseId}`, {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          panel.className = "empty";
+          panel.innerText = `Could not load case: ${errorText}`;
+          return;
+        }
+
+        const c = await res.json();
+
+        panel.className = "";
+
+        panel.innerHTML = `
+      <div class="pattern-card">
+        <div class="pattern-header">
+          <span class="pill ${getSeverityPillClass(c.severity)}">${escapeHtml(c.severity || "Unknown")}</span>
+          <span class="pill pill-info">${escapeHtml(c.status || "open")}</span>
+          <span class="pattern-title">Case #${c.id} · ${escapeHtml(c.title || "Untitled")}</span>
+        </div>
+
+        <div class="pattern-meta">
+          Report: ${c.report_id ? `#${c.report_id} - ${escapeHtml(c.report_title || "")}` : "N/A"}
+        </div>
+
+        <div class="pattern-meta">
+          Assigned: ${escapeHtml(c.assigned_to_username || "Unassigned")}
+        </div>
+
+        <div class="pattern-meta">
+          Created: ${formatDate(c.created_at)}
+        </div>
+
+        <div class="grid" style="margin-top:14px;">
+          <div>
+            <label>Status</label>
+            <select id="caseStatusSelect">
+              <option value="open" ${c.status === "open" ? "selected" : ""}>open</option>
+              <option value="investigating" ${c.status === "investigating" ? "selected" : ""}>investigating</option>
+              <option value="contained" ${c.status === "contained" ? "selected" : ""}>contained</option>
+              <option value="resolved" ${c.status === "resolved" ? "selected" : ""}>resolved</option>
+              <option value="false_positive" ${c.status === "false_positive" ? "selected" : ""}>false_positive</option>
+            </select>
+
+            <button onclick="updateCaseStatus(${c.id})">
+              Update Status
+            </button>
+          </div>
+
+          <div>
+            <label>Assign to User ID</label>
+            <input id="caseAssignUserId" placeholder="Ej: 1" value="${c.assigned_to || ""}">
+            <button class="secondary" onclick="assignCase(${c.id})">
+              Assign Case
+            </button>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;">
+          <label>Add Note</label>
+          <textarea id="caseNoteInput" style="height:120px;" placeholder="Escribe una nota de investigación..."></textarea>
+          <button onclick="addCaseNote(${c.id})">Add Note</button>
+        </div>
+
+        <div style="margin-top:14px;">
+          <button class="secondary" onclick="loadCaseNotes(${c.id})">
+            Refresh Notes
+          </button>
+        </div>
+
+        <div id="caseNotesPanel" class="empty" style="margin-top:14px;">
+          Loading notes...
+        </div>
+      </div>
+    `;
+
+        await loadCaseNotes(c.id);
+
+      } catch (err) {
+        panel.className = "empty";
+        panel.innerText = `Case load error: ${err.message}`;
+      }
+    }
+
+    async function updateCaseStatus(caseId) {
+      const status = document.getElementById("caseStatusSelect").value;
+
+      try {
+        const res = await fetch(`/cases/${caseId}/status`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ status })
+        });
+
+        if (!res.ok) {
+          alert(`No se pudo actualizar status: ${await res.text()}`);
+          return;
+        }
+
+        alert("Case status updated.");
+        await loadCases();
+        await viewCase(caseId);
+
+      } catch (err) {
+        alert(`Error updating case: ${err.message}`);
+      }
+    }
+
+    async function assignCase(caseId) {
+      const userId = document.getElementById("caseAssignUserId").value;
+
+      if (!userId) {
+        alert("Debes escribir un user_id.");
+        return;
+      }
+
+      try {
+        const res = await fetch(`/cases/${caseId}/assign`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ user_id: Number(userId) })
+        });
+
+        if (!res.ok) {
+          alert(`No se pudo asignar caso: ${await res.text()}`);
+          return;
+        }
+
+        alert("Case assigned.");
+        await loadCases();
+        await viewCase(caseId);
+
+      } catch (err) {
+        alert(`Error assigning case: ${err.message}`);
+      }
+    }
+
+    async function addCaseNote(caseId) {
+      const note = document.getElementById("caseNoteInput").value.trim();
+
+      if (!note) {
+        alert("La nota no puede ir vacía.");
+        return;
+      }
+
+      try {
+        const res = await fetch(`/cases/${caseId}/notes`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ note })
+        });
+
+        if (!res.ok) {
+          alert(`No se pudo agregar nota: ${await res.text()}`);
+          return;
+        }
+
+        document.getElementById("caseNoteInput").value = "";
+        await loadCaseNotes(caseId);
+
+      } catch (err) {
+        alert(`Error adding note: ${err.message}`);
+      }
+    }
+
+    async function loadCaseNotes(caseId) {
+      const panel = document.getElementById("caseNotesPanel");
+
+      if (!panel) return;
+
+      try {
+        const res = await fetch(`/cases/${caseId}/notes`, {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          panel.className = "empty";
+          panel.innerText = `Could not load notes: ${await res.text()}`;
+          return;
+        }
+
+        const notes = await res.json();
+
+        if (!notes.length) {
+          panel.className = "empty";
+          panel.innerText = "No notes yet.";
+          return;
+        }
+
+        panel.className = "";
+
+        panel.innerHTML = notes.map(n => `
+      <div class="pattern-card">
+        <div class="pattern-header">
+          <span class="pill pill-info">${escapeHtml(n.username || "unknown")}</span>
+          <span class="pattern-meta">${formatDate(n.created_at)}</span>
+        </div>
+        <div class="pattern-meta">
+          ${escapeHtml(n.note || "")}
+        </div>
+      </div>
+    `).join("");
+
+      } catch (err) {
+        panel.className = "empty";
+        panel.innerText = `Notes error: ${err.message}`;
+      }
     }
 
     let authToken = localStorage.getItem("cyberToken") || "";

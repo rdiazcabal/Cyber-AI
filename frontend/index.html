@@ -721,6 +721,9 @@
       <a class="nav-item" id="casesNav" href="javascript:void(0)" onclick="showCases()">
         🧩 Case Management
       </a>
+      <a class="nav-item" id="threatHuntingNav" href="javascript:void(0)" onclick="showThreatHunting()">
+        🎯 Threat Hunting
+      </a>
       <a class="nav-item" id="cisNav" href="javascript:void(0)" onclick="showCIS()">
         📊 CIS 8 Compliance
       </a>
@@ -1029,6 +1032,53 @@
             </div>
           </div>
         </div>
+        <!-- THREAT HUNTING VIEW -->
+        <div id="threatHuntingView" class="hidden">
+
+          <div class="header">
+            <div>
+              <h1>Threat Hunting</h1>
+              <p>Busca IOCs, usuarios, recursos, dominios, URLs o hashes en el histórico de análisis.</p>
+            </div>
+
+            <div class="api-status">
+              <span class="pulse"></span> Hunting Active
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>IOC Search</h3>
+            <div class="panel-subtitle">
+              Ingresa una IP, dominio, URL, hash, usuario o recurso.
+            </div>
+
+            <div class="input-row">
+              <label>Search Query</label>
+              <input id="iocSearchInput" placeholder="Ej: 8.8.8.8, example.com, user@example.com, arn:aws...">
+            </div>
+
+            <button onclick="searchIOC()">Search IOC</button>
+
+            <div id="iocSearchStatus" class="status-line">
+              Waiting for IOC search...
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Search Results</h3>
+            <div id="iocSearchResultsPanel" class="empty">
+              No IOC search results yet.
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>IOC History</h3>
+            <div id="iocHistoryPanel" class="empty">
+              Select an IOC to view historical activity.
+            </div>
+          </div>
+
+        </div>
     </main>
   </div>
 
@@ -1057,6 +1107,12 @@
 
       const casesNav = document.getElementById("casesNav");
       if (casesNav) casesNav.classList.remove("active");
+
+      const threatHuntingView = document.getElementById("threatHuntingView");
+      if (threatHuntingView) threatHuntingView.classList.add("hidden");
+
+      const threatHuntingNav = document.getElementById("threatHuntingNav");
+      if (threatHuntingNav) threatHuntingNav.classList.remove("active");
     }
 
     async function showHistory() {
@@ -1083,6 +1139,12 @@
 
       const casesNav = document.getElementById("casesNav");
       if (casesNav) casesNav.classList.remove("active");
+
+      const threatHuntingView = document.getElementById("threatHuntingView");
+      if (threatHuntingView) threatHuntingView.classList.add("hidden");
+
+      const threatHuntingNav = document.getElementById("threatHuntingNav");
+      if (threatHuntingNav) threatHuntingNav.classList.remove("active");
 
       await loadReports();
     }
@@ -1112,6 +1174,12 @@
       const casesNav = document.getElementById("casesNav");
       if (casesNav) casesNav.classList.remove("active");
 
+      const threatHuntingView = document.getElementById("threatHuntingView");
+      if (threatHuntingView) threatHuntingView.classList.add("hidden");
+
+      const threatHuntingNav = document.getElementById("threatHuntingNav");
+      if (threatHuntingNav) threatHuntingNav.classList.remove("active");
+
       await loadSOCOverview();
     }
 
@@ -1140,6 +1208,12 @@
       const casesNav = document.getElementById("casesNav");
       if (casesNav) casesNav.classList.remove("active");
 
+      const threatHuntingView = document.getElementById("threatHuntingView");
+      if (threatHuntingView) threatHuntingView.classList.add("hidden");
+
+      const threatHuntingNav = document.getElementById("threatHuntingNav");
+      if (threatHuntingNav) threatHuntingNav.classList.remove("active");
+
       await loadCISOverview();
     }
 
@@ -1167,6 +1241,12 @@
 
       const casesNav = document.getElementById("casesNav");
       if (casesNav) casesNav.classList.add("active");
+
+      const threatHuntingView = document.getElementById("threatHuntingView");
+      if (threatHuntingView) threatHuntingView.classList.add("hidden");
+
+      const threatHuntingNav = document.getElementById("threatHuntingNav");
+      if (threatHuntingNav) threatHuntingNav.classList.remove("active");
 
       await loadCases();
     }
@@ -1244,6 +1324,38 @@
         panel.className = "empty";
         panel.innerText = `Cases load error: ${err.message}`;
       }
+    }
+
+    async function showThreatHunting() {
+      document.getElementById("dashboardView").classList.add("hidden");
+      document.getElementById("historyView").classList.add("hidden");
+
+      const socView = document.getElementById("socView");
+      if (socView) socView.classList.add("hidden");
+
+      const cisView = document.getElementById("cisView");
+      if (cisView) cisView.classList.add("hidden");
+
+      const casesView = document.getElementById("casesView");
+      if (casesView) casesView.classList.add("hidden");
+
+      const threatHuntingView = document.getElementById("threatHuntingView");
+      if (threatHuntingView) threatHuntingView.classList.remove("hidden");
+
+      document.getElementById("dashboardNav").classList.remove("active");
+      document.getElementById("historyNav").classList.remove("active");
+
+      const socNav = document.getElementById("socNav");
+      if (socNav) socNav.classList.remove("active");
+
+      const cisNav = document.getElementById("cisNav");
+      if (cisNav) cisNav.classList.remove("active");
+
+      const casesNav = document.getElementById("casesNav");
+      if (casesNav) casesNav.classList.remove("active");
+
+      const threatHuntingNav = document.getElementById("threatHuntingNav");
+      if (threatHuntingNav) threatHuntingNav.classList.add("active");
     }
 
     async function viewCase(caseId) {
@@ -1471,6 +1583,162 @@
       } catch (err) {
         panel.className = "empty";
         panel.innerText = `Notes error: ${err.message}`;
+      }
+    }
+
+    async function searchIOC() {
+      const query = document.getElementById("iocSearchInput").value.trim();
+      const status = document.getElementById("iocSearchStatus");
+      const panel = document.getElementById("iocSearchResultsPanel");
+
+      if (!query || query.length < 2) {
+        alert("Debes escribir al menos 2 caracteres.");
+        return;
+      }
+
+      status.innerText = "Searching IOC history...";
+
+      try {
+        const res = await fetch(`/iocs/search?query=${encodeURIComponent(query)}`, {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          panel.className = "empty";
+          panel.innerText = `Could not search IOC: ${await res.text()}`;
+          status.innerText = "Search failed.";
+          return;
+        }
+
+        const data = await res.json();
+        const results = data.results || [];
+
+        status.innerText = `${data.count || 0} IOC result(s) found.`;
+
+        if (!results.length) {
+          panel.className = "empty";
+          panel.innerText = "No IOC matches found.";
+          return;
+        }
+
+        panel.className = "";
+
+        panel.innerHTML = results.map((item, index) => `
+      <div class="pattern-card">
+        <div class="pattern-header">
+          <span class="pill pill-info">${escapeHtml(item.type || "ioc")}</span>
+          <span class="pill ${item.count >= 3 ? "pill-high" : "pill-low"}">${item.count} seen</span>
+          <span class="pattern-title">${escapeHtml(item.ioc)}</span>
+        </div>
+
+        <div class="pattern-meta">
+          Last seen: ${formatDate(item.last_seen)}
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+          <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+            onclick="viewIOCHistory('${encodeURIComponent(item.ioc)}')">
+            View History
+          </button>
+        </div>
+      </div>
+    `).join("");
+
+      } catch (err) {
+        status.innerText = `Search error: ${err.message}`;
+      }
+    }
+
+    async function viewIOCHistory(encodedIoc) {
+      const ioc = decodeURIComponent(encodedIoc);
+      const panel = document.getElementById("iocHistoryPanel");
+
+      panel.className = "empty";
+      panel.innerText = "Loading IOC history...";
+
+      try {
+        const res = await fetch(`/iocs/${encodeURIComponent(ioc)}/history`, {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          panel.className = "empty";
+          panel.innerText = `Could not load IOC history: ${await res.text()}`;
+          return;
+        }
+
+        const data = await res.json();
+        const history = data.history || [];
+
+        if (!history.length) {
+          panel.className = "empty";
+          panel.innerText = "No history found for this IOC.";
+          return;
+        }
+
+        panel.className = "";
+
+        panel.innerHTML = `
+      <div class="pattern-card">
+        <div class="pattern-header">
+          <span class="pill pill-info">${history.length} events</span>
+          <span class="pattern-title">${escapeHtml(data.ioc)}</span>
+        </div>
+      </div>
+
+      ${history.map(h => `
+        <div class="pattern-card">
+          <div class="pattern-header">
+            <span class="pill ${getSeverityPillClass(h.severity)}">${escapeHtml(h.severity || "Unknown")}</span>
+            <span class="pill pill-info">Risk ${h.risk_score ?? 0}</span>
+            <span class="pattern-title">Report #${h.report_id} · ${escapeHtml(h.report_title || "Untitled")}</span>
+          </div>
+
+          <div class="pattern-meta">
+            ${escapeHtml(h.summary || "No summary available")}
+          </div>
+
+          <div class="pattern-meta" style="margin-top:8px;">
+            Seen at: ${formatDate(h.seen_at)}
+          </div>
+
+          <div class="pattern-meta" style="margin-top:8px;">
+            Case: ${h.case_id ? `#${h.case_id} · ${escapeHtml(h.case_status || "")}` : "No case"}
+          </div>
+
+          <div class="pattern-meta" style="margin-top:8px;">
+            CIS: ${(h.cis_controls || []).map(c => `<span class="pill pill-info" style="margin-right:6px;">${escapeHtml(c)}</span>`).join("") || "N/A"}
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+            <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+              onclick="viewReport(${h.report_id})">
+              View Report
+            </button>
+
+            <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+              onclick="downloadReportPDF(${h.report_id})">
+              PDF
+            </button>
+
+            ${h.case_id ? `
+              <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+                onclick="showCases().then(() => viewCase(${h.case_id}))">
+                Open Case
+              </button>
+            ` : ""}
+          </div>
+        </div>
+      `).join("")}
+    `;
+
+      } catch (err) {
+        panel.className = "empty";
+        panel.innerText = `IOC history error: ${err.message}`;
       }
     }
 
@@ -2458,6 +2726,36 @@
         alert(`Error eliminando reporte: ${err.message}`);
       }
     }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function formatDate(value) {
+      if (!value) return "N/A";
+      try {
+        return new Date(value).toLocaleString();
+      } catch {
+        return value;
+      }
+    }
+
+    function getSeverityPillClass(severity) {
+      const s = String(severity || "").toLowerCase();
+
+      if (s === "critical") return "pill-critical";
+      if (s === "high") return "pill-high";
+      if (s === "medium") return "pill-medium";
+      if (s === "low") return "pill-low";
+
+      return "pill-info";
+    }
+
     loadSession();
 
   </script>

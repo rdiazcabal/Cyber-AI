@@ -1457,3 +1457,172 @@ def cis8_overview(
         "total_controls_detected": len(cis_map),
         "controls": controls
     }
+
+@app.get("/iocs/search")
+def search_iocs(
+    query: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    clean_query = (query or "").strip()
+
+    if len(clean_query) < 2:
+        raise HTTPException(status_code=400, detail="Query must have at least 2 characters")
+
+    ioc_query = db.query(IOCObservation)
+
+    if current_user.role != "super_admin":
+        ioc_query = ioc_query.filter(IOCObservation.company_id == current_user.company_id)
+
+    observations = (
+        ioc_query
+        .filter(IOCObservation.ioc.ilike(f"%{clean_query}%"))
+        .order_by(IOCObservation.created_at.desc())
+        .all()
+    )
+
+    grouped = {}
+
+    for obs in observations:
+        key = f"{obs.type}:{obs.ioc}"
+
+        if key not in grouped:
+            grouped[key] = {
+                "ioc": obs.ioc,
+                "type": obs.type,
+                "count": 0,
+                "last_seen": obs.created_at,
+                "reports": []
+            }
+
+        grouped[key]["count"] += 1
+
+        if obs.created_at and obs.created_at > grouped[key]["last_seen"]:
+            grouped[key]["last_seen"] = obs.created_at
+
+        report = None
+        case = None
+
+        if obs.report_id:
+            report_query = db.query(AnalysisReport).filter(AnalysisReport.id == obs.report_id)
+
+            if current_user.role != "super_admin":
+                report_query = report_query.filter(AnalysisReport.company_id == current_user.company_id)
+
+            report = report_query.first()
+
+            if report:
+                case = db.query(SecurityCase).filter(SecurityCase.report_id == report.id).first()
+
+        if report:
+            grouped[key]["reports"].append({
+                "report_id": report.id,
+                "title": report.title,
+                "risk_score": report.risk_score,
+                "created_at": report.created_at,
+                "case_id": case.id if case else None,
+                "case_status": case.status if case else None,
+            })
+
+    result = list(grouped.values())
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="IOC_SEARCH",
+        resource_type="ioc",
+        resource_id=clean_query,
+        details={
+            "query": clean_query,
+            "matches": len(result),
+        }
+    )
+
+    return {
+        "query": clean_query,
+        "count": len(result),
+        "results": result
+    }
+
+@app.get("/iocs/{ioc_value}/history")
+def ioc_history(
+    ioc_value: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    clean_ioc = (ioc_value or "").strip()
+
+    if len(clean_ioc) < 2:
+        raise HTTPException(status_code=400, detail="IOC must have at least 2 characters")
+
+    obs_query = db.query(IOCObservation).filter(IOCObservation.ioc == clean_ioc)
+
+    if current_user.role != "super_admin":
+        obs_query = obs_query.filter(IOCObservation.company_id == current_user.company_id)
+
+    observations = obs_query.order_by(IOCObservation.created_at.desc()).all()
+
+    history = []
+
+    for obs in observations:
+        report = None
+        case = None
+        severity = "Unknown"
+        summary = None
+        cis_controls = []
+        mitre_coverage = {}
+
+        if obs.report_id:
+            report_query = db.query(AnalysisReport).filter(AnalysisReport.id == obs.report_id)
+
+            if current_user.role != "super_admin":
+                report_query = report_query.filter(AnalysisReport.company_id == current_user.company_id)
+
+            report = report_query.first()
+
+        if report:
+            case = db.query(SecurityCase).filter(SecurityCase.report_id == report.id).first()
+
+            try:
+                parsed = json.loads(report.result_json or "{}")
+                ai_struct = parsed.get("ai_structured_analysis", {}) or {}
+                severity = ai_struct.get("severity", "Unknown")
+                summary = ai_struct.get("summary")
+                cis_controls = parsed.get("cis_controls", []) or []
+                mitre_coverage = parsed.get("mitre_coverage", {}) or {}
+            except Exception:
+                pass
+
+            history.append({
+                "observation_id": obs.id,
+                "ioc": obs.ioc,
+                "type": obs.type,
+                "seen_at": obs.created_at,
+                "report_id": report.id,
+                "report_title": report.title,
+                "risk_score": report.risk_score,
+                "severity": severity,
+                "summary": summary,
+                "cis_controls": cis_controls,
+                "mitre_coverage": mitre_coverage,
+                "case_id": case.id if case else None,
+                "case_status": case.status if case else None,
+            })
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="IOC_HISTORY_VIEW",
+        resource_type="ioc",
+        resource_id=clean_ioc,
+        details={
+            "ioc": clean_ioc,
+            "matches": len(history),
+        }
+    )
+
+    return {
+        "ioc": clean_ioc,
+        "count": len(history),
+        "history": history
+    }

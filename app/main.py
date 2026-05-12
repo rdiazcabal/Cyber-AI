@@ -757,6 +757,46 @@ def get_report(
         "result": json.loads(report.result_json),
         "created_at": report.created_at
     }
+    
+@app.delete("/reports/{report_id}")
+def delete_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(AnalysisReport).filter(AnalysisReport.id == report_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(AnalysisReport.company_id == current_user.company_id)
+
+    report = query.first()
+
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    # Delete related security cases first
+    db.query(SecurityCase).filter(SecurityCase.report_id == report.id).delete(
+        synchronize_session=False
+    )
+
+    # Delete related IOC observations if table/model exists
+    try:
+        from sqlalchemy import text
+
+        db.execute(
+            text("DELETE FROM ioc_observations WHERE report_id = :report_id"),
+            {"report_id": report.id}
+        )
+    except Exception:
+        pass
+
+    db.delete(report)
+    db.commit()
+
+    return {
+        "message": "Report deleted successfully",
+        "report_id": report_id
+    }
 
 @app.get("/reports/{report_id}/pdf")
 def export_report_pdf(

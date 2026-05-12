@@ -1145,7 +1145,10 @@
             <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
               onclick="downloadReportPDF(${f.report_id})">
               PDF
-            </button>
+            <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;border-color:rgba(239,68,68,.45);color:#fecaca;"
+              onclick="deleteReport(${f.report_id})">
+              Delete
+            </button>  
           </div>
         </div>
       `).join("");
@@ -1723,21 +1726,91 @@
     }
 
     async function loadReports() {
+      const panel = document.getElementById("reportsPanel");
+
+      if (!panel) return;
+
       try {
         const res = await fetch("/reports", {
           headers: {
-            ...(authToken ? { "Authorization": `Bearer ${authToken}` } : {})
+            "Authorization": `Bearer ${authToken}`
           }
         });
 
         if (!res.ok) {
+          panel.className = "empty";
+          panel.innerText = "No se pudieron cargar los reportes.";
           return;
         }
 
         const reports = await res.json();
-        renderReports(reports);
-      } catch (error) {
-        console.error("Error loading reports", error);
+
+        if (!reports.length) {
+          panel.className = "empty";
+          panel.innerText = "No reports yet.";
+          return;
+        }
+
+        panel.className = "";
+
+        panel.innerHTML = `
+      <table class="user-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Risk</th>
+            <th>Severity</th>
+            <th>IOCs</th>
+            <th>Case</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${reports.map(report => `
+            <tr>
+              <td>${report.id}</td>
+              <td>
+                <strong>${escapeHtml(report.title || "Untitled")}</strong>
+                ${report.summary ? `<div class="pattern-meta">${escapeHtml(report.summary)}</div>` : ""}
+              </td>
+              <td>${report.risk_score ?? 0}</td>
+              <td>
+                <span class="pill ${getSeverityPillClass(report.severity)}">
+                  ${report.severity || "Unknown"}
+                </span>
+              </td>
+              <td>${report.ioc_count ?? 0}</td>
+              <td>${report.case_status || "N/A"}</td>
+              <td>${formatDate(report.created_at)}</td>
+              <td>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+                    onclick="viewReport(${report.id})">
+                    View
+                  </button>
+
+                  <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+                    onclick="downloadReportPDF(${report.id})">
+                    PDF
+                  </button>
+
+                  <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;border-color:rgba(239,68,68,.45);color:#fecaca;"
+                    onclick="deleteReport(${report.id})">
+                    Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+
+      } catch (err) {
+        panel.className = "empty";
+        panel.innerText = `Reports load error: ${err.message}`;
       }
     }
 
@@ -1914,7 +1987,34 @@
         }
 
         const data = await res.json();
-        alert(JSON.stringify(data, null, 2));
+
+        const popup = window.open("", "_blank");
+        popup.document.write(`
+            <html>
+              <head>
+                <title>Report #${reportId}</title>
+                <style>
+                  body {
+                    background:#020617;
+                    color:#e5e7eb;
+                    font-family: Arial, sans-serif;
+                    padding:24px;
+                  }
+                  pre {
+                    white-space:pre-wrap;
+                    background:#0f172a;
+                    padding:18px;
+                    border-radius:12px;
+                    border:1px solid #4b3a16;
+                  }
+                </style>
+              </head>
+              <body>
+                <h1>Report #${reportId}</h1>
+                <pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+              </body>
+            </html>
+    `);
 
       } catch (err) {
         alert(`Error loading report: ${err.message}`);
@@ -1925,6 +2025,47 @@
       window.open(`/reports/${reportId}/pdf?token=${encodeURIComponent(authToken)}`, "_blank");
     }
 
+    async function deleteReport(reportId) {
+      const confirmDelete = confirm(
+        `¿Seguro que deseas eliminar el reporte #${reportId}? Esta acción no se puede deshacer.`
+      );
+
+      if (!confirmDelete) return;
+
+      try {
+        const res = await fetch(`/reports/${reportId}`, {
+          method: "DELETE",
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          alert(`No se pudo eliminar el reporte: ${errorText}`);
+          return;
+        }
+
+        alert(`Reporte #${reportId} eliminado correctamente.`);
+
+        if (!document.getElementById("historyView").classList.contains("hidden")) {
+          await loadReports();
+        }
+
+        const cisView = document.getElementById("cisView");
+        if (cisView && !cisView.classList.contains("hidden")) {
+          await loadCISOverview();
+        }
+
+        const socView = document.getElementById("socView");
+        if (socView && !socView.classList.contains("hidden")) {
+          await loadSOCOverview();
+        }
+
+      } catch (err) {
+        alert(`Error eliminando reporte: ${err.message}`);
+      }
+    }
     loadSession();
 
   </script>

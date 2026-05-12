@@ -1,3 +1,4 @@
+from app import pdf_report
 import json
 
 from fastapi import FastAPI, Request, UploadFile, File, Depends, HTTPException
@@ -19,7 +20,16 @@ from app.anomaly import detect_anomalies
 from app.detection_engine import run_detections
 from app.mitre_mapper import build_mitre_coverage
 from app.database import Base, engine, get_db
-from app.models import AnalysisReport, User, Company, SecurityCase
+from app.models import (
+    AnalysisReport,
+    User,
+    Company,
+    SecurityCase,
+    IOCObservation,
+    CaseNote,
+    AuditLog,
+    CompanySettings,
+)
 from app.auth import (
     authenticate_user,
     bootstrap_admin_user,
@@ -345,6 +355,104 @@ def admin_page():
 def health_check():
     return {"status": "ok"}
 
+def audit_action(
+    db: Session,
+    current_user: User | None,
+    action: str,
+    resource_type: str | None = None,
+    resource_id: str | None = None,
+    details: dict | None = None,
+    request: Request | None = None,
+):
+    try:
+        audit = AuditLog(
+            company_id=current_user.company_id if current_user else None,
+            user_id=current_user.id if current_user else None,
+            action=action,
+            resource_type=resource_type,
+            resource_id=str(resource_id) if resource_id is not None else None,
+            ip_address=request.client.host if request and request.client else None,
+            user_agent=request.headers.get("user-agent") if request else None,
+            details=json.dumps(details or {}, default=str),
+        )
+        db.add(audit)
+        db.commit()
+    except Exception as e:
+        print(f"Audit log failed: {e}")
+
+def persist_ioc_observations(
+    db: Session,
+    current_user: User,
+    report: AnalysisReport,
+    result: dict,
+):
+    try:
+        iocs = result.get("iocs", {}) or {}
+
+        items = []
+
+        for value in iocs.get("ips", []) or []:
+            items.append(("ip", value))
+
+        for value in iocs.get("domains", []) or []:
+            items.append(("domain", value))
+
+        for value in iocs.get("urls", []) or []:
+            items.append(("url", value))
+
+        for value in iocs.get("hashes", []) or []:
+            items.append(("hash", value))
+
+        for value in iocs.get("users", []) or []:
+            items.append(("user", value))
+
+        for value in iocs.get("resources", []) or []:
+            items.append(("resource", value))
+
+        for ioc_type, value in items:
+            if not value:
+                continue
+
+            db.add(
+                IOCObservation(
+                    company_id=current_user.company_id,
+                    report_id=report.id,
+                    type=ioc_type,
+                    ioc=str(value),
+                )
+            )
+
+        db.commit()
+
+    except Exception as e:
+        print(f"IOC persistence failed: {e}")
+
+def get_or_create_company_settings(
+    db: Session,
+    company_id: int,
+):
+    settings = (
+        db.query(CompanySettings)
+        .filter(CompanySettings.company_id == company_id)
+        .first()
+    )
+
+    if settings:
+        return settings
+
+    settings = CompanySettings(
+        company_id=company_id,
+        retention_days=90,
+        alerting_enabled=True,
+        allow_pdf_export=True,
+    )
+
+    db.add(settings)
+    db.commit()
+    db.refresh(settings)
+
+    return settings
+
 def build_ai_threat_enrichment(data: dict, result: dict) -> dict:
     """
     Adds Groq structured analysis + IOC extraction + AbuseIPDB enrichment
@@ -605,6 +713,26 @@ def analyze_and_save(
     db.commit()
     db.refresh(report)
 
+    persist_ioc_observations(
+    db=db,
+    current_user=current_user,
+    report=report,
+    result=result
+)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="CREATE_REPORT",
+        resource_type="analysis_report",
+        resource_id=report.id,
+        details={
+            "title": report.title,
+            "risk_score": report.risk_score,
+            "cis_controls": result.get("cis_controls", []),
+        },
+    )
+
     case = create_security_case_if_needed(
         db=db,
         current_user=current_user,
@@ -789,6 +917,18 @@ def delete_report(
         )
     except Exception:
         pass
+    
+    audit_action(
+    db=db,
+    current_user=current_user,
+    action="DELETE_REPORT",
+    resource_type="analysis_report",
+    resource_id=report.id,
+    details={
+        "title": report.title,
+        "risk_score": report.risk_score,
+    },
+)
 
     db.delete(report)
     db.commit()
@@ -886,10 +1026,13 @@ async def upload_analyze_save(
     mitre_coverage = build_mitre_coverage(events)
     anomaly_detection = detect_anomalies(result.get("normalized_events", []))
 
-    # MANTENER FEATURES EXISTENTES
     result["anomaly_detection"] = anomaly_detection
     result["detections"] = detections
     result["mitre_coverage"] = mitre_coverage
+
+    # CIS CONTROLS V8 MAPPING
+    cis_controls = map_to_cis(detections, result)
+    result["cis_controls"] = cis_controls
 
     # 🔥 NUEVO: IA + IOC + ABUSEIP + SCORE
     result = build_ai_threat_enrichment(data, result)
@@ -906,6 +1049,26 @@ async def upload_analyze_save(
     db.add(report)
     db.commit()
     db.refresh(report)
+
+    persist_ioc_observations(
+        db=db,
+        current_user=current_user,
+        report=report,
+        result=result
+    )
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="UPLOAD_REPORT",
+        resource_type="analysis_report",
+        resource_id=report.id,
+        details={
+            "filename": filename,
+            "risk_score": report.risk_score,
+            "cis_controls": result.get("cis_controls", []),
+        },
+    )
 
     case = create_security_case_if_needed(
         db=db,

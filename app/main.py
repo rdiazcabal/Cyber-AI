@@ -917,7 +917,7 @@ def delete_report(
         )
     except Exception:
         pass
-    
+
     audit_action(
     db=db,
     current_user=current_user,
@@ -1106,6 +1106,290 @@ def soc_overview(
         "open_cases": len(open_cases),
         "critical_cases": len(critical_cases),
     }
+
+@app.get("/cases")
+def list_cases(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(SecurityCase)
+
+    if current_user.role != "super_admin":
+        query = query.filter(SecurityCase.company_id == current_user.company_id)
+
+    cases = query.order_by(SecurityCase.created_at.desc()).all()
+
+    result = []
+
+    for case in cases:
+        report = None
+        if case.report_id:
+            report = db.query(AnalysisReport).filter(AnalysisReport.id == case.report_id).first()
+
+        assigned_user = None
+        if case.assigned_to:
+            assigned_user = db.query(User).filter(User.id == case.assigned_to).first()
+
+        result.append({
+            "id": case.id,
+            "company_id": case.company_id,
+            "report_id": case.report_id,
+            "report_title": report.title if report else None,
+            "title": case.title,
+            "severity": case.severity,
+            "status": case.status,
+            "assigned_to": case.assigned_to,
+            "assigned_to_username": assigned_user.username if assigned_user else None,
+            "created_at": case.created_at,
+        })
+
+    return result
+
+@app.get("/cases/{case_id}")
+def get_case(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(SecurityCase).filter(SecurityCase.id == case_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(SecurityCase.company_id == current_user.company_id)
+
+    case = query.first()
+
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    report = None
+    if case.report_id:
+        report = db.query(AnalysisReport).filter(AnalysisReport.id == case.report_id).first()
+
+    assigned_user = None
+    if case.assigned_to:
+        assigned_user = db.query(User).filter(User.id == case.assigned_to).first()
+
+    return {
+        "id": case.id,
+        "company_id": case.company_id,
+        "report_id": case.report_id,
+        "report_title": report.title if report else None,
+        "title": case.title,
+        "severity": case.severity,
+        "status": case.status,
+        "assigned_to": case.assigned_to,
+        "assigned_to_username": assigned_user.username if assigned_user else None,
+        "created_at": case.created_at,
+        "report": {
+            "id": report.id,
+            "title": report.title,
+            "risk_score": report.risk_score,
+            "created_at": report.created_at,
+            "result": json.loads(report.result_json),
+        } if report else None
+    }
+
+@app.patch("/cases/{case_id}/status")
+def update_case_status(
+    case_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    allowed_statuses = [
+        "open",
+        "investigating",
+        "contained",
+        "resolved",
+        "false_positive"
+    ]
+
+    new_status = payload.get("status")
+
+    if new_status not in allowed_statuses:
+        raise HTTPException(status_code=400, detail="Invalid case status")
+
+    query = db.query(SecurityCase).filter(SecurityCase.id == case_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(SecurityCase.company_id == current_user.company_id)
+
+    case = query.first()
+
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    old_status = case.status
+    case.status = new_status
+
+    db.commit()
+    db.refresh(case)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="UPDATE_CASE_STATUS",
+        resource_type="security_case",
+        resource_id=case.id,
+        details={
+            "old_status": old_status,
+            "new_status": new_status,
+        }
+    )
+
+    return {
+        "id": case.id,
+        "status": case.status,
+        "message": "Case status updated"
+    }
+
+@app.patch("/cases/{case_id}/assign")
+def assign_case(
+    case_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    user_id = payload.get("user_id")
+
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+
+    query = db.query(SecurityCase).filter(SecurityCase.id == case_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(SecurityCase.company_id == current_user.company_id)
+
+    case = query.first()
+
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    user_query = db.query(User).filter(User.id == int(user_id), User.is_active == True)
+
+    if current_user.role != "super_admin":
+        user_query = user_query.filter(User.company_id == current_user.company_id)
+
+    assigned_user = user_query.first()
+
+    if not assigned_user:
+        raise HTTPException(status_code=404, detail="Assigned user not found")
+
+    case.assigned_to = assigned_user.id
+
+    db.commit()
+    db.refresh(case)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="ASSIGN_CASE",
+        resource_type="security_case",
+        resource_id=case.id,
+        details={
+            "assigned_to": assigned_user.id,
+            "assigned_to_username": assigned_user.username,
+        }
+    )
+
+    return {
+        "id": case.id,
+        "assigned_to": assigned_user.id,
+        "assigned_to_username": assigned_user.username,
+        "message": "Case assigned"
+    }
+
+@app.post("/cases/{case_id}/notes")
+def add_case_note(
+    case_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    note_text = (payload.get("note") or "").strip()
+
+    if len(note_text) < 2:
+        raise HTTPException(status_code=400, detail="Note is required")
+
+    query = db.query(SecurityCase).filter(SecurityCase.id == case_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(SecurityCase.company_id == current_user.company_id)
+
+    case = query.first()
+
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    note = CaseNote(
+        company_id=case.company_id,
+        case_id=case.id,
+        user_id=current_user.id,
+        note=note_text,
+    )
+
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="ADD_CASE_NOTE",
+        resource_type="security_case",
+        resource_id=case.id,
+        details={
+            "note_id": note.id,
+        }
+    )
+
+    return {
+        "id": note.id,
+        "case_id": note.case_id,
+        "note": note.note,
+        "created_at": note.created_at,
+    }
+
+@app.get("/cases/{case_id}/notes")
+def list_case_notes(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(SecurityCase).filter(SecurityCase.id == case_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(SecurityCase.company_id == current_user.company_id)
+
+    case = query.first()
+
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    notes = (
+        db.query(CaseNote)
+        .filter(CaseNote.case_id == case.id)
+        .order_by(CaseNote.created_at.desc())
+        .all()
+    )
+
+    result = []
+
+    for note in notes:
+        user = None
+        if note.user_id:
+            user = db.query(User).filter(User.id == note.user_id).first()
+
+        result.append({
+            "id": note.id,
+            "case_id": note.case_id,
+            "user_id": note.user_id,
+            "username": user.username if user else None,
+            "note": note.note,
+            "created_at": note.created_at,
+        })
+
+    return result
 
 @app.get("/compliance/cis8/overview")
 def cis8_overview(

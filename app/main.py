@@ -1107,6 +1107,60 @@ def soc_overview(
         "critical_cases": len(critical_cases),
     }
 
+@app.get("/admin/audit-logs")
+def list_audit_logs(
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    query = db.query(AuditLog)
+
+    if current_user.role != "super_admin":
+        query = query.filter(AuditLog.company_id == current_user.company_id)
+
+    logs = (
+        query
+        .order_by(AuditLog.created_at.desc())
+        .limit(min(limit, 500))
+        .all()
+    )
+
+    result = []
+
+    for log in logs:
+        user = None
+        company = None
+
+        if log.user_id:
+            user = db.query(User).filter(User.id == log.user_id).first()
+
+        if log.company_id:
+            company = db.query(Company).filter(Company.id == log.company_id).first()
+
+        details = {}
+
+        try:
+            details = json.loads(log.details or "{}")
+        except Exception:
+            details = {"raw": log.details}
+
+        result.append({
+            "id": log.id,
+            "company_id": log.company_id,
+            "company_name": company.name if company else None,
+            "user_id": log.user_id,
+            "username": user.username if user else None,
+            "action": log.action,
+            "resource_type": log.resource_type,
+            "resource_id": log.resource_id,
+            "ip_address": log.ip_address,
+            "user_agent": log.user_agent,
+            "details": details,
+            "created_at": log.created_at,
+        })
+
+    return result
+
 @app.get("/cases")
 def list_cases(
     db: Session = Depends(get_db),

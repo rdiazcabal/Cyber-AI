@@ -3264,18 +3264,48 @@
       }
     }
 
-    function downloadCIS8PDF() {
-      let url = "/compliance/cis8/pdf";
+    async function downloadCIS8PDF() {
+      try {
+        let url = "/compliance/cis8/pdf";
 
-      const companyInput = document.getElementById("settingsCompanyId");
-      const companyId = companyInput ? companyInput.value.trim() : "";
+        const companyInput = document.getElementById("settingsCompanyId");
+        const companyId = companyInput ? companyInput.value.trim() : "";
 
-      if (currentUser && currentUser.role === "super_admin" && companyId) {
-        url += `?company_id=${encodeURIComponent(companyId)}`;
+        if (currentUser && currentUser.role === "super_admin" && companyId) {
+          url += `?company_id=${encodeURIComponent(companyId)}`;
+        }
+
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          alert(`No se pudo descargar el PDF CIS 8: ${errorText}`);
+          return;
+        }
+
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = downloadUrl;
+        a.download = "cis8-evidence-report.pdf";
+        document.body.appendChild(a);
+        a.click();
+
+        a.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+
+      } catch (err) {
+        alert(`Error descargando CIS 8 PDF: ${err.message}`);
       }
-
-      window.open(url, "_blank");
     }
+
+
     loadSession();
 
   </script>

@@ -1917,6 +1917,162 @@
       await loadExecutiveDashboard();
     }
 
+    async function loadExecutiveDashboard() {
+      try {
+        const res = await fetch("/executive/overview", {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          alert(`Could not load executive dashboard: ${await res.text()}`);
+          return;
+        }
+
+        const data = await res.json();
+
+        console.log("EXECUTIVE DATA:", data);
+
+        document.getElementById("execTotalReports").innerText = data.total_reports ?? 0;
+        document.getElementById("execReportsThisMonth").innerText = data.reports_this_month ?? 0;
+        document.getElementById("execAvgRisk").innerText = data.avg_risk_score ?? 0;
+        document.getElementById("execOpenCases").innerText = data.open_cases ?? 0;
+        document.getElementById("execCriticalCases").innerText = data.critical_cases ?? 0;
+        document.getElementById("execTotalIocs").innerText = data.total_iocs ?? 0;
+
+        renderExecTopIocs(data.top_iocs || []);
+        renderExecTopCis(data.top_cis_controls || []);
+        renderExecTopMitre(data.top_mitre_techniques || []);
+        renderExecHighRisk(data.recent_high_risk_reports || []);
+
+      } catch (err) {
+        alert(`Executive dashboard error: ${err.message}`);
+      }
+    }
+
+    function renderExecTopIocs(items) {
+      const panel = document.getElementById("execTopIocsPanel");
+
+      if (!items.length) {
+        panel.className = "empty";
+        panel.innerText = "No IOC data yet.";
+        return;
+      }
+
+      panel.className = "";
+
+      panel.innerHTML = items.map(item => `
+    <div class="pattern-card">
+      <div class="pattern-header">
+        <span class="pill pill-info">${escapeHtml(item.type || "ioc")}</span>
+        <span class="pill pill-high">${item.count} seen</span>
+        <span class="pattern-title">${escapeHtml(item.ioc)}</span>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+        <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+          onclick="showThreatHunting().then(() => { document.getElementById('iocSearchInput').value='${escapeHtml(item.ioc)}'; searchIOC(); })">
+          Hunt
+        </button>
+      </div>
+    </div>
+  `).join("");
+    }
+
+    function renderExecTopCis(items) {
+      const panel = document.getElementById("execTopCisPanel");
+
+      if (!items.length) {
+        panel.className = "empty";
+        panel.innerText = "No CIS data yet.";
+        return;
+      }
+
+      panel.className = "";
+
+      panel.innerHTML = items.map(item => `
+    <div class="pattern-card">
+      <div class="pattern-header">
+        <span class="pill pill-info">${item.count} findings</span>
+        <span class="pattern-title">${escapeHtml(item.control)}</span>
+      </div>
+      <div class="pattern-meta">
+        Este control aparece relacionado en ${item.count} hallazgo(s).
+      </div>
+    </div>
+  `).join("");
+    }
+
+    function renderExecTopMitre(items) {
+      const panel = document.getElementById("execTopMitrePanel");
+
+      if (!items.length) {
+        panel.className = "empty";
+        panel.innerText = "No MITRE data yet.";
+        return;
+      }
+
+      panel.className = "";
+
+      panel.innerHTML = items.map(item => `
+    <div class="pattern-card">
+      <div class="pattern-header">
+        <span class="pill pill-info">${item.count} hits</span>
+        <span class="pattern-title">${escapeHtml(item.technique)}</span>
+      </div>
+    </div>
+  `).join("");
+    }
+
+    function renderExecHighRisk(items) {
+      const panel = document.getElementById("execHighRiskPanel");
+
+      if (!items.length) {
+        panel.className = "empty";
+        panel.innerText = "No high risk reports yet.";
+        return;
+      }
+
+      panel.className = "";
+
+      panel.innerHTML = items.map(r => `
+    <div class="pattern-card">
+      <div class="pattern-header">
+        <span class="pill ${getSeverityPillClass(r.severity)}">${escapeHtml(r.severity || "Unknown")}</span>
+        <span class="pill pill-info">Risk ${r.risk_score ?? 0}</span>
+        <span class="pattern-title">Report #${r.id} · ${escapeHtml(r.title || "Untitled")}</span>
+      </div>
+
+      <div class="pattern-meta">
+        ${escapeHtml(r.summary || "No summary available")}
+      </div>
+
+      <div class="pattern-meta" style="margin-top:8px;">
+        Case: ${r.case_id ? `#${r.case_id} · ${escapeHtml(r.case_status || "")}` : "No case"}
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+        <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+          onclick="viewReport(${r.id})">
+          View
+        </button>
+
+        <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+          onclick="downloadReportPDF(${r.id})">
+          PDF
+        </button>
+
+        ${r.case_id ? `
+          <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+            onclick="showCases().then(() => viewCase(${r.case_id}))">
+            Open Case
+          </button>
+        ` : ""}
+      </div>
+    </div>
+  `).join("");
+    }
+
     function getSettingsCompanyQuery() {
       const companyInput = document.getElementById("settingsCompanyId");
       const companyId = companyInput ? companyInput.value.trim() : "";

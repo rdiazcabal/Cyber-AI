@@ -2369,3 +2369,143 @@ def export_cis8_pdf(
             "Content-Disposition": f"attachment; filename={filename}"
         }
     )
+
+@app.get("/executive/overview")
+def executive_overview(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from datetime import datetime
+    from collections import Counter
+
+    reports_query = db.query(AnalysisReport)
+    cases_query = db.query(SecurityCase)
+    iocs_query = db.query(IOCObservation)
+
+    if current_user.role != "super_admin":
+        reports_query = reports_query.filter(
+            AnalysisReport.company_id == current_user.company_id
+        )
+        cases_query = cases_query.filter(
+            SecurityCase.company_id == current_user.company_id
+        )
+        iocs_query = iocs_query.filter(
+            IOCObservation.company_id == current_user.company_id
+        )
+
+    reports = reports_query.order_by(AnalysisReport.created_at.desc()).all()
+    cases = cases_query.all()
+    iocs = iocs_query.all()
+
+    now = datetime.utcnow()
+
+    total_reports = len(reports)
+    reports_this_month = len([
+        r for r in reports
+        if r.created_at and r.created_at.year == now.year and r.created_at.month == now.month
+    ])
+
+    avg_risk_score = 0
+    if reports:
+        avg_risk_score = int(sum([(r.risk_score or 0) for r in reports]) / len(reports))
+
+    open_cases = len([c for c in cases if c.status == "open"])
+    critical_cases = len([c for c in cases if c.severity == "Critical"])
+
+    ioc_counter = Counter()
+    cis_counter = Counter()
+    mitre_counter = Counter()
+
+    for obs in iocs:
+        if obs.ioc:
+            ioc_counter[f"{obs.type}:{obs.ioc}"] += 1
+
+    recent_high_risk_reports = []
+
+    for report in reports:
+        try:
+            parsed = json.loads(report.result_json or "{}")
+
+            for control in parsed.get("cis_controls", []) or []:
+                cis_counter[control] += 1
+
+            mitre = parsed.get("mitre_coverage", {}) or {}
+
+            if isinstance(mitre, dict):
+                for key, value in mitre.items():
+                    if isinstance(value, int):
+                        mitre_counter[key] += value
+                    elif isinstance(value, list):
+                        mitre_counter[key] += len(value)
+                    else:
+                        mitre_counter[key] += 1
+
+            ai_struct = parsed.get("ai_structured_analysis", {}) or {}
+
+            if (report.risk_score or 0) >= 70:
+                case = db.query(SecurityCase).filter(SecurityCase.report_id == report.id).first()
+
+                recent_high_risk_reports.append({
+                    "id": report.id,
+                    "title": report.title,
+                    "risk_score": report.risk_score,
+                    "severity": ai_struct.get("severity", "Unknown"),
+                    "summary": ai_struct.get("summary"),
+                    "case_id": case.id if case else None,
+                    "case_status": case.status if case else None,
+                    "created_at": report.created_at,
+                })
+
+        except Exception:
+            continue
+
+    top_iocs = [
+        {
+            "ioc": key.split(":", 1)[1] if ":" in key else key,
+            "type": key.split(":", 1)[0] if ":" in key else "ioc",
+            "count": count,
+        }
+        for key, count in ioc_counter.most_common(10)
+    ]
+
+    top_cis_controls = [
+        {
+            "control": control,
+            "count": count,
+        }
+        for control, count in cis_counter.most_common(10)
+    ]
+
+    top_mitre_techniques = [
+        {
+            "technique": technique,
+            "count": count,
+        }
+        for technique, count in mitre_counter.most_common(10)
+    ]
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="VIEW_EXECUTIVE_DASHBOARD",
+        resource_type="dashboard",
+        resource_id="executive",
+        details={
+            "total_reports": total_reports,
+            "open_cases": open_cases,
+            "critical_cases": critical_cases,
+        }
+    )
+
+    return {
+        "total_reports": total_reports,
+        "reports_this_month": reports_this_month,
+        "avg_risk_score": avg_risk_score,
+        "open_cases": open_cases,
+        "critical_cases": critical_cases,
+        "total_iocs": len(iocs),
+        "top_iocs": top_iocs,
+        "top_cis_controls": top_cis_controls,
+        "top_mitre_techniques": top_mitre_techniques,
+        "recent_high_risk_reports": recent_high_risk_reports[:10],
+    }

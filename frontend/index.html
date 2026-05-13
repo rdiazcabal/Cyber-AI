@@ -711,7 +711,9 @@
       <a class="nav-item active" id="dashboardNav" href="javascript:void(0)" onclick="showDashboard()">
         🏠 Dashboard
       </a>
-
+      <a class="nav-item" id="executiveNav" href="javascript:void(0)" onclick="showExecutiveDashboard()">
+        📈 Executive Dashboard
+      </a>
       <a class="nav-item" id="historyNav" href="javascript:void(0)" onclick="showHistory()">
         📜 Analysis History
       </a>
@@ -1196,7 +1198,86 @@
               Waiting for settings...
             </div>
           </div>
+        </div>
+        <!-- EXECUTIVE DASHBOARD VIEW -->
+        <div id="executiveView" class="hidden">
 
+          <div class="header">
+            <div>
+              <h1>Executive Dashboard</h1>
+              <p>Resumen ejecutivo de riesgos, casos, cumplimiento e indicadores de seguridad.</p>
+            </div>
+
+            <div class="api-status">
+              <span class="pulse"></span> Executive View
+            </div>
+          </div>
+
+          <div class="cards">
+            <div class="card card-total">
+              <div class="card-label">Total Reports</div>
+              <h2 id="execTotalReports" class="card-value">0</h2>
+              <div class="card-foot">Reportes generados</div>
+            </div>
+
+            <div class="card card-patterns">
+              <div class="card-label">This Month</div>
+              <h2 id="execReportsThisMonth" class="card-value">0</h2>
+              <div class="card-foot">Reportes del mes</div>
+            </div>
+
+            <div class="card card-risk">
+              <div class="card-label">Avg Risk</div>
+              <h2 id="execAvgRisk" class="card-value">0</h2>
+              <div class="card-foot">Promedio de riesgo</div>
+            </div>
+
+            <div class="card card-high">
+              <div class="card-label">Open Cases</div>
+              <h2 id="execOpenCases" class="card-value">0</h2>
+              <div class="card-foot">Casos abiertos</div>
+            </div>
+
+            <div class="card card-critical">
+              <div class="card-label">Critical Cases</div>
+              <h2 id="execCriticalCases" class="card-value">0</h2>
+              <div class="card-foot">Casos críticos</div>
+            </div>
+
+            <div class="card card-low">
+              <div class="card-label">Total IOCs</div>
+              <h2 id="execTotalIocs" class="card-value">0</h2>
+              <div class="card-foot">Indicadores observados</div>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="panel">
+              <h3>Top IOCs</h3>
+              <div class="panel-subtitle">Indicadores más recurrentes en los análisis.</div>
+              <div id="execTopIocsPanel" class="empty">No IOC data yet.</div>
+            </div>
+
+            <div class="panel">
+              <h3>Top CIS Controls</h3>
+              <div class="panel-subtitle">Controles CIS más relacionados con los hallazgos.</div>
+              <div id="execTopCisPanel" class="empty">No CIS data yet.</div>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="panel">
+              <h3>Top MITRE Techniques</h3>
+              <div class="panel-subtitle">Técnicas o tácticas más observadas.</div>
+              <div id="execTopMitrePanel" class="empty">No MITRE data yet.</div>
+            </div>
+
+            <div class="panel">
+              <h3>Recent High Risk Reports</h3>
+              <div class="panel-subtitle">Últimos reportes con riesgo alto.</div>
+              <div id="execHighRiskPanel" class="empty">No high risk reports yet.</div>
+            </div>
+          </div>
         </div>
     </main>
   </div>
@@ -1244,6 +1325,12 @@
 
       const companySettingsNav = document.getElementById("companySettingsNav");
       if (companySettingsNav) companySettingsNav.classList.remove("active");
+
+      const executiveView = document.getElementById("executiveView");
+      if (executiveView) executiveView.classList.add("hidden");
+
+      const executiveNav = document.getElementById("executiveNav");
+      if (executiveNav) executiveNav.classList.remove("active");
     }
 
     async function showHistory() {
@@ -1288,6 +1375,12 @@
 
       const companySettingsNav = document.getElementById("companySettingsNav");
       if (companySettingsNav) companySettingsNav.classList.remove("active");
+
+      const executiveView = document.getElementById("executiveView");
+      if (executiveView) executiveView.classList.add("hidden");
+
+      const executiveNav = document.getElementById("executiveNav");
+      if (executiveNav) executiveNav.classList.remove("active");
 
       await loadReports();
     }
@@ -1335,6 +1428,12 @@
       const companySettingsNav = document.getElementById("companySettingsNav");
       if (companySettingsNav) companySettingsNav.classList.remove("active");
 
+      const executiveView = document.getElementById("executiveView");
+      if (executiveView) executiveView.classList.add("hidden");
+
+      const executiveNav = document.getElementById("executiveNav");
+      if (executiveNav) executiveNav.classList.remove("active");
+
       await loadSOCOverview();
     }
 
@@ -1380,6 +1479,13 @@
 
       const companySettingsNav = document.getElementById("companySettingsNav");
       if (companySettingsNav) companySettingsNav.classList.remove("active");
+
+      const executiveView = document.getElementById("executiveView");
+      if (executiveView) executiveView.classList.add("hidden");
+
+      const executiveNav = document.getElementById("executiveNav");
+      if (executiveNav) executiveNav.classList.remove("active");
+
       await loadCISOverview();
     }
 
@@ -1425,6 +1531,12 @@
 
       const companySettingsNav = document.getElementById("companySettingsNav");
       if (companySettingsNav) companySettingsNav.classList.remove("active");
+
+      const executiveView = document.getElementById("executiveView");
+      if (executiveView) executiveView.classList.add("hidden");
+
+      const executiveNav = document.getElementById("executiveNav");
+      if (executiveNav) executiveNav.classList.remove("active");
 
       await loadCases();
     }
@@ -1546,6 +1658,13 @@
 
       const companySettingsNav = document.getElementById("companySettingsNav");
       if (companySettingsNav) companySettingsNav.classList.remove("active");
+
+      const executiveView = document.getElementById("executiveView");
+      if (executiveView) executiveView.classList.add("hidden");
+
+      const executiveNav = document.getElementById("executiveNav");
+      if (executiveNav) executiveNav.classList.remove("active");
+
     }
 
     async function showAuditLogs() {
@@ -1590,6 +1709,12 @@
 
       const companySettingsNav = document.getElementById("companySettingsNav");
       if (companySettingsNav) companySettingsNav.classList.remove("active");
+
+      const executiveView = document.getElementById("executiveView");
+      if (executiveView) executiveView.classList.add("hidden");
+
+      const executiveNav = document.getElementById("executiveNav");
+      if (executiveNav) executiveNav.classList.remove("active");
 
       await loadAuditLogs();
     }
@@ -1637,7 +1762,65 @@
       const companySettingsNav = document.getElementById("companySettingsNav");
       if (companySettingsNav) companySettingsNav.classList.add("active");
 
+      const executiveView = document.getElementById("executiveView");
+      if (executiveView) executiveView.classList.add("hidden");
+
+      const executiveNav = document.getElementById("executiveNav");
+      if (executiveNav) executiveNav.classList.remove("active");
+
       await loadCompanySettings();
+    }
+
+    async function showExecutiveDashboard() {
+      document.getElementById("dashboardView").classList.add("hidden");
+      document.getElementById("historyView").classList.add("hidden");
+
+      const socView = document.getElementById("socView");
+      if (socView) socView.classList.add("hidden");
+
+      const cisView = document.getElementById("cisView");
+      if (cisView) cisView.classList.add("hidden");
+
+      const casesView = document.getElementById("casesView");
+      if (casesView) casesView.classList.add("hidden");
+
+      const threatHuntingView = document.getElementById("threatHuntingView");
+      if (threatHuntingView) threatHuntingView.classList.add("hidden");
+
+      const auditLogsView = document.getElementById("auditLogsView");
+      if (auditLogsView) auditLogsView.classList.add("hidden");
+
+      const companySettingsView = document.getElementById("companySettingsView");
+      if (companySettingsView) companySettingsView.classList.add("hidden");
+
+      const executiveView = document.getElementById("executiveView");
+      if (executiveView) executiveView.classList.remove("hidden");
+
+      document.getElementById("dashboardNav").classList.remove("active");
+      document.getElementById("historyNav").classList.remove("active");
+
+      const socNav = document.getElementById("socNav");
+      if (socNav) socNav.classList.remove("active");
+
+      const cisNav = document.getElementById("cisNav");
+      if (cisNav) cisNav.classList.remove("active");
+
+      const casesNav = document.getElementById("casesNav");
+      if (casesNav) casesNav.classList.remove("active");
+
+      const threatHuntingNav = document.getElementById("threatHuntingNav");
+      if (threatHuntingNav) threatHuntingNav.classList.remove("active");
+
+      const auditLogsNav = document.getElementById("auditLogsNav");
+      if (auditLogsNav) auditLogsNav.classList.remove("active");
+
+      const companySettingsNav = document.getElementById("companySettingsNav");
+      if (companySettingsNav) companySettingsNav.classList.remove("active");
+
+      const executiveNav = document.getElementById("executiveNav");
+      if (executiveNav) executiveNav.classList.add("active");
+
+      await loadExecutiveDashboard();
     }
 
     function getSettingsCompanyQuery() {
@@ -3305,6 +3488,127 @@
       }
     }
 
+    function renderExecTopIocs(items) {
+      const panel = document.getElementById("execTopIocsPanel");
+
+      if (!items.length) {
+        panel.className = "empty";
+        panel.innerText = "No IOC data yet.";
+        return;
+      }
+
+      panel.className = "";
+
+      panel.innerHTML = items.map(item => `
+    <div class="pattern-card">
+      <div class="pattern-header">
+        <span class="pill pill-info">${escapeHtml(item.type || "ioc")}</span>
+        <span class="pill pill-high">${item.count} seen</span>
+        <span class="pattern-title">${escapeHtml(item.ioc)}</span>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+        <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+          onclick="showThreatHunting().then(() => { document.getElementById('iocSearchInput').value='${escapeHtml(item.ioc)}'; searchIOC(); })">
+          Hunt
+        </button>
+      </div>
+    </div>
+  `).join("");
+    }
+
+    function renderExecTopCis(items) {
+      const panel = document.getElementById("execTopCisPanel");
+
+      if (!items.length) {
+        panel.className = "empty";
+        panel.innerText = "No CIS data yet.";
+        return;
+      }
+
+      panel.className = "";
+
+      panel.innerHTML = items.map(item => `
+    <div class="pattern-card">
+      <div class="pattern-header">
+        <span class="pill pill-info">${item.count} findings</span>
+        <span class="pattern-title">${escapeHtml(item.control)}</span>
+      </div>
+      <div class="pattern-meta">
+        Este control aparece relacionado en ${item.count} hallazgo(s).
+      </div>
+    </div>
+  `).join("");
+    }
+
+    function renderExecTopMitre(items) {
+      const panel = document.getElementById("execTopMitrePanel");
+
+      if (!items.length) {
+        panel.className = "empty";
+        panel.innerText = "No MITRE data yet.";
+        return;
+      }
+
+      panel.className = "";
+
+      panel.innerHTML = items.map(item => `
+    <div class="pattern-card">
+      <div class="pattern-header">
+        <span class="pill pill-info">${item.count} hits</span>
+        <span class="pattern-title">${escapeHtml(item.technique)}</span>
+      </div>
+    </div>
+  `).join("");
+    }
+
+    function renderExecHighRisk(items) {
+      const panel = document.getElementById("execHighRiskPanel");
+
+      if (!items.length) {
+        panel.className = "empty";
+        panel.innerText = "No high risk reports yet.";
+        return;
+      }
+
+      panel.className = "";
+
+      panel.innerHTML = items.map(r => `
+    <div class="pattern-card">
+      <div class="pattern-header">
+        <span class="pill ${getSeverityPillClass(r.severity)}">${escapeHtml(r.severity || "Unknown")}</span>
+        <span class="pill pill-info">Risk ${r.risk_score ?? 0}</span>
+        <span class="pattern-title">Report #${r.id} · ${escapeHtml(r.title || "Untitled")}</span>
+      </div>
+
+      <div class="pattern-meta">
+        ${escapeHtml(r.summary || "No summary available")}
+      </div>
+
+      <div class="pattern-meta" style="margin-top:8px;">
+        Case: ${r.case_id ? `#${r.case_id} · ${escapeHtml(r.case_status || "")}` : "No case"}
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+        <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+          onclick="viewReport(${r.id})">
+          View
+        </button>
+
+        <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+          onclick="downloadReportPDF(${r.id})">
+          PDF
+        </button>
+
+        ${r.case_id ? `
+          <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+            onclick="showCases().then(() => viewCase(${r.case_id}))">
+            Open Case
+          </button>
+        ` : ""}
+      </div>
+    </div>
+  `).join("");
+    }
 
     loadSession();
 

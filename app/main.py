@@ -1,7 +1,7 @@
 from app import pdf_report
 import json
 
-from fastapi import FastAPI, Request, UploadFile, File, Depends, HTTPException
+from fastapi import FastAPI, Request, UploadFile, File, Depends, HTTPException, Body
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
@@ -954,6 +954,32 @@ def export_report_pdf(
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
 
+    # COMPANY SETTINGS: bloquear PDF si la empresa lo tiene deshabilitado
+    settings = get_or_create_company_settings(
+        db=db,
+        company_id=report.company_id
+    )
+
+    if not settings.allow_pdf_export:
+        raise HTTPException(
+            status_code=403,
+            detail="PDF export is disabled for this company"
+        )
+
+    # AUDIT LOG: registrar descarga de PDF
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="DOWNLOAD_PDF",
+        resource_type="analysis_report",
+        resource_id=report.id,
+        details={
+            "title": report.title,
+            "risk_score": report.risk_score,
+            "company_id": report.company_id,
+        },
+    )
+
     pdf_buffer = generate_pdf_report(report)
 
     return StreamingResponse(
@@ -1679,4 +1705,216 @@ def ioc_history(
         "ioc": clean_ioc,
         "count": len(history),
         "history": history
+    }
+
+@app.get("/admin/company-settings")
+def get_company_settings(
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    target_company_id = company_id
+
+    if current_user.role != "super_admin":
+        target_company_id = current_user.company_id
+
+    if not target_company_id:
+        raise HTTPException(status_code=400, detail="company_id is required")
+
+    company = (
+        db.query(Company)
+        .filter(Company.id == int(target_company_id))
+        .first()
+    )
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    settings = get_or_create_company_settings(
+        db=db,
+        company_id=company.id
+    )
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="VIEW_COMPANY_SETTINGS",
+        resource_type="company_settings",
+        resource_id=settings.id,
+        details={
+            "company_id": company.id,
+            "company_name": company.name,
+        }
+    )
+
+    return {
+        "id": settings.id,
+        "company_id": company.id,
+        "company_name": company.name,
+        "retention_days": settings.retention_days,
+        "alerting_enabled": settings.alerting_enabled,
+        "allow_pdf_export": settings.allow_pdf_export,
+        "created_at": settings.created_at,
+        "updated_at": settings.updated_at,
+    }
+
+@app.put("/admin/company-settings")
+def update_company_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    company_id = payload.get("company_id")
+
+    if current_user.role != "super_admin":
+        company_id = current_user.company_id
+
+    if not company_id:
+        raise HTTPException(status_code=400, detail="company_id is required")
+
+    company = (
+        db.query(Company)
+        .filter(Company.id == int(company_id))
+        .first()
+    )
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    settings = get_or_create_company_settings(
+        db=db,
+        company_id=company.id
+    )
+
+    if "retention_days" in payload:
+        retention_days = int(payload.get("retention_days"))
+
+        if retention_days < 1 or retention_days > 3650:
+            raise HTTPException(
+                status_code=400,
+                detail="retention_days must be between 1 and 3650"
+            )
+
+        settings.retention_days = retention_days
+
+    if "alerting_enabled" in payload:
+        settings.alerting_enabled = bool(payload.get("alerting_enabled"))
+
+    if "allow_pdf_export" in payload:
+        settings.allow_pdf_export = bool(payload.get("allow_pdf_export"))
+
+    from datetime import datetime
+    settings.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(settings)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="UPDATE_COMPANY_SETTINGS",
+        resource_type="company_settings",
+        resource_id=settings.id,
+        details={
+            "company_id": company.id,
+            "company_name": company.name,
+            "retention_days": settings.retention_days,
+            "alerting_enabled": settings.alerting_enabled,
+            "allow_pdf_export": settings.allow_pdf_export,
+        }
+    )
+
+    return {
+        "id": settings.id,
+        "company_id": company.id,
+        "company_name": company.name,
+        "retention_days": settings.retention_days,
+        "alerting_enabled": settings.alerting_enabled,
+        "allow_pdf_export": settings.allow_pdf_export,
+        "updated_at": settings.updated_at,
+    }
+
+@app.post("/admin/company-settings/apply-retention")
+def apply_company_retention(
+    payload: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    company_id = payload.get("company_id")
+
+    if current_user.role != "super_admin":
+        company_id = current_user.company_id
+
+    if not company_id:
+        raise HTTPException(status_code=400, detail="company_id is required")
+
+    company = (
+        db.query(Company)
+        .filter(Company.id == int(company_id))
+        .first()
+    )
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    settings = get_or_create_company_settings(
+        db=db,
+        company_id=company.id
+    )
+
+    from datetime import datetime, timedelta
+    cutoff_date = datetime.utcnow() - timedelta(days=settings.retention_days)
+
+    old_reports = (
+        db.query(AnalysisReport)
+        .filter(
+            AnalysisReport.company_id == company.id,
+            AnalysisReport.created_at < cutoff_date
+        )
+        .all()
+    )
+
+    deleted_report_ids = [r.id for r in old_reports]
+
+    for report in old_reports:
+        db.query(SecurityCase).filter(SecurityCase.report_id == report.id).delete(
+            synchronize_session=False
+        )
+
+        try:
+            from sqlalchemy import text
+            db.execute(
+                text("DELETE FROM ioc_observations WHERE report_id = :report_id"),
+                {"report_id": report.id}
+            )
+        except Exception:
+            pass
+
+        db.delete(report)
+
+    db.commit()
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="APPLY_RETENTION",
+        resource_type="company_settings",
+        resource_id=settings.id,
+        details={
+            "company_id": company.id,
+            "company_name": company.name,
+            "retention_days": settings.retention_days,
+            "cutoff_date": str(cutoff_date),
+            "deleted_count": len(deleted_report_ids),
+            "deleted_report_ids": deleted_report_ids,
+        }
+    )
+
+    return {
+        "company_id": company.id,
+        "company_name": company.name,
+        "retention_days": settings.retention_days,
+        "cutoff_date": cutoff_date,
+        "deleted_count": len(deleted_report_ids),
+        "deleted_report_ids": deleted_report_ids,
     }

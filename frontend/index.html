@@ -728,6 +728,9 @@
         📊 CIS 8 Compliance
       </a>
       <div class="nav-title">Admin</div>
+      <a class="nav-item hidden" id="companySettingsNav" href="javascript:void(0)" onclick="showCompanySettings()">
+        ⚙️ Company Settings
+      </a>
       <a class="nav-item hidden" id="navUsuarios" href="/admin">👤 Usuarios locales</a>
       <a class="nav-item hidden" id="auditLogsNav" href="javascript:void(0)" onclick="showAuditLogs()">
         🧾 Audit Logs
@@ -1115,6 +1118,75 @@
               No audit logs loaded yet.
             </div>
           </div>
+        </div>
+        <!-- COMPANY SETTINGS VIEW -->
+        <div id="companySettingsView" class="hidden">
+
+          <div class="header">
+            <div>
+              <h1>Company Settings</h1>
+              <p>Configuración de retención, alertas y exportación por empresa.</p>
+            </div>
+
+            <div class="api-status">
+              <span class="pulse"></span> Settings Active
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Retention & Export Settings</h3>
+            <div class="panel-subtitle">
+              Define cuánto tiempo se conservan los reportes y qué opciones están permitidas para la empresa.
+            </div>
+
+            <div class="grid">
+              <div>
+                <div class="input-row">
+                  <label>Company ID</label>
+                  <input id="settingsCompanyId" placeholder="Solo super_admin puede consultar otra empresa">
+                </div>
+
+                <button class="secondary" onclick="loadCompanySettings()">
+                  Load Settings
+                </button>
+              </div>
+
+              <div>
+                <div class="input-row">
+                  <label>Retention Days</label>
+                  <input id="settingsRetentionDays" type="number" min="1" max="3650" value="90">
+                </div>
+
+                <div class="input-row">
+                  <label>Alerting Enabled</label>
+                  <select id="settingsAlertingEnabled">
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </div>
+
+                <div class="input-row">
+                  <label>Allow PDF Export</label>
+                  <select id="settingsAllowPdfExport">
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </div>
+
+                <button onclick="saveCompanySettings()">
+                  Save Settings
+                </button>
+
+                <button class="secondary" onclick="applyRetentionPolicy()">
+                  Apply Retention Now
+                </button>
+              </div>
+            </div>
+
+            <div id="companySettingsStatus" class="status-line">
+              Waiting for settings...
+            </div>
+          </div>
 
         </div>
     </main>
@@ -1157,6 +1229,12 @@
 
       const auditLogsNav = document.getElementById("auditLogsNav");
       if (auditLogsNav) auditLogsNav.classList.remove("active");
+
+      const companySettingsView = document.getElementById("companySettingsView");
+      if (companySettingsView) companySettingsView.classList.add("hidden");
+
+      const companySettingsNav = document.getElementById("companySettingsNav");
+      if (companySettingsNav) companySettingsNav.classList.remove("active");
     }
 
     async function showHistory() {
@@ -1195,6 +1273,12 @@
 
       const auditLogsNav = document.getElementById("auditLogsNav");
       if (auditLogsNav) auditLogsNav.classList.remove("active");
+
+      const companySettingsView = document.getElementById("companySettingsView");
+      if (companySettingsView) companySettingsView.classList.add("hidden");
+
+      const companySettingsNav = document.getElementById("companySettingsNav");
+      if (companySettingsNav) companySettingsNav.classList.remove("active");
 
       await loadReports();
     }
@@ -1236,6 +1320,12 @@
       const auditLogsNav = document.getElementById("auditLogsNav");
       if (auditLogsNav) auditLogsNav.classList.remove("active");
 
+      const companySettingsView = document.getElementById("companySettingsView");
+      if (companySettingsView) companySettingsView.classList.add("hidden");
+
+      const companySettingsNav = document.getElementById("companySettingsNav");
+      if (companySettingsNav) companySettingsNav.classList.remove("active");
+
       await loadSOCOverview();
     }
 
@@ -1276,6 +1366,11 @@
       const auditLogsNav = document.getElementById("auditLogsNav");
       if (auditLogsNav) auditLogsNav.classList.remove("active");
 
+      const companySettingsView = document.getElementById("companySettingsView");
+      if (companySettingsView) companySettingsView.classList.add("hidden");
+
+      const companySettingsNav = document.getElementById("companySettingsNav");
+      if (companySettingsNav) companySettingsNav.classList.remove("active");
       await loadCISOverview();
     }
 
@@ -1315,6 +1410,12 @@
 
       const auditLogsNav = document.getElementById("auditLogsNav");
       if (auditLogsNav) auditLogsNav.classList.remove("active");
+
+      const companySettingsView = document.getElementById("companySettingsView");
+      if (companySettingsView) companySettingsView.classList.add("hidden");
+
+      const companySettingsNav = document.getElementById("companySettingsNav");
+      if (companySettingsNav) companySettingsNav.classList.remove("active");
 
       await loadCases();
     }
@@ -1430,6 +1531,12 @@
 
       const auditLogsNav = document.getElementById("auditLogsNav");
       if (auditLogsNav) auditLogsNav.classList.remove("active");
+
+      const companySettingsView = document.getElementById("companySettingsView");
+      if (companySettingsView) companySettingsView.classList.add("hidden");
+
+      const companySettingsNav = document.getElementById("companySettingsNav");
+      if (companySettingsNav) companySettingsNav.classList.remove("active");
     }
 
     async function showAuditLogs() {
@@ -1469,7 +1576,195 @@
       const auditLogsNav = document.getElementById("auditLogsNav");
       if (auditLogsNav) auditLogsNav.classList.add("active");
 
+      const companySettingsView = document.getElementById("companySettingsView");
+      if (companySettingsView) companySettingsView.classList.add("hidden");
+
+      const companySettingsNav = document.getElementById("companySettingsNav");
+      if (companySettingsNav) companySettingsNav.classList.remove("active");
+
       await loadAuditLogs();
+    }
+
+    async function showCompanySettings() {
+      document.getElementById("dashboardView").classList.add("hidden");
+      document.getElementById("historyView").classList.add("hidden");
+
+      const socView = document.getElementById("socView");
+      if (socView) socView.classList.add("hidden");
+
+      const cisView = document.getElementById("cisView");
+      if (cisView) cisView.classList.add("hidden");
+
+      const casesView = document.getElementById("casesView");
+      if (casesView) casesView.classList.add("hidden");
+
+      const threatHuntingView = document.getElementById("threatHuntingView");
+      if (threatHuntingView) threatHuntingView.classList.add("hidden");
+
+      const auditLogsView = document.getElementById("auditLogsView");
+      if (auditLogsView) auditLogsView.classList.add("hidden");
+
+      const companySettingsView = document.getElementById("companySettingsView");
+      if (companySettingsView) companySettingsView.classList.remove("hidden");
+
+      document.getElementById("dashboardNav").classList.remove("active");
+      document.getElementById("historyNav").classList.remove("active");
+
+      const socNav = document.getElementById("socNav");
+      if (socNav) socNav.classList.remove("active");
+
+      const cisNav = document.getElementById("cisNav");
+      if (cisNav) cisNav.classList.remove("active");
+
+      const casesNav = document.getElementById("casesNav");
+      if (casesNav) casesNav.classList.remove("active");
+
+      const threatHuntingNav = document.getElementById("threatHuntingNav");
+      if (threatHuntingNav) threatHuntingNav.classList.remove("active");
+
+      const auditLogsNav = document.getElementById("auditLogsNav");
+      if (auditLogsNav) auditLogsNav.classList.remove("active");
+
+      const companySettingsNav = document.getElementById("companySettingsNav");
+      if (companySettingsNav) companySettingsNav.classList.add("active");
+
+      await loadCompanySettings();
+    }
+
+    function getSettingsCompanyQuery() {
+      const companyInput = document.getElementById("settingsCompanyId");
+      const companyId = companyInput ? companyInput.value.trim() : "";
+
+      if (currentUser && currentUser.role === "super_admin" && companyId) {
+        return `?company_id=${encodeURIComponent(companyId)}`;
+      }
+
+      return "";
+    }
+
+    function getSettingsCompanyPayload() {
+      const companyInput = document.getElementById("settingsCompanyId");
+      const companyId = companyInput ? companyInput.value.trim() : "";
+
+      const payload = {
+        retention_days: Number(document.getElementById("settingsRetentionDays").value),
+        alerting_enabled: document.getElementById("settingsAlertingEnabled").value === "true",
+        allow_pdf_export: document.getElementById("settingsAllowPdfExport").value === "true"
+      };
+
+      if (currentUser && currentUser.role === "super_admin" && companyId) {
+        payload.company_id = Number(companyId);
+      }
+
+      return payload;
+    }
+
+    async function loadCompanySettings() {
+      const status = document.getElementById("companySettingsStatus");
+      status.innerText = "Loading company settings...";
+
+      try {
+        const res = await fetch(`/admin/company-settings${getSettingsCompanyQuery()}`, {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          status.innerText = `Could not load settings: ${await res.text()}`;
+          return;
+        }
+
+        const data = await res.json();
+
+        document.getElementById("settingsCompanyId").value = data.company_id || "";
+        document.getElementById("settingsRetentionDays").value = data.retention_days ?? 90;
+        document.getElementById("settingsAlertingEnabled").value = String(Boolean(data.alerting_enabled));
+        document.getElementById("settingsAllowPdfExport").value = String(Boolean(data.allow_pdf_export));
+
+        status.innerText =
+          `Loaded settings for ${data.company_name || "company"} · Retention: ${data.retention_days} days`;
+
+      } catch (err) {
+        status.innerText = `Settings load error: ${err.message}`;
+      }
+    }
+
+    async function saveCompanySettings() {
+      const status = document.getElementById("companySettingsStatus");
+      status.innerText = "Saving settings...";
+
+      try {
+        const res = await fetch("/admin/company-settings", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${authToken}`
+          },
+          body: JSON.stringify(getSettingsCompanyPayload())
+        });
+
+        if (!res.ok) {
+          status.innerText = `Could not save settings: ${await res.text()}`;
+          return;
+        }
+
+        const data = await res.json();
+
+        status.innerText =
+          `Settings saved for ${data.company_name || "company"} · Retention: ${data.retention_days} days`;
+
+      } catch (err) {
+        status.innerText = `Settings save error: ${err.message}`;
+      }
+    }
+
+    async function applyRetentionPolicy() {
+      const confirmApply = confirm(
+        "¿Seguro que deseas aplicar la política de retención ahora? Esto eliminará reportes antiguos según la configuración."
+      );
+
+      if (!confirmApply) return;
+
+      const status = document.getElementById("companySettingsStatus");
+      status.innerText = "Applying retention policy...";
+
+      try {
+        const payload = {};
+
+        const companyInput = document.getElementById("settingsCompanyId");
+        const companyId = companyInput ? companyInput.value.trim() : "";
+
+        if (currentUser && currentUser.role === "super_admin" && companyId) {
+          payload.company_id = Number(companyId);
+        }
+
+        const res = await fetch("/admin/company-settings/apply-retention", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${authToken}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          status.innerText = `Could not apply retention: ${await res.text()}`;
+          return;
+        }
+
+        const data = await res.json();
+
+        status.innerText =
+          `Retention applied. Deleted ${data.deleted_count || 0} report(s). Cutoff: ${formatDate(data.cutoff_date)}`;
+
+        await loadReports();
+        await loadSOCOverview();
+        await loadCISOverview();
+
+      } catch (err) {
+        status.innerText = `Retention error: ${err.message}`;
+      }
     }
 
     async function viewCase(caseId) {
@@ -2074,6 +2369,14 @@
       const auditLogsNav = document.getElementById("auditLogsNav");
       if (auditLogsNav) {
         auditLogsNav.classList.toggle(
+          "hidden",
+          !["super_admin", "company_admin"].includes(currentUser.role)
+        );
+      }
+
+      const companySettingsNav = document.getElementById("companySettingsNav");
+      if (companySettingsNav) {
+        companySettingsNav.classList.toggle(
           "hidden",
           !["super_admin", "company_admin"].includes(currentUser.role)
         );

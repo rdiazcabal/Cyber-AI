@@ -7,6 +7,11 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
+
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
 from app.analyzer import analyze_security_event, analyze_security_event_structured
 from app.aws_client import get_guardduty_findings
 from app.notifier import send_slack_alert
@@ -538,6 +543,123 @@ def get_or_create_company_settings(
     db.refresh(settings)
 
     return settings
+
+def build_cis8_evidence_payload(
+    db: Session,
+    current_user: User,
+    company_id: int | None = None
+):
+    target_company_id = company_id
+
+    if current_user.role != "super_admin":
+        target_company_id = current_user.company_id
+
+    query = db.query(AnalysisReport)
+
+    if target_company_id:
+        query = query.filter(AnalysisReport.company_id == int(target_company_id))
+
+    reports = query.order_by(AnalysisReport.created_at.desc()).all()
+
+    cis_map = {}
+    total_reports = 0
+    mapped_reports = 0
+    company = None
+
+    if target_company_id:
+        company = db.query(Company).filter(Company.id == int(target_company_id)).first()
+
+    for report in reports:
+        total_reports += 1
+
+        try:
+            parsed = json.loads(report.result_json or "{}")
+            cis_controls = parsed.get("cis_controls", []) or []
+
+            if cis_controls:
+                mapped_reports += 1
+
+            ai_struct = parsed.get("ai_structured_analysis", {}) or {}
+            detections = parsed.get("detections", []) or []
+            iocs = parsed.get("iocs", {}) or {}
+            mitre = parsed.get("mitre_coverage", {}) or {}
+
+            evidence_text = ai_struct.get("summary") or "No summary available"
+
+            finding = {
+                "report_id": report.id,
+                "title": report.title,
+                "risk_score": report.risk_score,
+                "severity": ai_struct.get("severity", "Unknown"),
+                "summary": evidence_text,
+                "created_at": report.created_at,
+                "detections_count": len(detections),
+                "ioc_count": (
+                    len(iocs.get("ips", []) or []) +
+                    len(iocs.get("domains", []) or []) +
+                    len(iocs.get("urls", []) or []) +
+                    len(iocs.get("hashes", []) or [])
+                ),
+                "mitre_coverage": mitre,
+            }
+
+            for control in cis_controls:
+                if control not in cis_map:
+                    cis_map[control] = {
+                        "control": control,
+                        "count": 0,
+                        "findings": [],
+                        "recommendation": get_cis8_recommendation(control),
+                        "status": "Needs Review",
+                    }
+
+                cis_map[control]["count"] += 1
+                cis_map[control]["findings"].append(finding)
+
+        except Exception:
+            continue
+
+    controls = [
+        {
+            "control": item["control"],
+            "count": item["count"],
+            "status": item["status"],
+            "recommendation": item["recommendation"],
+            "findings": item["findings"],
+        }
+        for item in sorted(cis_map.values(), key=lambda x: x["control"])
+    ]
+
+    return {
+        "company_id": target_company_id,
+        "company_name": company.name if company else "All Companies",
+        "total_reports": total_reports,
+        "mapped_reports": mapped_reports,
+        "total_controls_detected": len(cis_map),
+        "controls": controls,
+    }
+
+def get_cis8_recommendation(control: str) -> str:
+    control_lower = control.lower()
+
+    if "cis 3" in control_lower:
+        return "Review data exposure, encryption, access permissions and retention policies."
+    if "cis 5" in control_lower:
+        return "Review account lifecycle, inactive users, privileged accounts and authentication controls."
+    if "cis 6" in control_lower:
+        return "Validate access permissions, MFA usage and least privilege enforcement."
+    if "cis 7" in control_lower:
+        return "Review vulnerability exposure, patching process and remediation prioritization."
+    if "cis 8" in control_lower:
+        return "Ensure logs are collected, protected, reviewed and retained according to policy."
+    if "cis 10" in control_lower:
+        return "Validate malware defenses, endpoint protection and suspicious execution activity."
+    if "cis 13" in control_lower:
+        return "Review network monitoring, suspicious IPs, IOCs and detection coverage."
+    if "cis 17" in control_lower:
+        return "Validate incident response procedures, ownership, case tracking and closure evidence."
+
+    return "Review the related finding and validate the appropriate CIS safeguard implementation."
 
 def build_ai_threat_enrichment(data: dict, result: dict) -> dict:
     """
@@ -2017,3 +2139,119 @@ def apply_company_retention(
         "deleted_count": len(deleted_report_ids),
         "deleted_report_ids": deleted_report_ids,
     }
+
+@app.get("/compliance/cis8/pdf")
+def export_cis8_pdf(
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    target_company_id = company_id
+
+    if current_user.role != "super_admin":
+        target_company_id = current_user.company_id
+
+    if target_company_id:
+        settings = get_or_create_company_settings(
+            db=db,
+            company_id=int(target_company_id)
+        )
+
+        if not settings.allow_pdf_export:
+            raise HTTPException(
+                status_code=403,
+                detail="PDF export is disabled for this company"
+            )
+
+    payload = build_cis8_evidence_payload(
+        db=db,
+        current_user=current_user,
+        company_id=target_company_id
+    )
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+
+    y = height - 0.75 * inch
+
+    def write_line(text, size=10, bold=False, spacing=14):
+        nonlocal y
+
+        if y < 0.75 * inch:
+            pdf.showPage()
+            y = height - 0.75 * inch
+
+        font = "Helvetica-Bold" if bold else "Helvetica"
+        pdf.setFont(font, size)
+
+        safe_text = str(text or "")
+        max_chars = 105
+
+        while len(safe_text) > max_chars:
+            pdf.drawString(0.75 * inch, y, safe_text[:max_chars])
+            safe_text = safe_text[max_chars:]
+            y -= spacing
+
+            if y < 0.75 * inch:
+                pdf.showPage()
+                y = height - 0.75 * inch
+                pdf.setFont(font, size)
+
+        pdf.drawString(0.75 * inch, y, safe_text)
+        y -= spacing
+
+    write_line("2 Inc-CyberPro - CIS Controls v8 Evidence Report", size=15, bold=True, spacing=18)
+    write_line(f"Company: {payload.get('company_name')}", size=10)
+    write_line(f"Total Reports: {payload.get('total_reports')}", size=10)
+    write_line(f"Mapped Reports: {payload.get('mapped_reports')}", size=10)
+    write_line(f"Controls Detected: {payload.get('total_controls_detected')}", size=10)
+    write_line(" ", spacing=10)
+
+    if not payload.get("controls"):
+        write_line("No CIS Controls v8 evidence found.", size=11, bold=True)
+    else:
+        for control in payload["controls"]:
+            write_line("=" * 90, size=8, spacing=10)
+            write_line(control["control"], size=12, bold=True, spacing=16)
+            write_line(f"Findings Count: {control.get('count')}", size=10)
+            write_line(f"Status: {control.get('status')}", size=10)
+            write_line(f"Recommendation: {control.get('recommendation')}", size=9, spacing=16)
+
+            for finding in control.get("findings", [])[:10]:
+                write_line(f"- Report #{finding.get('report_id')} | Risk {finding.get('risk_score')} | Severity {finding.get('severity')}", size=9, bold=True)
+                write_line(f"  Title: {finding.get('title')}", size=9)
+                write_line(f"  Evidence: {finding.get('summary')}", size=8)
+                write_line(f"  IOCs: {finding.get('ioc_count')} | Detections: {finding.get('detections_count')}", size=8, spacing=12)
+
+            if len(control.get("findings", [])) > 10:
+                write_line(f"... {len(control.get('findings', [])) - 10} more finding(s) omitted in PDF summary.", size=8, spacing=14)
+
+            write_line(" ", spacing=8)
+
+    pdf.save()
+    buffer.seek(0)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="DOWNLOAD_CIS8_PDF",
+        resource_type="compliance_report",
+        resource_id=target_company_id,
+        details={
+            "company_id": target_company_id,
+            "company_name": payload.get("company_name"),
+            "controls_detected": payload.get("total_controls_detected"),
+            "mapped_reports": payload.get("mapped_reports"),
+        },
+    )
+
+    filename = f"cis8-evidence-company-{target_company_id or 'all'}.pdf"
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )

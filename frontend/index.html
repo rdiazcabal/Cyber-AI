@@ -991,7 +991,16 @@
             </div>
 
           </div>
+          <div class="panel">
+            <h3>CIS Evidence Export</h3>
+            <div class="panel-subtitle">
+              Exporta evidencia de cumplimiento CIS Controls v8 en PDF para auditoría o revisión ejecutiva.
+            </div>
 
+            <button onclick="downloadCIS8PDF()">
+              Download CIS 8 Evidence PDF
+            </button>
+          </div>
           <div class="panel">
             <h3>CIS v8 Control Coverage</h3>
             <div class="panel-subtitle">
@@ -3255,6 +3264,18 @@
       }
     }
 
+    function downloadCIS8PDF() {
+      let url = "/compliance/cis8/pdf";
+
+      const companyInput = document.getElementById("settingsCompanyId");
+      const companyId = companyInput ? companyInput.value.trim() : "";
+
+      if (currentUser && currentUser.role === "super_admin" && companyId) {
+        url += `?company_id=${encodeURIComponent(companyId)}`;
+      }
+
+      window.open(url, "_blank");
+    }
     loadSession();
 
   </script>

@@ -58,56 +58,118 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
-    user = authenticate_user(db, form_data.username, form_data.password)
+    from datetime import datetime, timedelta
 
-    if not user:
-        audit = AuditLog(
-            company_id=None,
-            user_id=None,
-            action="LOGIN_FAILED",
-            resource_type="auth",
-            resource_id=form_data.username,
-            ip_address=request.client.host if request and request.client else None,
-            user_agent=request.headers.get("user-agent") if request else None,
-            details=json.dumps({
-                "username": form_data.username,
-                "reason": "Invalid username or password"
-            }),
+    username = (form_data.username or "").strip()
+
+    user = db.query(User).filter(User.username == username).first()
+
+    if user and user.locked_until and user.locked_until > datetime.utcnow():
+        audit_login_event(
+            db=db,
+            request=request,
+            action="LOGIN_BLOCKED",
+            username=username,
+            user=user,
+            details={
+                "reason": "Account temporarily locked",
+                "locked_until": str(user.locked_until),
+            }
         )
-        db.add(audit)
-        db.commit()
+
+        raise HTTPException(
+            status_code=423,
+            detail=f"Account temporarily locked until {user.locked_until}"
+        )
+
+    authenticated_user = authenticate_user(db, username, form_data.password)
+
+    if not authenticated_user:
+        if user:
+            user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+
+            locked = False
+
+            if user.failed_login_attempts >= 5:
+                user.locked_until = datetime.utcnow() + timedelta(minutes=15)
+                locked = True
+
+            db.commit()
+
+            audit_login_event(
+                db=db,
+                request=request,
+                action="LOGIN_LOCKED" if locked else "LOGIN_FAILED",
+                username=username,
+                user=user,
+                details={
+                    "reason": "Invalid username or password",
+                    "failed_login_attempts": user.failed_login_attempts,
+                    "locked": locked,
+                    "locked_until": str(user.locked_until) if user.locked_until else None,
+                }
+            )
+        else:
+            audit_login_event(
+                db=db,
+                request=request,
+                action="LOGIN_FAILED",
+                username=username,
+                user=None,
+                details={
+                    "reason": "Invalid username or password",
+                    "user_exists": False,
+                }
+            )
 
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
+    if not authenticated_user.is_active:
+        audit_login_event(
+            db=db,
+            request=request,
+            action="LOGIN_FAILED",
+            username=username,
+            user=authenticated_user,
+            details={
+                "reason": "Inactive account"
+            }
+        )
+
+        raise HTTPException(status_code=403, detail="User is inactive")
+
+    authenticated_user.failed_login_attempts = 0
+    authenticated_user.locked_until = None
+    db.commit()
+
     company = None
-    if user.company_id:
-        company = db.query(Company).filter(Company.id == user.company_id).first()
+    if authenticated_user.company_id:
+        company = db.query(Company).filter(Company.id == authenticated_user.company_id).first()
 
-    token = create_access_token({"sub": user.username})
+    token = create_access_token({"sub": authenticated_user.username})
 
-    audit_action(
+    audit_login_event(
         db=db,
-        current_user=user,
-        action="LOGIN_SUCCESS",
-        resource_type="auth",
-        resource_id=user.id,
-        details={
-            "username": user.username,
-            "role": user.role,
-            "company_id": user.company_id,
-        },
         request=request,
+        action="LOGIN_SUCCESS",
+        username=authenticated_user.username,
+        user=authenticated_user,
+        details={
+            "username": authenticated_user.username,
+            "role": authenticated_user.role,
+            "company_id": authenticated_user.company_id,
+        }
     )
 
     return {
         "access_token": token,
         "token_type": "bearer",
         "user": {
-            "id": user.id,
-            "username": user.username,
-            "full_name": user.full_name,
-            "role": user.role,
-            "company_id": user.company_id,
+            "id": authenticated_user.id,
+            "username": authenticated_user.username,
+            "full_name": authenticated_user.full_name,
+            "role": authenticated_user.role,
+            "company_id": authenticated_user.company_id,
             "company_name": company.name if company else None,
         },
     }
@@ -270,8 +332,7 @@ def admin_create_user(
     if len(username) < 3:
         raise HTTPException(status_code=400, detail="Username must have at least 3 characters")
 
-    if len(password) < 8:
-        raise HTTPException(status_code=400, detail="Password must have at least 8 characters")
+    validate_password_policy(password)
 
     if db.query(User).filter(User.username == username).first():
         raise HTTPException(status_code=409, detail="Username already exists")
@@ -364,9 +425,10 @@ def admin_update_user(
         user.is_active = bool(payload.get("is_active"))
 
     if payload.get("password"):
-        if len(payload["password"]) < 8:
-            raise HTTPException(status_code=400, detail="Password must have at least 8 characters")
-        user.password_hash = hash_password(payload["password"])
+       validate_password_policy(payload["password"])
+       user.password_hash = hash_password(payload["password"])
+       user.failed_login_attempts = 0
+       user.locked_until = None
 
     audit_details = {
     "target_user_id": user.id,
@@ -543,6 +605,58 @@ def get_or_create_company_settings(
     db.refresh(settings)
 
     return settings
+
+def validate_password_policy(password: str):
+    errors = []
+
+    if len(password or "") < 10:
+        errors.append("Password must have at least 10 characters")
+
+    if not any(c.isupper() for c in password or ""):
+        errors.append("Password must include at least one uppercase letter")
+
+    if not any(c.islower() for c in password or ""):
+        errors.append("Password must include at least one lowercase letter")
+
+    if not any(c.isdigit() for c in password or ""):
+        errors.append("Password must include at least one number")
+
+    special_chars = "!@#$%^&*()-_=+[]{};:,.<>?/|\\"
+    if not any(c in special_chars for c in password or ""):
+        errors.append("Password must include at least one special character")
+
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Password policy validation failed",
+                "errors": errors
+            }
+        )
+
+def audit_login_event(
+    db: Session,
+    request: Request,
+    action: str,
+    username: str,
+    user: User | None = None,
+    details: dict | None = None,
+):
+    try:
+        audit = AuditLog(
+            company_id=user.company_id if user else None,
+            user_id=user.id if user else None,
+            action=action,
+            resource_type="auth",
+            resource_id=username,
+            ip_address=request.client.host if request and request.client else None,
+            user_agent=request.headers.get("user-agent") if request else None,
+            details=json.dumps(details or {}, default=str),
+        )
+        db.add(audit)
+        db.commit()
+    except Exception as e:
+        print(f"Login audit failed: {e}")
 
 def build_cis8_evidence_payload(
     db: Session,

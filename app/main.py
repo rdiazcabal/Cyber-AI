@@ -47,15 +47,31 @@ bootstrap_admin_user()
 
 app.mount("/assets", StaticFiles(directory="frontend/assets"), name="assets")
 
-
 @app.post("/auth/login")
 def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
     user = authenticate_user(db, form_data.username, form_data.password)
 
     if not user:
+        audit = AuditLog(
+            company_id=None,
+            user_id=None,
+            action="LOGIN_FAILED",
+            resource_type="auth",
+            resource_id=form_data.username,
+            ip_address=request.client.host if request and request.client else None,
+            user_agent=request.headers.get("user-agent") if request else None,
+            details=json.dumps({
+                "username": form_data.username,
+                "reason": "Invalid username or password"
+            }),
+        )
+        db.add(audit)
+        db.commit()
+
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     company = None
@@ -63,6 +79,20 @@ def login(
         company = db.query(Company).filter(Company.id == user.company_id).first()
 
     token = create_access_token({"sub": user.username})
+
+    audit_action(
+        db=db,
+        current_user=user,
+        action="LOGIN_SUCCESS",
+        resource_type="auth",
+        resource_id=user.id,
+        details={
+            "username": user.username,
+            "role": user.role,
+            "company_id": user.company_id,
+        },
+        request=request,
+    )
 
     return {
         "access_token": token,
@@ -144,6 +174,18 @@ def admin_create_company(
     db.add(company)
     db.commit()
     db.refresh(company)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="CREATE_COMPANY",
+        resource_type="company",
+        resource_id=company.id,
+        details={
+            "company_name": company.name,
+            "is_active": company.is_active,
+        },
+    )
 
     return {
         "id": company.id,
@@ -242,6 +284,19 @@ def admin_create_user(
     db.commit()
     db.refresh(user)
 
+    audit_action(
+    db=db,
+    current_user=current_user,
+    action="CREATE_USER",
+    resource_type="user",
+    resource_id=user.id,
+    details={
+        "username": user.username,
+        "role": user.role,
+        "company_id": user.company_id,
+    },
+)
+
     return {
         "id": user.id,
         "username": user.username,
@@ -308,8 +363,26 @@ def admin_update_user(
             raise HTTPException(status_code=400, detail="Password must have at least 8 characters")
         user.password_hash = hash_password(payload["password"])
 
+    audit_details = {
+    "target_user_id": user.id,
+    "username": user.username,
+    "role": user.role,
+    "company_id": user.company_id,
+    "is_active": user.is_active,
+    "updated_fields": list(payload.keys()),
+    }
+
     db.commit()
     db.refresh(user)
+
+    audit_action(
+    db=db,
+    current_user=current_user,
+    action="UPDATE_USER",
+    resource_type="user",
+    resource_id=user.id,
+    details=audit_details,
+)
 
     return {
         "id": user.id,
@@ -338,6 +411,19 @@ def admin_delete_user(
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot delete your own account")
 
+
+    audit_action(
+    db=db,
+    current_user=current_user,
+    action="DELETE_USER",
+    resource_type="user",
+    resource_id=user.id,
+    details={
+        "username": user.username,
+        "role": user.role,
+        "company_id": user.company_id,
+    },
+    )
     db.delete(user)
     db.commit()
 
@@ -876,6 +962,19 @@ def get_report(
 
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
+
+    audit_action(
+    db=db,
+    current_user=current_user,
+    action="VIEW_REPORT",
+    resource_type="analysis_report",
+    resource_id=report.id,
+    details={
+        "title": report.title,
+        "risk_score": report.risk_score,
+        "company_id": report.company_id,
+    },
+)
 
     return {
         "id": report.id,

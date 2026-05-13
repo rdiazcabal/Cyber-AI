@@ -665,6 +665,24 @@
         grid-template-columns: 1fr;
       }
     }
+
+    .nav-icon {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 18px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.95;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
   </style>
 </head>
 
@@ -709,34 +727,110 @@
       <div class="nav-title">Main</div>
 
       <a class="nav-item active" id="dashboardNav" href="javascript:void(0)" onclick="showDashboard()">
-        🏠 Dashboard
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7"></rect>
+          <rect x="14" y="3" width="7" height="7"></rect>
+          <rect x="14" y="14" width="7" height="7"></rect>
+          <rect x="3" y="14" width="7" height="7"></rect>
+        </svg>
+        <span>Dashboard</span>
       </a>
+
       <a class="nav-item" id="executiveNav" href="javascript:void(0)" onclick="showExecutiveDashboard()">
-        📈 Executive Dashboard
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <path d="M3 3v18h18"></path>
+          <path d="M7 15l4-4 3 3 5-7"></path>
+        </svg>
+        <span>Executive Dashboard</span>
       </a>
+
       <a class="nav-item" id="historyNav" href="javascript:void(0)" onclick="showHistory()">
-        📜 Analysis History
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <path d="M3 3v5h5"></path>
+          <path d="M3.05 13A9 9 0 1 0 6 6.3L3 8"></path>
+          <path d="M12 7v5l3 2"></path>
+        </svg>
+        <span>Analysis History</span>
       </a>
+
       <a class="nav-item" id="socNav" href="javascript:void(0)" onclick="showSOC()">
-        🛡️ SOC Overview
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          <path d="M9 12l2 2 4-5"></path>
+        </svg>
+        <span>SOC Overview</span>
       </a>
+
       <a class="nav-item" id="casesNav" href="javascript:void(0)" onclick="showCases()">
-        🧩 Case Management
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+          <path d="M8 4V2h8v2"></path>
+          <path d="M3 10h18"></path>
+        </svg>
+        <span>Case Management</span>
       </a>
+
       <a class="nav-item" id="threatHuntingNav" href="javascript:void(0)" onclick="showThreatHunting()">
-        🎯 Threat Hunting
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="8"></circle>
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 2v3"></path>
+          <path d="M12 19v3"></path>
+          <path d="M2 12h3"></path>
+          <path d="M19 12h3"></path>
+        </svg>
+        <span>Threat Hunting</span>
       </a>
+
       <a class="nav-item" id="cisNav" href="javascript:void(0)" onclick="showCIS()">
-        📊 CIS 8 Compliance
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <path d="M4 19V5"></path>
+          <path d="M4 19h16"></path>
+          <rect x="7" y="11" width="3" height="5"></rect>
+          <rect x="12" y="7" width="3" height="9"></rect>
+          <rect x="17" y="3" width="3" height="13"></rect>
+        </svg>
+        <span>CIS 8 Compliance</span>
       </a>
       <div class="nav-title">Admin</div>
       <a class="nav-item hidden" id="companySettingsNav" href="javascript:void(0)" onclick="showCompanySettings()">
-        ⚙️ Company Settings
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path
+            d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z">
+          </path>
+        </svg>
+        <span>Company Settings</span>
       </a>
-      <a class="nav-item hidden" id="navUsuarios" href="/admin">👤 Usuarios locales</a>
+
+      <a class="nav-item hidden" id="navUsuarios" href="/admin">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+          <circle cx="9" cy="7" r="4"></circle>
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+        <span>Usuarios locales</span>
+      </a>
+
       <a class="nav-item hidden" id="auditLogsNav" href="javascript:void(0)" onclick="showAuditLogs()">
-        🧾 Audit Logs
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <path d="M14 2v6h6"></path>
+          <path d="M8 13h8"></path>
+          <path d="M8 17h8"></path>
+          <path d="M8 9h2"></path>
+        </svg>
+        <span>Audit Logs</span>
       </a>
+
+      <div class="nav-item" id="sessionUser">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <span>Session</span>
+      </div>
       <div id="sessionUser" class="nav-item">🔐 No autenticado</div>
       <button class="secondary" onclick="logout()">Cerrar sesión</button>
     </aside>
@@ -2547,8 +2641,13 @@
             ? "Admin de empresa"
             : "Analyst";
 
-      document.getElementById("sessionUser").innerText =
-        `🔐 ${currentUser.username} (${roleLabel})`;
+      document.getElementById("sessionUser").innerHTML = `
+  <svg class="nav-icon" viewBox="0 0 24 24">
+    <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+  </svg>
+  <span>${escapeHtml(currentUser.username)} (${escapeHtml(currentUser.role)})</span>
+`;
 
       const navUsuarios = document.getElementById("navUsuarios");
       if (navUsuarios) {

@@ -108,3 +108,24 @@ class CompanySettings(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+class AlertRule(Base):
+    __tablename__ = "alert_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+
+    name = Column(String(150), nullable=False)
+    severity_min = Column(String(30), nullable=True)  # Low, Medium, High, Critical
+    risk_score_min = Column(Integer, default=80, nullable=False)
+
+    alert_on_case_created = Column(Boolean, default=True, nullable=False)
+    alert_on_critical = Column(Boolean, default=True, nullable=False)
+
+    channel = Column(String(30), default="slack", nullable=False)  # slack, webhook
+    destination = Column(Text, nullable=True)
+
+    enabled = Column(Boolean, default=True, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)

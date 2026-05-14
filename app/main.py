@@ -7,7 +7,6 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
-
 from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -34,6 +33,7 @@ from app.models import (
     CaseNote,
     AuditLog,
     CompanySettings,
+    AlertRule,
 )
 from app.auth import (
     authenticate_user,
@@ -606,6 +606,125 @@ def get_or_create_company_settings(
 
     return settings
 
+def severity_rank(severity: str | None) -> int:
+    ranks = {
+        "low": 1,
+        "medium": 2,
+        "high": 3,
+        "critical": 4,
+    }
+    return ranks.get((severity or "").lower(), 0)
+
+def send_alert_rule_notification(rule: AlertRule, message: str):
+    """
+    Sends a notification for an alert rule.
+    Supports:
+    - slack/webhook with custom destination URL
+    - fallback to existing send_slack_alert if destination is empty
+    """
+    import requests
+
+    try:
+        if rule.channel in ["slack", "webhook"]:
+            if rule.destination:
+                requests.post(
+                    rule.destination,
+                    json={"text": message},
+                    timeout=5
+                )
+            else:
+                send_slack_alert(message)
+    except Exception as e:
+        print(f"Alert rule notification failed: {e}")
+
+def evaluate_alert_rules(
+    db: Session,
+    current_user: User,
+    report: AnalysisReport,
+    result: dict,
+    case: SecurityCase | None = None,
+):
+    """
+    Evaluates enabled company alert rules after a report/case is created.
+    """
+    try:
+        settings = get_or_create_company_settings(
+            db=db,
+            company_id=report.company_id
+        )
+
+        if not settings.alerting_enabled:
+            return
+
+        ai_struct = result.get("ai_structured_analysis", {}) or {}
+        severity = ai_struct.get("severity", "Unknown")
+        risk_score = int(result.get("risk_score", report.risk_score or 0) or 0)
+
+        rules = (
+            db.query(AlertRule)
+            .filter(
+                AlertRule.company_id == report.company_id,
+                AlertRule.enabled == True
+            )
+            .all()
+        )
+
+        for rule in rules:
+            should_trigger = False
+            reasons = []
+
+            if rule.risk_score_min is not None and risk_score >= int(rule.risk_score_min):
+                should_trigger = True
+                reasons.append(f"risk_score >= {rule.risk_score_min}")
+
+            if rule.severity_min and severity_rank(severity) >= severity_rank(rule.severity_min):
+                should_trigger = True
+                reasons.append(f"severity >= {rule.severity_min}")
+
+            if rule.alert_on_critical and (severity or "").lower() == "critical":
+                should_trigger = True
+                reasons.append("critical severity")
+
+            if rule.alert_on_case_created and case is not None:
+                should_trigger = True
+                reasons.append("case created")
+
+            if not should_trigger:
+                continue
+
+            message = (
+                f"🚨 2inc-cyberpro Alert\n"
+                f"Rule: {rule.name}\n"
+                f"Company ID: {report.company_id}\n"
+                f"Report ID: {report.id}\n"
+                f"Title: {report.title}\n"
+                f"Severity: {severity}\n"
+                f"Risk Score: {risk_score}\n"
+                f"Case ID: {case.id if case else 'N/A'}\n"
+                f"Reasons: {', '.join(reasons)}"
+            )
+
+            send_alert_rule_notification(rule, message)
+
+            audit_action(
+                db=db,
+                current_user=current_user,
+                action="ALERT_RULE_TRIGGERED",
+                resource_type="alert_rule",
+                resource_id=rule.id,
+                details={
+                    "rule_name": rule.name,
+                    "report_id": report.id,
+                    "case_id": case.id if case else None,
+                    "severity": severity,
+                    "risk_score": risk_score,
+                    "reasons": reasons,
+                },
+            )
+
+    except Exception as e:
+        print(f"Alert rule evaluation failed: {e}")
+
 def validate_password_policy(password: str):
     errors = []
 
@@ -1062,6 +1181,14 @@ def analyze_and_save(
         result=result
     )
 
+    evaluate_alert_rules(
+        db=db,
+        current_user=current_user,
+        report=report,
+        result=result,
+        case=case,
+    )
+
     return {
         "report_id": report.id,
         "case_id": case.id if case else None,
@@ -1436,6 +1563,14 @@ async def upload_analyze_save(
         current_user=current_user,
         report=report,
         result=result
+    )
+
+    evaluate_alert_rules(
+        db=db,
+        current_user=current_user,
+        report=report,
+        result=result,
+        case=case,
     )
 
     return {
@@ -2167,6 +2302,266 @@ def update_company_settings(
         "alerting_enabled": settings.alerting_enabled,
         "allow_pdf_export": settings.allow_pdf_export,
         "updated_at": settings.updated_at,
+    }
+
+@app.get("/admin/alert-rules")
+def list_alert_rules(
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    query = db.query(AlertRule)
+
+    if current_user.role != "super_admin":
+        query = query.filter(AlertRule.company_id == current_user.company_id)
+    elif company_id:
+        query = query.filter(AlertRule.company_id == int(company_id))
+
+    rules = query.order_by(AlertRule.created_at.desc()).all()
+
+    result = []
+
+    for rule in rules:
+        company = db.query(Company).filter(Company.id == rule.company_id).first()
+
+        result.append({
+            "id": rule.id,
+            "company_id": rule.company_id,
+            "company_name": company.name if company else None,
+            "name": rule.name,
+            "severity_min": rule.severity_min,
+            "risk_score_min": rule.risk_score_min,
+            "alert_on_case_created": rule.alert_on_case_created,
+            "alert_on_critical": rule.alert_on_critical,
+            "channel": rule.channel,
+            "destination": rule.destination,
+            "enabled": rule.enabled,
+            "created_at": rule.created_at,
+            "updated_at": rule.updated_at,
+        })
+
+    return result
+
+@app.post("/admin/alert-rules")
+def create_alert_rule(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    from datetime import datetime
+
+    name = (payload.get("name") or "").strip()
+    if len(name) < 2:
+        raise HTTPException(status_code=400, detail="Rule name is required")
+
+    company_id = payload.get("company_id")
+
+    if current_user.role != "super_admin":
+        company_id = current_user.company_id
+
+    if not company_id:
+        raise HTTPException(status_code=400, detail="company_id is required")
+
+    company = (
+        db.query(Company)
+        .filter(Company.id == int(company_id), Company.is_active == True)
+        .first()
+    )
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    severity_min = payload.get("severity_min") or None
+    if severity_min and severity_min not in ["Low", "Medium", "High", "Critical"]:
+        raise HTTPException(status_code=400, detail="Invalid severity_min")
+
+    channel = payload.get("channel") or "slack"
+    if channel not in ["slack", "webhook"]:
+        raise HTTPException(status_code=400, detail="Invalid channel")
+
+    risk_score_min = int(payload.get("risk_score_min", 80))
+    if risk_score_min < 0 or risk_score_min > 100:
+        raise HTTPException(status_code=400, detail="risk_score_min must be between 0 and 100")
+
+    rule = AlertRule(
+        company_id=company.id,
+        name=name,
+        severity_min=severity_min,
+        risk_score_min=risk_score_min,
+        alert_on_case_created=bool(payload.get("alert_on_case_created", True)),
+        alert_on_critical=bool(payload.get("alert_on_critical", True)),
+        channel=channel,
+        destination=(payload.get("destination") or "").strip() or None,
+        enabled=bool(payload.get("enabled", True)),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+
+    db.add(rule)
+    db.commit()
+    db.refresh(rule)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="CREATE_ALERT_RULE",
+        resource_type="alert_rule",
+        resource_id=rule.id,
+        details={
+            "company_id": rule.company_id,
+            "name": rule.name,
+            "severity_min": rule.severity_min,
+            "risk_score_min": rule.risk_score_min,
+            "channel": rule.channel,
+            "enabled": rule.enabled,
+        },
+    )
+
+    return {
+        "id": rule.id,
+        "company_id": rule.company_id,
+        "company_name": company.name,
+        "name": rule.name,
+        "severity_min": rule.severity_min,
+        "risk_score_min": rule.risk_score_min,
+        "alert_on_case_created": rule.alert_on_case_created,
+        "alert_on_critical": rule.alert_on_critical,
+        "channel": rule.channel,
+        "destination": rule.destination,
+        "enabled": rule.enabled,
+        "created_at": rule.created_at,
+        "updated_at": rule.updated_at,
+    }
+
+@app.put("/admin/alert-rules/{rule_id}")
+def update_alert_rule(
+    rule_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    from datetime import datetime
+
+    query = db.query(AlertRule).filter(AlertRule.id == rule_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(AlertRule.company_id == current_user.company_id)
+
+    rule = query.first()
+
+    if not rule:
+        raise HTTPException(status_code=404, detail="Alert rule not found")
+
+    if "name" in payload:
+        name = (payload.get("name") or "").strip()
+        if len(name) < 2:
+            raise HTTPException(status_code=400, detail="Rule name is required")
+        rule.name = name
+
+    if "severity_min" in payload:
+        severity_min = payload.get("severity_min") or None
+        if severity_min and severity_min not in ["Low", "Medium", "High", "Critical"]:
+            raise HTTPException(status_code=400, detail="Invalid severity_min")
+        rule.severity_min = severity_min
+
+    if "risk_score_min" in payload:
+        risk_score_min = int(payload.get("risk_score_min", 80))
+        if risk_score_min < 0 or risk_score_min > 100:
+            raise HTTPException(status_code=400, detail="risk_score_min must be between 0 and 100")
+        rule.risk_score_min = risk_score_min
+
+    if "alert_on_case_created" in payload:
+        rule.alert_on_case_created = bool(payload.get("alert_on_case_created"))
+
+    if "alert_on_critical" in payload:
+        rule.alert_on_critical = bool(payload.get("alert_on_critical"))
+
+    if "channel" in payload:
+        channel = payload.get("channel") or "slack"
+        if channel not in ["slack", "webhook"]:
+            raise HTTPException(status_code=400, detail="Invalid channel")
+        rule.channel = channel
+
+    if "destination" in payload:
+        rule.destination = (payload.get("destination") or "").strip() or None
+
+    if "enabled" in payload:
+        rule.enabled = bool(payload.get("enabled"))
+
+    rule.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(rule)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="UPDATE_ALERT_RULE",
+        resource_type="alert_rule",
+        resource_id=rule.id,
+        details={
+            "company_id": rule.company_id,
+            "name": rule.name,
+            "severity_min": rule.severity_min,
+            "risk_score_min": rule.risk_score_min,
+            "channel": rule.channel,
+            "enabled": rule.enabled,
+            "updated_fields": list(payload.keys()),
+        },
+    )
+
+    return {
+        "id": rule.id,
+        "company_id": rule.company_id,
+        "name": rule.name,
+        "severity_min": rule.severity_min,
+        "risk_score_min": rule.risk_score_min,
+        "alert_on_case_created": rule.alert_on_case_created,
+        "alert_on_critical": rule.alert_on_critical,
+        "channel": rule.channel,
+        "destination": rule.destination,
+        "enabled": rule.enabled,
+        "updated_at": rule.updated_at,
+    }
+
+@app.delete("/admin/alert-rules/{rule_id}")
+def delete_alert_rule(
+    rule_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    query = db.query(AlertRule).filter(AlertRule.id == rule_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(AlertRule.company_id == current_user.company_id)
+
+    rule = query.first()
+
+    if not rule:
+        raise HTTPException(status_code=404, detail="Alert rule not found")
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="DELETE_ALERT_RULE",
+        resource_type="alert_rule",
+        resource_id=rule.id,
+        details={
+            "company_id": rule.company_id,
+            "name": rule.name,
+            "severity_min": rule.severity_min,
+            "risk_score_min": rule.risk_score_min,
+            "channel": rule.channel,
+            "enabled": rule.enabled,
+        },
+    )
+
+    db.delete(rule)
+    db.commit()
+
+    return {
+        "message": "Alert rule deleted",
+        "id": rule_id
     }
 
 @app.post("/admin/company-settings/apply-retention")

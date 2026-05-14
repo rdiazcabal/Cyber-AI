@@ -810,7 +810,7 @@
           <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
           <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
         </svg>
-        <span>Usuarios locales</span>
+        <span>Usuarios Aplicativo</span>
       </a>
 
       <a class="nav-item hidden" id="auditLogsNav" href="javascript:void(0)" onclick="showAuditLogs()">
@@ -823,7 +823,13 @@
         </svg>
         <span>Audit Logs</span>
       </a>
-
+      <a class="nav-item hidden" id="alertRulesNav" href="javascript:void(0)" onclick="showAlertRules()">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+        <span>Alert Rules</span>
+      </a>
       <div class="nav-item" id="sessionUser">
         <svg class="nav-icon" viewBox="0 0 24 24">
           <rect x="3" y="11" width="18" height="10" rx="2"></rect>
@@ -1382,6 +1388,115 @@
             </div>
           </div>
         </div>
+        <!-- ALERT RULES VIEW -->
+        <div id="alertRulesView" class="hidden">
+
+          <div class="header">
+            <div>
+              <h1>Alert Rules</h1>
+              <p>Configura reglas de alerta por empresa basadas en riesgo, severidad o creación de casos.</p>
+            </div>
+
+            <div class="api-status">
+              <span class="pulse"></span> Alerts Active
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Create / Update Alert Rule</h3>
+            <div class="panel-subtitle">
+              Las reglas se ejecutan automáticamente cuando se guarda un análisis o se crea un caso.
+            </div>
+
+            <input type="hidden" id="alertRuleId">
+
+            <div class="grid">
+              <div>
+                <div class="input-row">
+                  <label>Company ID</label>
+                  <input id="alertRuleCompanyId" placeholder="Solo super_admin puede usar otra empresa">
+                </div>
+
+                <div class="input-row">
+                  <label>Rule Name</label>
+                  <input id="alertRuleName" placeholder="Critical SOC Alert">
+                </div>
+
+                <div class="input-row">
+                  <label>Severity Minimum</label>
+                  <select id="alertRuleSeverityMin">
+                    <option value="">Any</option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                </div>
+
+                <div class="input-row">
+                  <label>Risk Score Minimum</label>
+                  <input id="alertRuleRiskScoreMin" type="number" min="0" max="100" value="80">
+                </div>
+              </div>
+
+              <div>
+                <div class="input-row">
+                  <label>Alert on Case Created</label>
+                  <select id="alertRuleOnCaseCreated">
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </div>
+
+                <div class="input-row">
+                  <label>Alert on Critical</label>
+                  <select id="alertRuleOnCritical">
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </div>
+
+                <div class="input-row">
+                  <label>Channel</label>
+                  <select id="alertRuleChannel">
+                    <option value="slack">Slack</option>
+                    <option value="webhook">Webhook</option>
+                  </select>
+                </div>
+
+                <div class="input-row">
+                  <label>Destination URL</label>
+                  <input id="alertRuleDestination" placeholder="Slack/Webhook URL. Empty = default Slack env">
+                </div>
+
+                <div class="input-row">
+                  <label>Enabled</label>
+                  <select id="alertRuleEnabled">
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button onclick="saveAlertRule()">Save Rule</button>
+              <button class="secondary" onclick="resetAlertRuleForm()">Reset</button>
+              <button class="secondary" onclick="loadAlertRules()">Refresh</button>
+            </div>
+
+            <div id="alertRulesStatus" class="status-line">
+              Waiting for alert rules...
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Configured Alert Rules</h3>
+            <div id="alertRulesPanel" class="empty">
+              No alert rules loaded yet.
+            </div>
+          </div>
+
+        </div>
     </main>
   </div>
 
@@ -1434,6 +1549,12 @@
 
       const executiveNav = document.getElementById("executiveNav");
       if (executiveNav) executiveNav.classList.remove("active");
+
+      const alertRulesView = document.getElementById("alertRulesView");
+      if (alertRulesView) alertRulesView.classList.add("hidden");
+
+      const alertRulesNav = document.getElementById("alertRulesNav");
+      if (alertRulesNav) alertRulesNav.classList.remove("active");
     }
 
     async function showHistory() {
@@ -1484,6 +1605,12 @@
 
       const executiveNav = document.getElementById("executiveNav");
       if (executiveNav) executiveNav.classList.remove("active");
+
+      const alertRulesView = document.getElementById("alertRulesView");
+      if (alertRulesView) alertRulesView.classList.add("hidden");
+
+      const alertRulesNav = document.getElementById("alertRulesNav");
+      if (alertRulesNav) alertRulesNav.classList.remove("active");
 
       await loadReports();
     }
@@ -1537,6 +1664,12 @@
       const executiveNav = document.getElementById("executiveNav");
       if (executiveNav) executiveNav.classList.remove("active");
 
+      const alertRulesView = document.getElementById("alertRulesView");
+      if (alertRulesView) alertRulesView.classList.add("hidden");
+
+      const alertRulesNav = document.getElementById("alertRulesNav");
+      if (alertRulesNav) alertRulesNav.classList.remove("active");
+
       await loadSOCOverview();
     }
 
@@ -1589,6 +1722,12 @@
       const executiveNav = document.getElementById("executiveNav");
       if (executiveNav) executiveNav.classList.remove("active");
 
+      const alertRulesView = document.getElementById("alertRulesView");
+      if (alertRulesView) alertRulesView.classList.add("hidden");
+
+      const alertRulesNav = document.getElementById("alertRulesNav");
+      if (alertRulesNav) alertRulesNav.classList.remove("active");
+
       await loadCISOverview();
     }
 
@@ -1640,6 +1779,12 @@
 
       const executiveNav = document.getElementById("executiveNav");
       if (executiveNav) executiveNav.classList.remove("active");
+
+      const alertRulesView = document.getElementById("alertRulesView");
+      if (alertRulesView) alertRulesView.classList.add("hidden");
+
+      const alertRulesNav = document.getElementById("alertRulesNav");
+      if (alertRulesNav) alertRulesNav.classList.remove("active");
 
       await loadCases();
     }
@@ -1768,6 +1913,12 @@
       const executiveNav = document.getElementById("executiveNav");
       if (executiveNav) executiveNav.classList.remove("active");
 
+      const alertRulesView = document.getElementById("alertRulesView");
+      if (alertRulesView) alertRulesView.classList.add("hidden");
+
+      const alertRulesNav = document.getElementById("alertRulesNav");
+      if (alertRulesNav) alertRulesNav.classList.remove("active");
+
     }
 
     async function showAuditLogs() {
@@ -1818,6 +1969,12 @@
 
       const executiveNav = document.getElementById("executiveNav");
       if (executiveNav) executiveNav.classList.remove("active");
+
+      const alertRulesView = document.getElementById("alertRulesView");
+      if (alertRulesView) alertRulesView.classList.add("hidden");
+
+      const alertRulesNav = document.getElementById("alertRulesNav");
+      if (alertRulesNav) alertRulesNav.classList.remove("active");
 
       await loadAuditLogs();
     }
@@ -1871,6 +2028,12 @@
       const executiveNav = document.getElementById("executiveNav");
       if (executiveNav) executiveNav.classList.remove("active");
 
+      const alertRulesView = document.getElementById("alertRulesView");
+      if (alertRulesView) alertRulesView.classList.add("hidden");
+
+      const alertRulesNav = document.getElementById("alertRulesNav");
+      if (alertRulesNav) alertRulesNav.classList.remove("active");
+
       await loadCompanySettings();
     }
 
@@ -1923,7 +2086,266 @@
       const executiveNav = document.getElementById("executiveNav");
       if (executiveNav) executiveNav.classList.add("active");
 
+      const alertRulesView = document.getElementById("alertRulesView");
+      if (alertRulesView) alertRulesView.classList.add("hidden");
+
+      const alertRulesNav = document.getElementById("alertRulesNav");
+      if (alertRulesNav) alertRulesNav.classList.remove("active");
+
       await loadExecutiveDashboard();
+    }
+
+    async function showAlertRules() {
+      document.getElementById("dashboardView").classList.add("hidden");
+      document.getElementById("historyView").classList.add("hidden");
+
+      const viewsToHide = [
+        "executiveView",
+        "socView",
+        "cisView",
+        "casesView",
+        "threatHuntingView",
+        "auditLogsView",
+        "companySettingsView"
+      ];
+
+      viewsToHide.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add("hidden");
+      });
+
+      const alertRulesView = document.getElementById("alertRulesView");
+      if (alertRulesView) alertRulesView.classList.remove("hidden");
+
+      document.querySelectorAll(".nav-item").forEach(item => item.classList.remove("active"));
+
+      const alertRulesNav = document.getElementById("alertRulesNav");
+      if (alertRulesNav) alertRulesNav.classList.add("active");
+
+      await loadAlertRules();
+    }
+
+    function getAlertRulePayload() {
+      const companyId = document.getElementById("alertRuleCompanyId").value.trim();
+
+      const payload = {
+        name: document.getElementById("alertRuleName").value.trim(),
+        severity_min: document.getElementById("alertRuleSeverityMin").value || null,
+        risk_score_min: Number(document.getElementById("alertRuleRiskScoreMin").value || 80),
+        alert_on_case_created: document.getElementById("alertRuleOnCaseCreated").value === "true",
+        alert_on_critical: document.getElementById("alertRuleOnCritical").value === "true",
+        channel: document.getElementById("alertRuleChannel").value,
+        destination: document.getElementById("alertRuleDestination").value.trim(),
+        enabled: document.getElementById("alertRuleEnabled").value === "true"
+      };
+
+      if (currentUser && currentUser.role === "super_admin" && companyId) {
+        payload.company_id = Number(companyId);
+      }
+
+      return payload;
+    }
+
+    async function loadAlertRules() {
+      const panel = document.getElementById("alertRulesPanel");
+      const status = document.getElementById("alertRulesStatus");
+
+      if (!panel) return;
+
+      status.innerText = "Loading alert rules...";
+
+      try {
+        let url = "/admin/alert-rules";
+
+        const companyId = document.getElementById("alertRuleCompanyId").value.trim();
+        if (currentUser && currentUser.role === "super_admin" && companyId) {
+          url += `?company_id=${encodeURIComponent(companyId)}`;
+        }
+
+        const res = await fetch(url, {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          panel.className = "empty";
+          panel.innerText = `Could not load alert rules: ${await res.text()}`;
+          status.innerText = "Load failed.";
+          return;
+        }
+
+        const rules = await res.json();
+
+        if (!rules.length) {
+          panel.className = "empty";
+          panel.innerText = "No alert rules configured.";
+          status.innerText = "No alert rules found.";
+          return;
+        }
+
+        panel.className = "";
+        status.innerText = `${rules.length} alert rule(s) loaded.`;
+
+        panel.innerHTML = `
+      <table class="user-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Company</th>
+            <th>Name</th>
+            <th>Severity</th>
+            <th>Risk</th>
+            <th>Triggers</th>
+            <th>Channel</th>
+            <th>Enabled</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rules.map(rule => `
+            <tr>
+              <td>${rule.id}</td>
+              <td>${escapeHtml(rule.company_name || rule.company_id || "N/A")}</td>
+              <td>${escapeHtml(rule.name)}</td>
+              <td>${escapeHtml(rule.severity_min || "Any")}</td>
+              <td>${rule.risk_score_min ?? 80}</td>
+              <td>
+                <div class="pattern-meta">Case: ${rule.alert_on_case_created ? "Yes" : "No"}</div>
+                <div class="pattern-meta">Critical: ${rule.alert_on_critical ? "Yes" : "No"}</div>
+              </td>
+              <td>${escapeHtml(rule.channel || "slack")}</td>
+              <td>
+                <span class="pill ${rule.enabled ? "pill-low" : "pill-info"}">
+                  ${rule.enabled ? "Enabled" : "Disabled"}
+                </span>
+              </td>
+              <td>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+                    onclick='editAlertRule(${JSON.stringify(rule).replaceAll("'", "&apos;")})'>
+                    Edit
+                  </button>
+
+                  <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;border-color:rgba(239,68,68,.45);color:#fecaca;"
+                    onclick="deleteAlertRule(${rule.id})">
+                    Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+
+      } catch (err) {
+        panel.className = "empty";
+        panel.innerText = `Alert rules error: ${err.message}`;
+        status.innerText = "Error loading alert rules.";
+      }
+    }
+
+    async function saveAlertRule() {
+      const status = document.getElementById("alertRulesStatus");
+      const ruleId = document.getElementById("alertRuleId").value.trim();
+      const payload = getAlertRulePayload();
+
+      if (!payload.name || payload.name.length < 2) {
+        alert("Rule name is required.");
+        return;
+      }
+
+      status.innerText = ruleId ? "Updating alert rule..." : "Creating alert rule...";
+
+      try {
+        const url = ruleId ? `/admin/alert-rules/${ruleId}` : "/admin/alert-rules";
+        const method = ruleId ? "PUT" : "POST";
+
+        const res = await fetch(url, {
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${authToken}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          status.innerText = `Could not save alert rule: ${await res.text()}`;
+          return;
+        }
+
+        resetAlertRuleForm();
+        await loadAlertRules();
+
+        status.innerText = "Alert rule saved.";
+
+      } catch (err) {
+        status.innerText = `Save error: ${err.message}`;
+      }
+    }
+
+    function editAlertRule(rule) {
+      document.getElementById("alertRuleId").value = rule.id || "";
+      document.getElementById("alertRuleCompanyId").value = rule.company_id || "";
+      document.getElementById("alertRuleName").value = rule.name || "";
+      document.getElementById("alertRuleSeverityMin").value = rule.severity_min || "";
+      document.getElementById("alertRuleRiskScoreMin").value = rule.risk_score_min ?? 80;
+      document.getElementById("alertRuleOnCaseCreated").value = String(Boolean(rule.alert_on_case_created));
+      document.getElementById("alertRuleOnCritical").value = String(Boolean(rule.alert_on_critical));
+      document.getElementById("alertRuleChannel").value = rule.channel || "slack";
+      document.getElementById("alertRuleDestination").value = rule.destination || "";
+      document.getElementById("alertRuleEnabled").value = String(Boolean(rule.enabled));
+
+      document.getElementById("alertRulesStatus").innerText =
+        `Editing rule #${rule.id}`;
+    }
+
+    function resetAlertRuleForm() {
+      document.getElementById("alertRuleId").value = "";
+      document.getElementById("alertRuleName").value = "";
+      document.getElementById("alertRuleSeverityMin").value = "";
+      document.getElementById("alertRuleRiskScoreMin").value = 80;
+      document.getElementById("alertRuleOnCaseCreated").value = "true";
+      document.getElementById("alertRuleOnCritical").value = "true";
+      document.getElementById("alertRuleChannel").value = "slack";
+      document.getElementById("alertRuleDestination").value = "";
+      document.getElementById("alertRuleEnabled").value = "true";
+
+      if (!(currentUser && currentUser.role === "super_admin")) {
+        document.getElementById("alertRuleCompanyId").value = "";
+      }
+
+      document.getElementById("alertRulesStatus").innerText =
+        "Ready for new alert rule.";
+    }
+
+    async function deleteAlertRule(ruleId) {
+      const confirmDelete = confirm(
+        `¿Seguro que deseas eliminar la regla de alerta #${ruleId}?`
+      );
+
+      if (!confirmDelete) return;
+
+      try {
+        const res = await fetch(`/admin/alert-rules/${ruleId}`, {
+          method: "DELETE",
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          alert(`No se pudo eliminar la regla: ${await res.text()}`);
+          return;
+        }
+
+        await loadAlertRules();
+
+      } catch (err) {
+        alert(`Error deleting alert rule: ${err.message}`);
+      }
     }
 
     async function loadExecutiveDashboard() {
@@ -2833,6 +3255,14 @@
       const companySettingsNav = document.getElementById("companySettingsNav");
       if (companySettingsNav) {
         companySettingsNav.classList.toggle(
+          "hidden",
+          !["super_admin", "company_admin"].includes(currentUser.role)
+        );
+      }
+
+      const alertRulesNav = document.getElementById("alertRulesNav");
+      if (alertRulesNav) {
+        alertRulesNav.classList.toggle(
           "hidden",
           !["super_admin", "company_admin"].includes(currentUser.role)
         );

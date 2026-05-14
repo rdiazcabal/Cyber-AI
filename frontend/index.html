@@ -1253,7 +1253,15 @@
               <input id="iocSearchInput" placeholder="Ej: 8.8.8.8, example.com, user@example.com, arn:aws...">
             </div>
 
-            <button onclick="searchIOC()">Search IOC</button>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button onclick="searchIOC()">
+                Search IOC
+              </button>
+
+              <button class="secondary" onclick="clearThreatHunting()">
+                Clear
+              </button>
+            </div>
 
             <div id="iocSearchStatus" class="status-line">
               Waiting for IOC search...
@@ -4457,6 +4465,30 @@
     }
 
     document.addEventListener("DOMContentLoaded", restoreSidebarState);
+
+    function clearThreatHunting() {
+      const input = document.getElementById("iocSearchInput");
+      const status = document.getElementById("iocSearchStatus");
+      const resultsPanel = document.getElementById("iocSearchResultsPanel");
+      const historyPanel = document.getElementById("iocHistoryPanel");
+
+      if (input) input.value = "";
+
+      if (status) {
+        status.innerText = "Waiting for IOC search...";
+      }
+
+      if (resultsPanel) {
+        resultsPanel.className = "empty";
+        resultsPanel.innerText = "No IOC search results yet.";
+      }
+
+      if (historyPanel) {
+        historyPanel.className = "empty";
+        historyPanel.innerText = "Select an IOC to view historical activity.";
+      }
+    }
+
     loadSession();
 
   </script>

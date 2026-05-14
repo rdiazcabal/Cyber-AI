@@ -666,6 +666,9 @@
         <button class="secondary" onclick="changeUserRole(${u.id}, '${u.role}')">
           Cambiar rol
         </button>
+        <button class="secondary" onclick="changeUserPassword(${u.id}, '${u.username}')">
+  Cambiar password
+</button>
         ${currentUser.role === "super_admin" ? `
           <button class="secondary" onclick="changeUserCompany(${u.id}, ${u.company_id || "null"})">
             Cambiar empresa
@@ -851,7 +854,54 @@
       document.getElementById("adminStatus").innerText = "Usuario eliminado.";
       await loadUsers();
     }
+    async function changeUserPassword(id, username) {
+      const newPassword = prompt(
+        `Nueva contraseña para ${username}:\n\nDebe cumplir política fuerte, ejemplo: CyberPro2026!`,
+        ""
+      );
 
+      if (!newPassword) return;
+
+      const confirmPassword = prompt(
+        `Confirma la nueva contraseña para ${username}:`,
+        ""
+      );
+
+      if (!confirmPassword) return;
+
+      if (newPassword !== confirmPassword) {
+        document.getElementById("adminStatus").innerText =
+          "Las contraseñas no coinciden.";
+        return;
+      }
+
+      const res = await fetch(`/admin/users/${id}`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          password: newPassword
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        let detail = data.detail || res.status;
+
+        if (typeof detail === "object") {
+          detail = detail.message || JSON.stringify(detail);
+        }
+
+        document.getElementById("adminStatus").innerText =
+          `No se pudo cambiar password: ${detail}`;
+        return;
+      }
+
+      document.getElementById("adminStatus").innerText =
+        `Password actualizado para ${username}.`;
+
+      await loadUsers();
+    }
     initAdminPage();
   </script>
 </body>

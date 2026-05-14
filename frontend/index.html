@@ -683,6 +683,82 @@
       align-items: center;
       gap: 10px;
     }
+
+    .sidebar {
+      transition: width 0.25s ease, transform 0.25s ease;
+    }
+
+    .main {
+      transition: margin-left 0.25s ease, width 0.25s ease;
+    }
+
+    .sidebar-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      background: transparent;
+      border: 1px solid rgba(212, 175, 55, 0.25);
+      color: #d4af37;
+      border-radius: 10px;
+      padding: 8px 10px;
+      cursor: pointer;
+      margin: 10px 0 18px 0;
+    }
+
+    .sidebar-toggle:hover {
+      background: rgba(212, 175, 55, 0.08);
+    }
+
+    .sidebar-toggle svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    body.sidebar-collapsed .sidebar {
+      width: 78px;
+      min-width: 78px;
+    }
+
+    body.sidebar-collapsed .sidebar .brand-text,
+    body.sidebar-collapsed .sidebar .nav-title,
+    body.sidebar-collapsed .sidebar .nav-item span,
+    body.sidebar-collapsed .sidebar .sidebar-footer-text {
+      display: none;
+    }
+
+    body.sidebar-collapsed .sidebar .nav-item {
+      justify-content: center;
+      padding-left: 0;
+      padding-right: 0;
+    }
+
+    body.sidebar-collapsed .sidebar .sidebar-toggle {
+      justify-content: center;
+    }
+
+    body.sidebar-collapsed .sidebar .logo {
+      justify-content: center;
+    }
+
+    body.sidebar-collapsed .main {
+      margin-left: 78px;
+    }
+
+    @media (max-width: 900px) {
+      body.sidebar-collapsed .sidebar {
+        transform: translateX(-100%);
+      }
+
+      body.sidebar-collapsed .main {
+        margin-left: 0;
+      }
+    }
   </style>
 </head>
 
@@ -723,7 +799,11 @@
           <small>AI Security Operations</small>
         </div>
       </div>
-
+      <button class="sidebar-toggle" onclick="toggleSidebar()" title="Show / Hide sidebar">
+        <svg id="sidebarToggleIcon" viewBox="0 0 24 24">
+          <path d="M15 18l-6-6 6-6"></path>
+        </svg>
+      </button>
       <div class="nav-title">Main</div>
 
       <a class="nav-item active" id="dashboardNav" href="javascript:void(0)" onclick="showDashboard()">
@@ -4344,6 +4424,39 @@
       }
     }
 
+    function updateSidebarToggleIcon() {
+      const icon = document.getElementById("sidebarToggleIcon");
+      if (!icon) return;
+
+      const collapsed = document.body.classList.contains("sidebar-collapsed");
+
+      icon.innerHTML = collapsed
+        ? `<path d="M9 18l6-6-6-6"></path>`
+        : `<path d="M15 18l-6-6 6-6"></path>`;
+    }
+
+    function toggleSidebar() {
+      document.body.classList.toggle("sidebar-collapsed");
+
+      const collapsed = document.body.classList.contains("sidebar-collapsed");
+      localStorage.setItem("sidebarCollapsed", collapsed ? "true" : "false");
+
+      updateSidebarToggleIcon();
+    }
+
+    function restoreSidebarState() {
+      const collapsed = localStorage.getItem("sidebarCollapsed") === "true";
+
+      if (collapsed) {
+        document.body.classList.add("sidebar-collapsed");
+      } else {
+        document.body.classList.remove("sidebar-collapsed");
+      }
+
+      updateSidebarToggleIcon();
+    }
+
+    document.addEventListener("DOMContentLoaded", restoreSidebarState);
     loadSession();
 
   </script>

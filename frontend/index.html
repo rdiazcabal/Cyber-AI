@@ -684,61 +684,75 @@
       gap: 10px;
     }
 
+    .app {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      height: 100vh;
+      transition: grid-template-columns 0.25s ease;
+    }
+
     .sidebar {
+      position: relative;
+      background: linear-gradient(180deg, #080808, #000000);
+      padding: 22px;
+      border-right: 1px solid var(--border);
+      overflow: visible;
       transition: width 0.25s ease;
-      overflow-x: hidden;
     }
 
     .main {
-      transition: margin-left 0.25s ease, width 0.25s ease;
+      padding: 24px;
+      overflow: auto;
+      transition: all 0.25s ease;
     }
 
     .sidebar-toggle-pro {
       position: absolute;
       top: 92px;
-      right: -14px;
-      width: 30px;
-      height: 30px;
+      right: -17px;
+      width: 34px;
+      height: 34px;
       border-radius: 999px;
-      border: 1px solid rgba(212, 175, 55, 0.55);
+      border: 1px solid rgba(212, 175, 55, 0.65);
       background:
-        radial-gradient(circle at top left, rgba(212, 175, 55, 0.28), transparent 45%),
+        radial-gradient(circle at top left, rgba(212, 175, 55, 0.35), transparent 45%),
         #0b0f19;
       color: #f5d76e;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      z-index: 50;
+      z-index: 9999;
       box-shadow:
-        0 0 0 3px rgba(212, 175, 55, 0.08),
-        0 8px 22px rgba(0, 0, 0, 0.45);
-      transition: all 0.2s ease;
+        0 0 0 3px rgba(212, 175, 55, 0.10),
+        0 10px 28px rgba(0, 0, 0, 0.60);
+      transition: transform 0.2s ease, background 0.2s ease;
     }
 
     .sidebar-toggle-pro:hover {
       transform: scale(1.08);
       background:
-        radial-gradient(circle at top left, rgba(212, 175, 55, 0.4), transparent 45%),
+        radial-gradient(circle at top left, rgba(212, 175, 55, 0.50), transparent 45%),
         #111827;
-      box-shadow:
-        0 0 0 4px rgba(212, 175, 55, 0.12),
-        0 10px 28px rgba(0, 0, 0, 0.55);
     }
 
     .sidebar-toggle-pro svg {
-      width: 17px;
-      height: 17px;
+      width: 18px;
+      height: 18px;
       stroke: currentColor;
-      stroke-width: 2.4;
+      stroke-width: 2.5;
       fill: none;
       stroke-linecap: round;
       stroke-linejoin: round;
     }
 
+    body.sidebar-collapsed .app {
+      grid-template-columns: 78px 1fr;
+    }
+
     body.sidebar-collapsed .sidebar {
-      width: 78px;
-      min-width: 78px;
+      padding-left: 12px;
+      padding-right: 12px;
     }
 
     body.sidebar-collapsed .sidebar .brand-text,
@@ -748,41 +762,36 @@
       display: none !important;
     }
 
-    body.sidebar-collapsed .sidebar .nav-item {
-      justify-content: center;
-      padding-left: 0;
-      padding-right: 0;
-    }
-
-    body.sidebar-collapsed .sidebar .logo,
     body.sidebar-collapsed .sidebar .brand {
       justify-content: center;
     }
 
-    body.sidebar-collapsed .main {
-      margin-left: 78px;
+    body.sidebar-collapsed .sidebar .nav-item {
+      justify-content: center !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
+
+    body.sidebar-collapsed .sidebar .nav-icon {
+      margin: 0 auto;
     }
 
     body.sidebar-collapsed .sidebar-toggle-pro {
-      right: -14px;
+      right: -17px;
     }
 
-    @media (max-width: 900px) {
-      body.sidebar-collapsed .sidebar {
-        transform: translateX(-100%);
+    @media (max-width: 860px) {
+      .app {
+        grid-template-columns: 1fr;
       }
 
-      body.sidebar-collapsed .main {
-        margin-left: 0;
+      .sidebar {
+        display: none;
       }
 
       .sidebar-toggle-pro {
-        right: -16px;
+        display: none;
       }
-    }
-
-    .sidebar {
-      position: fixed;
     }
   </style>
 </head>
@@ -814,7 +823,7 @@
 
   <div id="appView" class="app hidden">
 
-    <aside>
+    <aside class="sidebar">
       <div class="brand">
         <div class="logo logo-image">
           <img src="/assets/2inc-cyberpro-logo.png" alt="2inc-cyberpro">
@@ -947,7 +956,7 @@
       <button class="secondary" onclick="logout()">Cerrar sesión</button>
     </aside>
 
-    <main>
+    <main class="main">
 
       <!-- DASHBOARD VIEW -->
       <div id="dashboardView">
@@ -4458,6 +4467,29 @@
       }
     }
 
+    function clearThreatHunting() {
+      const input = document.getElementById("iocSearchInput");
+      const status = document.getElementById("iocSearchStatus");
+      const resultsPanel = document.getElementById("iocSearchResultsPanel");
+      const historyPanel = document.getElementById("iocHistoryPanel");
+
+      if (input) input.value = "";
+
+      if (status) {
+        status.innerText = "Waiting for IOC search...";
+      }
+
+      if (resultsPanel) {
+        resultsPanel.className = "empty";
+        resultsPanel.innerText = "No IOC search results yet.";
+      }
+
+      if (historyPanel) {
+        historyPanel.className = "empty";
+        historyPanel.innerText = "Select an IOC to view historical activity.";
+      }
+    }
+
     window.updateSidebarToggleIcon = function () {
       const icon = document.getElementById("sidebarToggleIcon");
       const btn = document.getElementById("sidebarToggleBtn");
@@ -4499,31 +4531,6 @@
     document.addEventListener("DOMContentLoaded", function () {
       window.restoreSidebarState();
     });
-
-    document.addEventListener("DOMContentLoaded", restoreSidebarState);
-
-    function clearThreatHunting() {
-      const input = document.getElementById("iocSearchInput");
-      const status = document.getElementById("iocSearchStatus");
-      const resultsPanel = document.getElementById("iocSearchResultsPanel");
-      const historyPanel = document.getElementById("iocHistoryPanel");
-
-      if (input) input.value = "";
-
-      if (status) {
-        status.innerText = "Waiting for IOC search...";
-      }
-
-      if (resultsPanel) {
-        resultsPanel.className = "empty";
-        resultsPanel.innerText = "No IOC search results yet.";
-      }
-
-      if (historyPanel) {
-        historyPanel.className = "empty";
-        historyPanel.innerText = "Select an IOC to view historical activity.";
-      }
-    }
 
     loadSession();
 

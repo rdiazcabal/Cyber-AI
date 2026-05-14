@@ -751,6 +751,90 @@
         display: none;
       }
     }
+
+    /* SAFE SIDEBAR COLLAPSE */
+    .sidebar-toggle-safe {
+      position: fixed;
+      top: 18px;
+      left: 292px;
+      width: 36px;
+      height: 36px;
+      margin: 0;
+      padding: 0;
+      border-radius: 999px;
+      border: 1px solid rgba(212, 175, 55, 0.55);
+      background:
+        radial-gradient(circle at top left, rgba(212, 175, 55, 0.35), transparent 45%),
+        #0b0f19;
+      color: #f5d76e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      cursor: pointer;
+      box-shadow:
+        0 0 0 3px rgba(212, 175, 55, 0.08),
+        0 10px 28px rgba(0, 0, 0, 0.55);
+      transition: left 0.25s ease, transform 0.2s ease, background 0.2s ease;
+    }
+
+    .sidebar-toggle-safe:hover {
+      transform: scale(1.08);
+      background:
+        radial-gradient(circle at top left, rgba(212, 175, 55, 0.5), transparent 45%),
+        #111827;
+    }
+
+    .sidebar-toggle-safe svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 2.5;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    body.sidebar-collapsed #appView.app {
+      grid-template-columns: 78px minmax(0, 1fr);
+    }
+
+    body.sidebar-collapsed .sidebar {
+      width: 78px;
+      min-width: 78px;
+      padding-left: 12px;
+      padding-right: 12px;
+    }
+
+    body.sidebar-collapsed .sidebar .brand-text,
+    body.sidebar-collapsed .sidebar .nav-title,
+    body.sidebar-collapsed .sidebar .nav-item span {
+      display: none !important;
+    }
+
+    body.sidebar-collapsed .sidebar .brand {
+      justify-content: center;
+    }
+
+    body.sidebar-collapsed .sidebar .nav-item {
+      justify-content: center !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
+
+    body.sidebar-collapsed .sidebar .nav-icon {
+      margin: 0 auto;
+    }
+
+    body.sidebar-collapsed .sidebar-toggle-safe {
+      left: 90px;
+    }
+
+    @media (max-width: 860px) {
+      .sidebar-toggle-safe {
+        display: none;
+      }
+    }
   </style>
 </head>
 
@@ -914,8 +998,14 @@
       <button class="secondary" onclick="logout()">Cerrar sesión</button>
     </aside>
 
-    <main class="main">
+    <button id="sidebarToggleBtn" class="sidebar-toggle-safe" type="button" onclick="toggleSidebar()"
+      title="Ocultar menú">
+      <svg id="sidebarToggleIcon" viewBox="0 0 24 24">
+        <path d="M15 18l-6-6 6-6"></path>
+      </svg>
+    </button>
 
+    <main class="main">
       <!-- DASHBOARD VIEW -->
       <div id="dashboardView">
 
@@ -4462,6 +4552,48 @@
 
       if (btn) {
         btn.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
+      }
+    };
+
+    window.toggleSidebar = function () {
+      document.body.classList.toggle("sidebar-collapsed");
+
+      const collapsed = document.body.classList.contains("sidebar-collapsed");
+      localStorage.setItem("sidebarCollapsed", collapsed ? "true" : "false");
+
+      window.updateSidebarToggleIcon();
+    };
+
+    window.restoreSidebarState = function () {
+      const collapsed = localStorage.getItem("sidebarCollapsed") === "true";
+
+      if (collapsed) {
+        document.body.classList.add("sidebar-collapsed");
+      } else {
+        document.body.classList.remove("sidebar-collapsed");
+      }
+
+      window.updateSidebarToggleIcon();
+    };
+
+    document.addEventListener("DOMContentLoaded", function () {
+      window.restoreSidebarState();
+    });
+
+    window.updateSidebarToggleIcon = function () {
+      const icon = document.getElementById("sidebarToggleIcon");
+      const btn = document.getElementById("sidebarToggleBtn");
+
+      if (!icon) return;
+
+      const collapsed = document.body.classList.contains("sidebar-collapsed");
+
+      icon.innerHTML = collapsed
+        ? `<path d="M9 18l6-6-6-6"></path>`
+        : `<path d="M15 18l-6-6 6-6"></path>`;
+
+      if (btn) {
+        btn.title = collapsed ? "Mostrar menú" : "Ocultar menú";
       }
     };
 

@@ -728,9 +728,6 @@
     body.sidebar-collapsed .sidebar .brand-text,
     body.sidebar-collapsed .sidebar .nav-title,
     body.sidebar-collapsed .sidebar .nav-item span,
-    body.sidebar-collapsed .sidebar .sidebar-footer-text {
-      display: initial !important;
-    }
 
     body.sidebar-collapsed .sidebar .nav-item {
       justify-content: flex-start !important;
@@ -898,6 +895,40 @@
 
     body.sidebar-collapsed button.sidebar-toggle-inline {
       margin: 0 auto 18px auto !important;
+    }
+
+    /* FIX: hide brand text when sidebar is collapsed */
+    body.sidebar-collapsed .sidebar .brand-text,
+    body.sidebar-collapsed .sidebar .brand-text h2,
+    body.sidebar-collapsed .sidebar .brand-text small {
+      display: none !important;
+      visibility: hidden !important;
+      width: 0 !important;
+      max-width: 0 !important;
+      overflow: hidden !important;
+    }
+
+    body.sidebar-collapsed .sidebar .brand {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 12px !important;
+      margin-bottom: 18px !important;
+    }
+
+    body.sidebar-collapsed .sidebar .brand-left {
+      display: flex !important;
+      justify-content: center !important;
+      width: 100% !important;
+    }
+
+    body.sidebar-collapsed .sidebar .logo {
+      margin: 0 auto !important;
+    }
+
+    body.sidebar-collapsed button.sidebar-toggle-inline {
+      margin: 0 auto !important;
     }
   </style>
 </head>

@@ -1301,7 +1301,16 @@
               <h1>Executive Dashboard</h1>
               <p>Resumen ejecutivo de riesgos, casos, cumplimiento e indicadores de seguridad.</p>
             </div>
+            <div class="panel">
+              <h3>Executive Report Export</h3>
+              <div class="panel-subtitle">
+                Descarga un resumen ejecutivo en PDF para gerencia, auditoría o clientes.
+              </div>
 
+              <button onclick="downloadExecutivePDF()">
+                Download Executive PDF
+              </button>
+            </div>
             <div class="api-status">
               <span class="pulse"></span> Executive View
             </div>
@@ -2901,7 +2910,6 @@
     }
 
     async function analyze() {
-
       try {
         document.getElementById("statusLine").innerText = "Analyzing security events...";
         let input = JSON.parse(document.getElementById("eventInput").value);
@@ -3863,6 +3871,47 @@
       </div>
     </div>
   `).join("");
+    }
+
+    async function downloadExecutivePDF() {
+      try {
+        let url = "/executive/pdf";
+
+        const companyInput = document.getElementById("settingsCompanyId");
+        const companyId = companyInput ? companyInput.value.trim() : "";
+
+        if (currentUser && currentUser.role === "super_admin" && companyId) {
+          url += `?company_id=${encodeURIComponent(companyId)}`;
+        }
+
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          alert(`No se pudo descargar el Executive PDF: ${errorText}`);
+          return;
+        }
+
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = downloadUrl;
+        a.download = "executive-security-summary.pdf";
+        document.body.appendChild(a);
+        a.click();
+
+        a.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+
+      } catch (err) {
+        alert(`Error descargando Executive PDF: ${err.message}`);
+      }
     }
 
     loadSession();

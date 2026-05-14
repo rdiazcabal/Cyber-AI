@@ -2509,3 +2509,279 @@ def executive_overview(
         "top_mitre_techniques": top_mitre_techniques,
         "recent_high_risk_reports": recent_high_risk_reports[:10],
     }
+
+@app.get("/executive/pdf")
+def export_executive_pdf(
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from datetime import datetime
+    from collections import Counter
+
+    target_company_id = company_id
+
+    if current_user.role != "super_admin":
+        target_company_id = current_user.company_id
+
+    company = None
+    if target_company_id:
+        company = db.query(Company).filter(Company.id == int(target_company_id)).first()
+
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+
+        settings = get_or_create_company_settings(
+            db=db,
+            company_id=int(target_company_id)
+        )
+
+        if not settings.allow_pdf_export:
+            raise HTTPException(
+                status_code=403,
+                detail="PDF export is disabled for this company"
+            )
+
+    reports_query = db.query(AnalysisReport)
+    cases_query = db.query(SecurityCase)
+    iocs_query = db.query(IOCObservation)
+
+    if target_company_id:
+        reports_query = reports_query.filter(AnalysisReport.company_id == int(target_company_id))
+        cases_query = cases_query.filter(SecurityCase.company_id == int(target_company_id))
+        iocs_query = iocs_query.filter(IOCObservation.company_id == int(target_company_id))
+
+    reports = reports_query.order_by(AnalysisReport.created_at.desc()).all()
+    cases = cases_query.all()
+    iocs = iocs_query.all()
+
+    now = datetime.utcnow()
+
+    total_reports = len(reports)
+    reports_this_month = len([
+        r for r in reports
+        if r.created_at and r.created_at.year == now.year and r.created_at.month == now.month
+    ])
+
+    avg_risk_score = int(sum([(r.risk_score or 0) for r in reports]) / total_reports) if total_reports else 0
+
+    open_cases = len([c for c in cases if (c.status or "").lower() == "open"])
+    critical_cases = len([c for c in cases if (c.severity or "").lower() == "critical"])
+
+    ioc_counter = Counter()
+    cis_counter = Counter()
+    mitre_counter = Counter()
+
+    for obs in iocs:
+        if obs.ioc:
+            ioc_counter[f"{obs.type}:{obs.ioc}"] += 1
+
+    recent_high_risk_reports = []
+
+    for report in reports:
+        try:
+            parsed = json.loads(report.result_json or "{}")
+        except Exception:
+            parsed = {}
+
+        for control in parsed.get("cis_controls", []) or []:
+            cis_counter[control] += 1
+
+        mitre = parsed.get("mitre_coverage", {}) or {}
+
+        if isinstance(mitre, dict):
+            for key, value in mitre.items():
+                if isinstance(value, int):
+                    mitre_counter[key] += value
+                elif isinstance(value, list):
+                    mitre_counter[key] += len(value)
+                else:
+                    mitre_counter[key] += 1
+
+        ai_struct = parsed.get("ai_structured_analysis", {}) or {}
+
+        if (report.risk_score or 0) >= 70:
+            case = db.query(SecurityCase).filter(SecurityCase.report_id == report.id).first()
+
+            recent_high_risk_reports.append({
+                "id": report.id,
+                "title": report.title,
+                "risk_score": report.risk_score,
+                "severity": ai_struct.get("severity", "Unknown"),
+                "summary": ai_struct.get("summary") or "No summary available",
+                "case_id": case.id if case else None,
+                "case_status": case.status if case else None,
+                "created_at": report.created_at,
+            })
+
+    top_iocs = [
+        {
+            "ioc": key.split(":", 1)[1] if ":" in key else key,
+            "type": key.split(":", 1)[0] if ":" in key else "ioc",
+            "count": count,
+        }
+        for key, count in ioc_counter.most_common(10)
+    ]
+
+    top_cis_controls = [
+        {
+            "control": control,
+            "count": count,
+        }
+        for control, count in cis_counter.most_common(10)
+    ]
+
+    top_mitre_techniques = [
+        {
+            "technique": technique,
+            "count": count,
+        }
+        for technique, count in mitre_counter.most_common(10)
+    ]
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+
+    y = height - 0.75 * inch
+
+    def write_line(text, size=10, bold=False, spacing=14):
+        nonlocal y
+
+        if y < 0.75 * inch:
+            pdf.showPage()
+            y = height - 0.75 * inch
+
+        font = "Helvetica-Bold" if bold else "Helvetica"
+        pdf.setFont(font, size)
+
+        safe_text = str(text or "")
+        max_chars = 105
+
+        while len(safe_text) > max_chars:
+            pdf.drawString(0.75 * inch, y, safe_text[:max_chars])
+            safe_text = safe_text[max_chars:]
+            y -= spacing
+
+            if y < 0.75 * inch:
+                pdf.showPage()
+                y = height - 0.75 * inch
+                pdf.setFont(font, size)
+
+        pdf.drawString(0.75 * inch, y, safe_text)
+        y -= spacing
+
+    company_name = company.name if company else "All Companies"
+
+    write_line("2 Inc-CyberPro - Executive Security Summary", size=15, bold=True, spacing=20)
+    write_line(f"Company: {company_name}", size=10)
+    write_line(f"Generated At: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}", size=10)
+    write_line(" ", spacing=10)
+
+    write_line("Executive KPIs", size=12, bold=True, spacing=16)
+    write_line(f"Total Reports: {total_reports}", size=10)
+    write_line(f"Reports This Month: {reports_this_month}", size=10)
+    write_line(f"Average Risk Score: {avg_risk_score}", size=10)
+    write_line(f"Open Cases: {open_cases}", size=10)
+    write_line(f"Critical Cases: {critical_cases}", size=10)
+    write_line(f"Total IOCs Observed: {len(iocs)}", size=10)
+    write_line(" ", spacing=10)
+
+    write_line("Top IOCs", size=12, bold=True, spacing=16)
+    if top_iocs:
+        for item in top_iocs:
+            write_line(f"- [{item.get('type')}] {item.get('ioc')} | Seen: {item.get('count')}", size=9)
+    else:
+        write_line("No IOC data available.", size=9)
+
+    write_line(" ", spacing=10)
+
+    write_line("Top CIS Controls", size=12, bold=True, spacing=16)
+    if top_cis_controls:
+        for item in top_cis_controls:
+            write_line(f"- {item.get('control')} | Findings: {item.get('count')}", size=9)
+    else:
+        write_line("No CIS data available.", size=9)
+
+    write_line(" ", spacing=10)
+
+    write_line("Top MITRE Techniques", size=12, bold=True, spacing=16)
+    if top_mitre_techniques:
+        for item in top_mitre_techniques:
+            write_line(f"- {item.get('technique')} | Hits: {item.get('count')}", size=9)
+    else:
+        write_line("No MITRE data available.", size=9)
+
+    write_line(" ", spacing=10)
+
+    write_line("Recent High Risk Reports", size=12, bold=True, spacing=16)
+    if recent_high_risk_reports:
+        for report in recent_high_risk_reports[:10]:
+            write_line(
+                f"- Report #{report.get('id')} | Risk {report.get('risk_score')} | Severity {report.get('severity')}",
+                size=9,
+                bold=True,
+            )
+            write_line(f"  Title: {report.get('title')}", size=9)
+            write_line(f"  Summary: {report.get('summary')}", size=8)
+            write_line(
+                f"  Case: {('#' + str(report.get('case_id')) + ' - ' + str(report.get('case_status'))) if report.get('case_id') else 'No case'}",
+                size=8,
+                spacing=12,
+            )
+    else:
+        write_line("No high-risk reports available.", size=9)
+
+    write_line(" ", spacing=10)
+
+    write_line("Executive Recommendation", size=12, bold=True, spacing=16)
+
+    if critical_cases > 0:
+        write_line(
+            "Immediate action recommended: critical cases are currently open or detected. Prioritize containment and executive review.",
+            size=9,
+        )
+    elif open_cases > 0:
+        write_line(
+            "Operational follow-up recommended: open cases should be reviewed until closure and documented with investigation notes.",
+            size=9,
+        )
+    elif avg_risk_score >= 70:
+        write_line(
+            "Risk level is elevated. Review high-risk reports, recurring IOCs and CIS control gaps.",
+            size=9,
+        )
+    else:
+        write_line(
+            "Current indicators do not show a critical operational state. Continue monitoring, evidence collection and periodic reviews.",
+            size=9,
+        )
+
+    pdf.save()
+    buffer.seek(0)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="DOWNLOAD_EXECUTIVE_PDF",
+        resource_type="executive_report",
+        resource_id=target_company_id or "all",
+        details={
+            "company_id": target_company_id,
+            "company_name": company_name,
+            "total_reports": total_reports,
+            "open_cases": open_cases,
+            "critical_cases": critical_cases,
+            "total_iocs": len(iocs),
+        },
+    )
+
+    filename = f"executive-security-summary-company-{target_company_id or 'all'}.pdf"
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )

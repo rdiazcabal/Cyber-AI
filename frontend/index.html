@@ -848,6 +848,57 @@
     body.sidebar-collapsed .sidebar-toggle-inline {
       margin: 0 auto 18px auto;
     }
+
+    /* FIX: sidebar toggle must not inherit global button styles */
+    button.sidebar-toggle-inline {
+      width: 34px !important;
+      height: 34px !important;
+      min-width: 34px !important;
+      max-width: 34px !important;
+      padding: 0 !important;
+      margin: 0 !important;
+
+      border-radius: 999px !important;
+      border: 1px solid rgba(212, 175, 55, 0.55) !important;
+
+      background:
+        radial-gradient(circle at top left, rgba(212, 175, 55, 0.35), transparent 45%),
+        #0b0f19 !important;
+
+      color: #f5d76e !important;
+
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+
+      box-shadow:
+        0 0 0 3px rgba(212, 175, 55, 0.08),
+        0 8px 22px rgba(0, 0, 0, 0.45) !important;
+
+      cursor: pointer !important;
+      flex: 0 0 34px !important;
+    }
+
+    button.sidebar-toggle-inline:hover {
+      transform: scale(1.06);
+      background:
+        radial-gradient(circle at top left, rgba(212, 175, 55, 0.50), transparent 45%),
+        #111827 !important;
+    }
+
+    button.sidebar-toggle-inline svg {
+      width: 17px !important;
+      height: 17px !important;
+      stroke: currentColor !important;
+      stroke-width: 2.5 !important;
+      fill: none !important;
+      stroke-linecap: round !important;
+      stroke-linejoin: round !important;
+    }
+
+    body.sidebar-collapsed button.sidebar-toggle-inline {
+      margin: 0 auto 18px auto !important;
+    }
   </style>
 </head>
 
@@ -888,7 +939,7 @@
           <small>AI Security Operations</small>
         </div>
       </div>
-      <button id="sidebarToggleBtn" class="sidebar-toggle-safe" type="button" onclick="toggleSidebar()"
+      <button id="sidebarToggleBtn" class="sidebar-toggle-inline" type="button" onclick="toggleSidebar()"
         title="Ocultar menú">
         <svg id="sidebarToggleIcon" viewBox="0 0 24 24">
           <path d="M15 18l-6-6 6-6"></path>

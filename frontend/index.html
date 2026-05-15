@@ -1222,19 +1222,6 @@
         </svg>
         <span>CIS 8 Compliance</span>
       </a>
-      <a class="nav-item hidden" id="integrationsNav" href="javascript:void(0)" onclick="showIntegrations()">
-        <svg class="nav-icon" viewBox="0 0 24 24">
-          <path d="M12 3v6"></path>
-          <path d="M12 15v6"></path>
-          <path d="M5.6 5.6l4.2 4.2"></path>
-          <path d="M14.2 14.2l4.2 4.2"></path>
-          <path d="M3 12h6"></path>
-          <path d="M15 12h6"></path>
-          <path d="M5.6 18.4l4.2-4.2"></path>
-          <path d="M14.2 9.8l4.2-4.2"></path>
-        </svg>
-        <span>Cloud Integrations</span>
-      </a>
 
       <div class="nav-title">Admin</div>
 
@@ -1267,6 +1254,19 @@
           <path d="M8 9h2"></path>
         </svg>
         <span>Audit Logs</span>
+      </a>
+      <a class="nav-item hidden" id="integrationsNav" href="javascript:void(0)" onclick="showIntegrations()">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <path d="M12 3v6"></path>
+          <path d="M12 15v6"></path>
+          <path d="M5.6 5.6l4.2 4.2"></path>
+          <path d="M14.2 14.2l4.2 4.2"></path>
+          <path d="M3 12h6"></path>
+          <path d="M15 12h6"></path>
+          <path d="M5.6 18.4l4.2-4.2"></path>
+          <path d="M14.2 9.8l4.2-4.2"></path>
+        </svg>
+        <span>Cloud Integrations</span>
       </a>
 
       <a class="nav-item hidden" id="alertRulesNav" href="javascript:void(0)" onclick="showAlertRules()">
@@ -3871,6 +3871,13 @@
           !["super_admin", "company_admin"].includes(currentUser.role)
         );
       }
+      const integrationsNav = document.getElementById("integrationsNav");
+      if (integrationsNav) {
+        integrationsNav.classList.toggle(
+          "hidden",
+          !["super_admin", "company_admin"].includes(currentUser.role)
+        );
+      }
 
       setAppVisibility(true);
       showDashboard();
@@ -5095,14 +5102,6 @@
     document.addEventListener("DOMContentLoaded", function () {
       window.restoreSidebarState();
     });
-
-    const integrationsNav = document.getElementById("integrationsNav");
-    if (integrationsNav) {
-      integrationsNav.classList.toggle(
-        "hidden",
-        !["super_admin", "company_admin"].includes(currentUser.role)
-      );
-    }
 
     function renderIntegrationProviderFields() {
       const provider = document.getElementById("integrationProvider").value;

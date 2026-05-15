@@ -1867,8 +1867,10 @@
             <div class="grid">
               <div>
                 <div class="input-row">
-                  <label>Company ID</label>
-                  <input id="alertRuleCompanyId" placeholder="Solo super_admin puede usar otra empresa">
+                  <label>Company</label>
+                  <select id="alertRuleCompanyId">
+                    <option value="">Loading companies...</option>
+                  </select>
                 </div>
 
                 <div class="input-row">
@@ -1995,8 +1997,10 @@
             <div class="grid">
               <div>
                 <div class="input-row">
-                  <label>Company ID</label>
-                  <input id="integrationCompanyId" placeholder="Solo super_admin puede usar otra empresa">
+                  <label>Company</label>
+                  <select id="integrationCompanyId">
+                    <option value="">Loading companies...</option>
+                  </select>
                 </div>
 
                 <div class="input-row">
@@ -2726,11 +2730,13 @@
       const alertRulesNav = document.getElementById("alertRulesNav");
       if (alertRulesNav) alertRulesNav.classList.add("active");
 
+      await loadCompanyOptions("alertRuleCompanyId", true);
+
       await loadAlertRules();
     }
 
     function getAlertRulePayload() {
-      const companyId = document.getElementById("alertRuleCompanyId").value.trim();
+      const companyId = getSelectedCompanyId("alertRuleCompanyId");
 
       const payload = {
         name: document.getElementById("alertRuleName").value.trim(),
@@ -2743,7 +2749,7 @@
         enabled: document.getElementById("alertRuleEnabled").value === "true"
       };
 
-      if (currentUser && currentUser.role === "super_admin" && companyId) {
+      if (companyId) {
         payload.company_id = Number(companyId);
       }
 
@@ -2761,7 +2767,7 @@
       try {
         let url = "/admin/alert-rules";
 
-        const companyId = document.getElementById("alertRuleCompanyId").value.trim();
+        const companyId = getSelectedCompanyId("alertRuleCompanyId");
         if (currentUser && currentUser.role === "super_admin" && companyId) {
           url += `?company_id=${encodeURIComponent(companyId)}`;
         }
@@ -2892,7 +2898,7 @@
 
     function editAlertRule(rule) {
       document.getElementById("alertRuleId").value = rule.id || "";
-      document.getElementById("alertRuleCompanyId").value = rule.company_id || "";
+      document.getElementById("alertRuleCompanyId").value = String(rule.company_id || "");
       document.getElementById("alertRuleName").value = rule.name || "";
       document.getElementById("alertRuleSeverityMin").value = rule.severity_min || "";
       document.getElementById("alertRuleRiskScoreMin").value = rule.risk_score_min ?? 80;
@@ -5199,7 +5205,7 @@
 
     function getIntegrationPayload() {
       const provider = document.getElementById("integrationProvider").value;
-      const companyId = document.getElementById("integrationCompanyId").value.trim();
+      const companyId = getSelectedCompanyId("integrationCompanyId");
 
       const payload = {
         provider,
@@ -5209,7 +5215,7 @@
         config: {}
       };
 
-      if (currentUser && currentUser.role === "super_admin" && companyId) {
+      if (companyId) {
         payload.company_id = Number(companyId);
       }
 
@@ -5269,6 +5275,8 @@
 
       const integrationsNav = document.getElementById("integrationsNav");
       if (integrationsNav) integrationsNav.classList.add("active");
+
+      await loadCompanyOptions("integrationCompanyId", true);
 
       renderIntegrationProviderFields();
       await loadIntegrations();
@@ -5415,7 +5423,7 @@
 
     function editIntegration(integration) {
       document.getElementById("integrationId").value = integration.id || "";
-      document.getElementById("integrationCompanyId").value = integration.company_id || "";
+      document.getElementById("integrationCompanyId").value = String(integration.company_id || "");
       document.getElementById("integrationProvider").value = integration.provider || "aws";
       document.getElementById("integrationName").value = integration.name || "";
       document.getElementById("integrationEnabled").value = String(Boolean(integration.enabled));
@@ -5540,6 +5548,63 @@
       } catch (err) {
         alert(`Delete integration error: ${err.message}`);
       }
+    }
+
+    let cachedCompanies = [];
+
+    async function loadCompanyOptions(selectId, includeEmpty = true) {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+
+      try {
+        if (!cachedCompanies.length) {
+          const res = await fetch("/admin/companies", {
+            headers: {
+              "Authorization": `Bearer ${authToken}`
+            }
+          });
+
+          if (!res.ok) {
+            select.innerHTML = `<option value="">Could not load companies</option>`;
+            return;
+          }
+
+          cachedCompanies = await res.json();
+        }
+
+        let options = includeEmpty
+          ? `<option value="">Select company...</option>`
+          : "";
+
+        options += cachedCompanies.map(company => `
+      <option value="${company.id}">
+        ${company.id} - ${escapeHtml(company.name)}
+      </option>
+    `).join("");
+
+        select.innerHTML = options;
+
+        if (currentUser && currentUser.role !== "super_admin") {
+          select.value = String(currentUser.company_id || "");
+          select.disabled = true;
+        } else {
+          select.disabled = false;
+        }
+
+      } catch (err) {
+        select.innerHTML = `<option value="">Error loading companies</option>`;
+      }
+    }
+
+    function getSelectedCompanyId(selectId) {
+      const select = document.getElementById(selectId);
+      if (!select) return "";
+
+      const value = select.value;
+
+      if (!value) return "";
+
+      return Number(value);
     }
 
     loadSession();

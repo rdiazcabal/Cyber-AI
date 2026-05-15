@@ -34,7 +34,9 @@ from app.models import (
     AuditLog,
     CompanySettings,
     AlertRule,
+    CloudIntegration,
 )
+
 from app.auth import (
     authenticate_user,
     bootstrap_admin_user,
@@ -3180,3 +3182,592 @@ def export_executive_pdf(
             "Content-Disposition": f"attachment; filename={filename}"
         }
     )
+
+def normalize_provider_name(provider: str) -> str:
+    provider = (provider or "").strip().lower()
+
+    if provider not in ["aws", "azure", "gcp"]:
+        raise HTTPException(status_code=400, detail="Invalid provider. Use aws, azure or gcp.")
+
+    return provider
+
+def parse_integration_config(config_json: str | None) -> dict:
+    if not config_json:
+        return {}
+
+    try:
+        return json.loads(config_json)
+    except Exception:
+        return {}
+
+def validate_integration_payload(provider: str, auth_type: str, config: dict):
+    provider = normalize_provider_name(provider)
+
+    if provider == "aws":
+        required = ["role_arn", "external_id", "region"]
+        missing = [k for k in required if not config.get(k)]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing AWS config fields: {', '.join(missing)}"
+            )
+
+        if auth_type not in ["role_arn"]:
+            raise HTTPException(status_code=400, detail="AWS auth_type must be role_arn")
+
+    if provider == "azure":
+        required = ["tenant_id", "client_id", "client_secret_ref", "subscription_id"]
+        missing = [k for k in required if not config.get(k)]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing Azure config fields: {', '.join(missing)}"
+            )
+
+        if auth_type not in ["app_registration"]:
+            raise HTTPException(status_code=400, detail="Azure auth_type must be app_registration")
+
+    if provider == "gcp":
+        required = ["project_id", "service_account_secret_ref"]
+        missing = [k for k in required if not config.get(k)]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing GCP config fields: {', '.join(missing)}"
+            )
+
+        if auth_type not in ["service_account"]:
+            raise HTTPException(status_code=400, detail="GCP auth_type must be service_account")
+
+def integration_to_dict(integration: CloudIntegration, company_name: str | None = None) -> dict:
+    config = parse_integration_config(integration.config_json)
+
+    safe_config = dict(config)
+
+    for sensitive_key in [
+        "client_secret",
+        "private_key",
+        "service_account_json",
+        "password",
+        "secret",
+    ]:
+        if sensitive_key in safe_config:
+            safe_config[sensitive_key] = "***"
+
+    return {
+        "id": integration.id,
+        "company_id": integration.company_id,
+        "company_name": company_name,
+        "provider": integration.provider,
+        "name": integration.name,
+        "enabled": integration.enabled,
+        "auth_type": integration.auth_type,
+        "config": safe_config,
+        "last_sync_at": integration.last_sync_at,
+        "last_status": integration.last_status,
+        "last_error": integration.last_error,
+        "created_at": integration.created_at,
+        "updated_at": integration.updated_at,
+    }
+
+def generate_sample_events_for_integration(integration: CloudIntegration) -> list[dict]:
+    """
+    Initial scaffold sync.
+    Later this will be replaced by real AWS/Azure/GCP connectors.
+    """
+    config = parse_integration_config(integration.config_json)
+    provider = integration.provider.lower()
+
+    if provider == "aws":
+        return [
+            {
+                "provider": "AWS",
+                "service": "GuardDuty",
+                "eventName": "UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration",
+                "severity": 8,
+                "sourceIPAddress": "8.8.8.8",
+                "user": "cloud-integration-test",
+                "resource": "aws-account",
+                "region": config.get("region", "us-east-1"),
+                "description": "AWS integration sync scaffold event. Replace with real GuardDuty/CloudTrail findings.",
+                "raw": {
+                    "integration_id": integration.id,
+                    "integration_name": integration.name,
+                    "sources": config.get("sources", ["guardduty", "cloudtrail"]),
+                },
+            }
+        ]
+
+    if provider == "azure":
+        return [
+            {
+                "provider": "Azure",
+                "service": "Entra ID",
+                "eventName": "RiskySignIn",
+                "severity": 7,
+                "sourceIPAddress": "8.8.4.4",
+                "user": "azure.integration@test.local",
+                "resource": config.get("subscription_id"),
+                "region": "global",
+                "description": "Azure integration sync scaffold event. Replace with real Entra ID/Activity/Defender alerts.",
+                "raw": {
+                    "integration_id": integration.id,
+                    "integration_name": integration.name,
+                    "sources": config.get("sources", ["activity_logs", "entra_signins", "defender"]),
+                },
+            }
+        ]
+
+    if provider == "gcp":
+        return [
+            {
+                "provider": "GCP",
+                "service": "Security Command Center",
+                "eventName": "IAMAnomalousGrant",
+                "severity": 7,
+                "sourceIPAddress": "1.1.1.1",
+                "user": "gcp-integration@test.local",
+                "resource": config.get("project_id"),
+                "region": "global",
+                "description": "GCP integration sync scaffold event. Replace with real Cloud Audit Logs/SCC findings.",
+                "raw": {
+                    "integration_id": integration.id,
+                    "integration_name": integration.name,
+                    "sources": config.get("sources", ["audit_logs", "security_command_center"]),
+                },
+            }
+        ]
+
+    return []
+
+@app.get("/integrations")
+def list_integrations(
+    company_id: int | None = None,
+    provider: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    query = db.query(CloudIntegration)
+
+    if current_user.role != "super_admin":
+        query = query.filter(CloudIntegration.company_id == current_user.company_id)
+    elif company_id:
+        query = query.filter(CloudIntegration.company_id == int(company_id))
+
+    if provider:
+        query = query.filter(CloudIntegration.provider == normalize_provider_name(provider))
+
+    integrations = query.order_by(CloudIntegration.created_at.desc()).all()
+
+    result = []
+
+    for integration in integrations:
+        company = db.query(Company).filter(Company.id == integration.company_id).first()
+        result.append(
+            integration_to_dict(
+                integration=integration,
+                company_name=company.name if company else None,
+            )
+        )
+
+    return result
+
+@app.post("/integrations")
+def create_integration(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    from datetime import datetime
+
+    provider = normalize_provider_name(payload.get("provider"))
+    name = (payload.get("name") or "").strip()
+    auth_type = (payload.get("auth_type") or "").strip()
+    config = payload.get("config") or {}
+
+    if len(name) < 2:
+        raise HTTPException(status_code=400, detail="Integration name is required")
+
+    company_id = payload.get("company_id")
+
+    if current_user.role != "super_admin":
+        company_id = current_user.company_id
+
+    if not company_id:
+        raise HTTPException(status_code=400, detail="company_id is required")
+
+    company = (
+        db.query(Company)
+        .filter(Company.id == int(company_id), Company.is_active == True)
+        .first()
+    )
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    validate_integration_payload(
+        provider=provider,
+        auth_type=auth_type,
+        config=config,
+    )
+
+    integration = CloudIntegration(
+        company_id=company.id,
+        provider=provider,
+        name=name,
+        enabled=bool(payload.get("enabled", True)),
+        auth_type=auth_type,
+        config_json=json.dumps(config),
+        last_status="created",
+        last_error=None,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+
+    db.add(integration)
+    db.commit()
+    db.refresh(integration)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="CREATE_INTEGRATION",
+        resource_type="cloud_integration",
+        resource_id=integration.id,
+        details={
+            "company_id": integration.company_id,
+            "provider": integration.provider,
+            "name": integration.name,
+            "auth_type": integration.auth_type,
+            "enabled": integration.enabled,
+        },
+    )
+
+    return integration_to_dict(integration, company.name)
+
+@app.put("/integrations/{integration_id}")
+def update_integration(
+    integration_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    from datetime import datetime
+
+    query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(CloudIntegration.company_id == current_user.company_id)
+
+    integration = query.first()
+
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+
+    if "provider" in payload:
+        integration.provider = normalize_provider_name(payload.get("provider"))
+
+    if "name" in payload:
+        name = (payload.get("name") or "").strip()
+        if len(name) < 2:
+            raise HTTPException(status_code=400, detail="Integration name is required")
+        integration.name = name
+
+    if "enabled" in payload:
+        integration.enabled = bool(payload.get("enabled"))
+
+    if "auth_type" in payload:
+        integration.auth_type = (payload.get("auth_type") or "").strip()
+
+    if "config" in payload:
+        config = payload.get("config") or {}
+        validate_integration_payload(
+            provider=integration.provider,
+            auth_type=integration.auth_type,
+            config=config,
+        )
+        integration.config_json = json.dumps(config)
+
+    integration.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(integration)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="UPDATE_INTEGRATION",
+        resource_type="cloud_integration",
+        resource_id=integration.id,
+        details={
+            "company_id": integration.company_id,
+            "provider": integration.provider,
+            "name": integration.name,
+            "enabled": integration.enabled,
+            "updated_fields": list(payload.keys()),
+        },
+    )
+
+    company = db.query(Company).filter(Company.id == integration.company_id).first()
+
+    return integration_to_dict(
+        integration=integration,
+        company_name=company.name if company else None,
+    )
+
+@app.delete("/integrations/{integration_id}")
+def delete_integration(
+    integration_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(CloudIntegration.company_id == current_user.company_id)
+
+    integration = query.first()
+
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="DELETE_INTEGRATION",
+        resource_type="cloud_integration",
+        resource_id=integration.id,
+        details={
+            "company_id": integration.company_id,
+            "provider": integration.provider,
+            "name": integration.name,
+        },
+    )
+
+    db.delete(integration)
+    db.commit()
+
+    return {
+        "message": "Integration deleted",
+        "id": integration_id,
+    }
+
+@app.post("/integrations/{integration_id}/test")
+def test_integration(
+    integration_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    from datetime import datetime
+
+    query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(CloudIntegration.company_id == current_user.company_id)
+
+    integration = query.first()
+
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+
+    config = parse_integration_config(integration.config_json)
+
+    try:
+        validate_integration_payload(
+            provider=integration.provider,
+            auth_type=integration.auth_type,
+            config=config,
+        )
+
+        integration.last_status = "test_success"
+        integration.last_error = None
+        integration.updated_at = datetime.utcnow()
+
+        db.commit()
+        db.refresh(integration)
+
+        audit_action(
+            db=db,
+            current_user=current_user,
+            action="TEST_INTEGRATION",
+            resource_type="cloud_integration",
+            resource_id=integration.id,
+            details={
+                "company_id": integration.company_id,
+                "provider": integration.provider,
+                "name": integration.name,
+                "status": "success",
+            },
+        )
+
+        return {
+            "status": "success",
+            "message": f"{integration.provider.upper()} integration configuration is valid.",
+            "integration": integration_to_dict(integration),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        integration.last_status = "test_failed"
+        integration.last_error = str(e)
+        integration.updated_at = datetime.utcnow()
+
+        db.commit()
+
+        raise HTTPException(status_code=400, detail=f"Integration test failed: {str(e)}")
+
+@app.post("/integrations/{integration_id}/sync")
+def sync_integration(
+    integration_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    from datetime import datetime
+
+    query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(CloudIntegration.company_id == current_user.company_id)
+
+    integration = query.first()
+
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+
+    if not integration.enabled:
+        raise HTTPException(status_code=400, detail="Integration is disabled")
+
+    try:
+        events = generate_sample_events_for_integration(integration)
+
+        if not events:
+            raise HTTPException(status_code=400, detail="No events returned from integration")
+
+        data = {
+            "title": f"{integration.provider.upper()} Integration Sync - {integration.name}",
+            "events": events,
+            "integration_id": integration.id,
+            "provider": integration.provider,
+        }
+
+        result = correlate_events(events)
+
+        detections = run_detections(events, result.get("normalized_events", []))
+        mitre_coverage = build_mitre_coverage(events)
+        threat_intel = enrich_iocs(result.get("iocs", {}))
+        anomaly_detection = detect_anomalies(result.get("normalized_events", []))
+
+        result["threat_intel"] = threat_intel
+        result["anomaly_detection"] = anomaly_detection
+        result["detections"] = detections
+        result["mitre_coverage"] = mitre_coverage
+        result["cloud_integration"] = {
+            "id": integration.id,
+            "provider": integration.provider,
+            "name": integration.name,
+        }
+
+        try:
+            result = build_ai_threat_enrichment(data, result)
+        except Exception as e:
+            result["ai_enrichment_error"] = str(e)
+
+        report = AnalysisReport(
+            company_id=integration.company_id,
+            title=data["title"],
+            risk_score=result.get("risk_score", 0),
+            raw_input=json.dumps(data),
+            result_json=json.dumps(result),
+        )
+
+        db.add(report)
+        db.commit()
+        db.refresh(report)
+
+        try:
+            persist_ioc_observations(
+                db=db,
+                current_user=current_user,
+                report=report,
+                result=result,
+            )
+        except Exception as e:
+            print(f"Could not persist IOCs for integration sync: {e}")
+
+        case = create_security_case_if_needed(
+            db=db,
+            current_user=current_user,
+            report=report,
+            result=result,
+        )
+
+        try:
+            evaluate_alert_rules(
+                db=db,
+                current_user=current_user,
+                report=report,
+                result=result,
+                case=case,
+            )
+        except Exception as e:
+            print(f"Could not evaluate alert rules for integration sync: {e}")
+
+        integration.last_sync_at = datetime.utcnow()
+        integration.last_status = "sync_success"
+        integration.last_error = None
+        integration.updated_at = datetime.utcnow()
+
+        db.commit()
+        db.refresh(integration)
+
+        audit_action(
+            db=db,
+            current_user=current_user,
+            action="SYNC_INTEGRATION",
+            resource_type="cloud_integration",
+            resource_id=integration.id,
+            details={
+                "company_id": integration.company_id,
+                "provider": integration.provider,
+                "name": integration.name,
+                "events_count": len(events),
+                "report_id": report.id,
+                "case_id": case.id if case else None,
+            },
+        )
+
+        return {
+            "status": "success",
+            "integration_id": integration.id,
+            "provider": integration.provider,
+            "events_count": len(events),
+            "report_id": report.id,
+            "case_id": case.id if case else None,
+            "result": result,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        integration.last_status = "sync_failed"
+        integration.last_error = str(e)
+        integration.updated_at = datetime.utcnow()
+
+        db.commit()
+
+        audit_action(
+            db=db,
+            current_user=current_user,
+            action="SYNC_INTEGRATION_FAILED",
+            resource_type="cloud_integration",
+            resource_id=integration.id,
+            details={
+                "company_id": integration.company_id,
+                "provider": integration.provider,
+                "name": integration.name,
+                "error": str(e),
+            },
+        )
+
+        raise HTTPException(status_code=500, detail=f"Integration sync failed: {str(e)}")

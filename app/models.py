@@ -129,3 +129,24 @@ class AlertRule(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+class CloudIntegration(Base):
+    __tablename__ = "cloud_integrations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+
+    provider = Column(String(30), nullable=False)  # aws, azure, gcp
+    name = Column(String(150), nullable=False)
+
+    enabled = Column(Boolean, default=True, nullable=False)
+
+    auth_type = Column(String(50), nullable=False)  # role_arn, app_registration, service_account
+    config_json = Column(Text, nullable=False)
+
+    last_sync_at = Column(DateTime, nullable=True)
+    last_status = Column(String(50), nullable=True)
+    last_error = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)

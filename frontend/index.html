@@ -1222,6 +1222,19 @@
         </svg>
         <span>CIS 8 Compliance</span>
       </a>
+      <a class="nav-item hidden" id="integrationsNav" href="javascript:void(0)" onclick="showIntegrations()">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <path d="M12 3v6"></path>
+          <path d="M12 15v6"></path>
+          <path d="M5.6 5.6l4.2 4.2"></path>
+          <path d="M14.2 14.2l4.2 4.2"></path>
+          <path d="M3 12h6"></path>
+          <path d="M15 12h6"></path>
+          <path d="M5.6 18.4l4.2-4.2"></path>
+          <path d="M14.2 9.8l4.2-4.2"></path>
+        </svg>
+        <span>Cloud Integrations</span>
+      </a>
 
       <div class="nav-title">Admin</div>
 
@@ -1936,6 +1949,101 @@
               No alert rules loaded yet.
             </div>
           </div>
+        </div>
+        <!-- CLOUD INTEGRATIONS VIEW -->
+        <div id="integrationsView" class="hidden">
+
+          <div class="header">
+            <div>
+              <h1>Cloud Integrations</h1>
+              <p>Conecta AWS, Azure y GCP para traer eventos de seguridad al SOC.</p>
+            </div>
+
+            <div class="api-status">
+              <span class="pulse"></span> Multi-Cloud Ready
+            </div>
+          </div>
+
+          <div class="cards">
+            <div class="card card-total">
+              <div class="card-label">AWS</div>
+              <div class="card-value">☁</div>
+              <div class="card-foot">GuardDuty · CloudTrail · Security Hub</div>
+            </div>
+
+            <div class="card card-risk">
+              <div class="card-label">Azure</div>
+              <div class="card-value">◆</div>
+              <div class="card-foot">Entra ID · Activity Logs · Defender</div>
+            </div>
+
+            <div class="card card-patterns">
+              <div class="card-label">GCP</div>
+              <div class="card-value">⬡</div>
+              <div class="card-foot">Audit Logs · Security Command Center</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Create / Update Cloud Integration</h3>
+            <div class="panel-subtitle">
+              Configura una integración por empresa. Para producción usa referencias a secretos, no secretos directos.
+            </div>
+
+            <input type="hidden" id="integrationId">
+
+            <div class="grid">
+              <div>
+                <div class="input-row">
+                  <label>Company ID</label>
+                  <input id="integrationCompanyId" placeholder="Solo super_admin puede usar otra empresa">
+                </div>
+
+                <div class="input-row">
+                  <label>Provider</label>
+                  <select id="integrationProvider" onchange="renderIntegrationProviderFields()">
+                    <option value="aws">AWS</option>
+                    <option value="azure">Azure</option>
+                    <option value="gcp">GCP</option>
+                  </select>
+                </div>
+
+                <div class="input-row">
+                  <label>Name</label>
+                  <input id="integrationName" placeholder="Production AWS Account">
+                </div>
+
+                <div class="input-row">
+                  <label>Enabled</label>
+                  <select id="integrationEnabled">
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <div id="integrationProviderFields"></div>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button onclick="saveIntegration()">Save Integration</button>
+              <button class="secondary" onclick="resetIntegrationForm()">Reset</button>
+              <button class="secondary" onclick="loadIntegrations()">Refresh</button>
+            </div>
+
+            <div id="integrationsStatus" class="status-line">
+              Waiting for integrations...
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Configured Integrations</h3>
+            <div id="integrationsPanel" class="empty">
+              No integrations loaded yet.
+            </div>
+          </div>
 
         </div>
     </main>
@@ -1996,6 +2104,12 @@
 
       const alertRulesNav = document.getElementById("alertRulesNav");
       if (alertRulesNav) alertRulesNav.classList.remove("active");
+
+      const integrationsView = document.getElementById("integrationsView");
+      if (integrationsView) integrationsView.classList.add("hidden");
+
+      const integrationsNav = document.getElementById("integrationsNav");
+      if (integrationsNav) integrationsNav.classList.remove("active");
     }
 
     async function showHistory() {
@@ -2052,6 +2166,12 @@
 
       const alertRulesNav = document.getElementById("alertRulesNav");
       if (alertRulesNav) alertRulesNav.classList.remove("active");
+
+      const integrationsView = document.getElementById("integrationsView");
+      if (integrationsView) integrationsView.classList.add("hidden");
+
+      const integrationsNav = document.getElementById("integrationsNav");
+      if (integrationsNav) integrationsNav.classList.remove("active");
 
       await loadReports();
     }
@@ -2111,6 +2231,12 @@
       const alertRulesNav = document.getElementById("alertRulesNav");
       if (alertRulesNav) alertRulesNav.classList.remove("active");
 
+      const integrationsView = document.getElementById("integrationsView");
+      if (integrationsView) integrationsView.classList.add("hidden");
+
+      const integrationsNav = document.getElementById("integrationsNav");
+      if (integrationsNav) integrationsNav.classList.remove("active");
+
       await loadSOCOverview();
     }
 
@@ -2169,6 +2295,12 @@
       const alertRulesNav = document.getElementById("alertRulesNav");
       if (alertRulesNav) alertRulesNav.classList.remove("active");
 
+      const integrationsView = document.getElementById("integrationsView");
+      if (integrationsView) integrationsView.classList.add("hidden");
+
+      const integrationsNav = document.getElementById("integrationsNav");
+      if (integrationsNav) integrationsNav.classList.remove("active");
+
       await loadCISOverview();
     }
 
@@ -2226,6 +2358,12 @@
 
       const alertRulesNav = document.getElementById("alertRulesNav");
       if (alertRulesNav) alertRulesNav.classList.remove("active");
+
+      const integrationsView = document.getElementById("integrationsView");
+      if (integrationsView) integrationsView.classList.add("hidden");
+
+      const integrationsNav = document.getElementById("integrationsNav");
+      if (integrationsNav) integrationsNav.classList.remove("active");
 
       await loadCases();
     }
@@ -2360,6 +2498,12 @@
       const alertRulesNav = document.getElementById("alertRulesNav");
       if (alertRulesNav) alertRulesNav.classList.remove("active");
 
+      const integrationsView = document.getElementById("integrationsView");
+      if (integrationsView) integrationsView.classList.add("hidden");
+
+      const integrationsNav = document.getElementById("integrationsNav");
+      if (integrationsNav) integrationsNav.classList.remove("active");
+
     }
 
     async function showAuditLogs() {
@@ -2416,6 +2560,12 @@
 
       const alertRulesNav = document.getElementById("alertRulesNav");
       if (alertRulesNav) alertRulesNav.classList.remove("active");
+
+      const integrationsView = document.getElementById("integrationsView");
+      if (integrationsView) integrationsView.classList.add("hidden");
+
+      const integrationsNav = document.getElementById("integrationsNav");
+      if (integrationsNav) integrationsNav.classList.remove("active");
 
       await loadAuditLogs();
     }
@@ -2475,6 +2625,12 @@
       const alertRulesNav = document.getElementById("alertRulesNav");
       if (alertRulesNav) alertRulesNav.classList.remove("active");
 
+      const integrationsView = document.getElementById("integrationsView");
+      if (integrationsView) integrationsView.classList.add("hidden");
+
+      const integrationsNav = document.getElementById("integrationsNav");
+      if (integrationsNav) integrationsNav.classList.remove("active");
+
       await loadCompanySettings();
     }
 
@@ -2533,6 +2689,12 @@
       const alertRulesNav = document.getElementById("alertRulesNav");
       if (alertRulesNav) alertRulesNav.classList.remove("active");
 
+      const integrationsView = document.getElementById("integrationsView");
+      if (integrationsView) integrationsView.classList.add("hidden");
+
+      const integrationsNav = document.getElementById("integrationsNav");
+      if (integrationsNav) integrationsNav.classList.remove("active");
+
       await loadExecutiveDashboard();
     }
 
@@ -2547,7 +2709,8 @@
         "casesView",
         "threatHuntingView",
         "auditLogsView",
-        "companySettingsView"
+        "companySettingsView",
+        "integrationsView"
       ];
 
       viewsToHide.forEach(id => {
@@ -4932,6 +5095,454 @@
     document.addEventListener("DOMContentLoaded", function () {
       window.restoreSidebarState();
     });
+
+    const integrationsNav = document.getElementById("integrationsNav");
+    if (integrationsNav) {
+      integrationsNav.classList.toggle(
+        "hidden",
+        !["super_admin", "company_admin"].includes(currentUser.role)
+      );
+    }
+
+    function renderIntegrationProviderFields() {
+      const provider = document.getElementById("integrationProvider").value;
+      const box = document.getElementById("integrationProviderFields");
+
+      if (!box) return;
+
+      if (provider === "aws") {
+        box.innerHTML = `
+      <div class="input-row">
+        <label>Auth Type</label>
+        <input id="integrationAuthType" value="role_arn" readonly>
+      </div>
+
+      <div class="input-row">
+        <label>AWS Role ARN</label>
+        <input id="awsRoleArn" placeholder="arn:aws:iam::123456789012:role/2incCyberProReadOnlyRole">
+      </div>
+
+      <div class="input-row">
+        <label>External ID</label>
+        <input id="awsExternalId" placeholder="customer-external-id">
+      </div>
+
+      <div class="input-row">
+        <label>Region</label>
+        <input id="awsRegion" value="us-east-1">
+      </div>
+
+      <div class="input-row">
+        <label>Sources</label>
+        <input id="awsSources" value="guardduty,cloudtrail,securityhub">
+      </div>
+    `;
+      }
+
+      if (provider === "azure") {
+        box.innerHTML = `
+      <div class="input-row">
+        <label>Auth Type</label>
+        <input id="integrationAuthType" value="app_registration" readonly>
+      </div>
+
+      <div class="input-row">
+        <label>Tenant ID</label>
+        <input id="azureTenantId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+      </div>
+
+      <div class="input-row">
+        <label>Client ID</label>
+        <input id="azureClientId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+      </div>
+
+      <div class="input-row">
+        <label>Client Secret Ref</label>
+        <input id="azureClientSecretRef" placeholder="CyberAI/Azure/customer-secret">
+      </div>
+
+      <div class="input-row">
+        <label>Subscription ID</label>
+        <input id="azureSubscriptionId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+      </div>
+
+      <div class="input-row">
+        <label>Sources</label>
+        <input id="azureSources" value="activity_logs,entra_signins,defender">
+      </div>
+    `;
+      }
+
+      if (provider === "gcp") {
+        box.innerHTML = `
+      <div class="input-row">
+        <label>Auth Type</label>
+        <input id="integrationAuthType" value="service_account" readonly>
+      </div>
+
+      <div class="input-row">
+        <label>Project ID</label>
+        <input id="gcpProjectId" placeholder="client-project-id">
+      </div>
+
+      <div class="input-row">
+        <label>Service Account Secret Ref</label>
+        <input id="gcpServiceAccountSecretRef" placeholder="CyberAI/GCP/customer-service-account">
+      </div>
+
+      <div class="input-row">
+        <label>Sources</label>
+        <input id="gcpSources" value="audit_logs,security_command_center">
+      </div>
+    `;
+      }
+    }
+
+    function getIntegrationPayload() {
+      const provider = document.getElementById("integrationProvider").value;
+      const companyId = document.getElementById("integrationCompanyId").value.trim();
+
+      const payload = {
+        provider,
+        name: document.getElementById("integrationName").value.trim(),
+        enabled: document.getElementById("integrationEnabled").value === "true",
+        auth_type: document.getElementById("integrationAuthType").value,
+        config: {}
+      };
+
+      if (currentUser && currentUser.role === "super_admin" && companyId) {
+        payload.company_id = Number(companyId);
+      }
+
+      if (provider === "aws") {
+        payload.config = {
+          role_arn: document.getElementById("awsRoleArn").value.trim(),
+          external_id: document.getElementById("awsExternalId").value.trim(),
+          region: document.getElementById("awsRegion").value.trim(),
+          sources: document.getElementById("awsSources").value.split(",").map(x => x.trim()).filter(Boolean)
+        };
+      }
+
+      if (provider === "azure") {
+        payload.config = {
+          tenant_id: document.getElementById("azureTenantId").value.trim(),
+          client_id: document.getElementById("azureClientId").value.trim(),
+          client_secret_ref: document.getElementById("azureClientSecretRef").value.trim(),
+          subscription_id: document.getElementById("azureSubscriptionId").value.trim(),
+          sources: document.getElementById("azureSources").value.split(",").map(x => x.trim()).filter(Boolean)
+        };
+      }
+
+      if (provider === "gcp") {
+        payload.config = {
+          project_id: document.getElementById("gcpProjectId").value.trim(),
+          service_account_secret_ref: document.getElementById("gcpServiceAccountSecretRef").value.trim(),
+          sources: document.getElementById("gcpSources").value.split(",").map(x => x.trim()).filter(Boolean)
+        };
+      }
+
+      return payload;
+    }
+
+    async function showIntegrations() {
+      const viewsToHide = [
+        "dashboardView",
+        "historyView",
+        "executiveView",
+        "socView",
+        "cisView",
+        "casesView",
+        "threatHuntingView",
+        "auditLogsView",
+        "companySettingsView",
+        "alertRulesView"
+      ];
+
+      viewsToHide.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add("hidden");
+      });
+
+      document.querySelectorAll(".nav-item").forEach(item => item.classList.remove("active"));
+
+      const integrationsView = document.getElementById("integrationsView");
+      if (integrationsView) integrationsView.classList.remove("hidden");
+
+      const integrationsNav = document.getElementById("integrationsNav");
+      if (integrationsNav) integrationsNav.classList.add("active");
+
+      renderIntegrationProviderFields();
+      await loadIntegrations();
+    }
+
+    async function loadIntegrations() {
+      const panel = document.getElementById("integrationsPanel");
+      const status = document.getElementById("integrationsStatus");
+
+      if (!panel) return;
+
+      status.innerText = "Loading integrations...";
+
+      try {
+        const res = await fetch("/integrations", {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          panel.className = "empty";
+          panel.innerText = `Could not load integrations: ${await res.text()}`;
+          status.innerText = "Load failed.";
+          return;
+        }
+
+        const integrations = await res.json();
+
+        if (!integrations.length) {
+          panel.className = "empty";
+          panel.innerText = "No cloud integrations configured.";
+          status.innerText = "No integrations found.";
+          return;
+        }
+
+        panel.className = "";
+        status.innerText = `${integrations.length} integration(s) loaded.`;
+
+        panel.innerHTML = `
+      <table class="user-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Company</th>
+            <th>Provider</th>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Last Sync</th>
+            <th>Last Error</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${integrations.map(i => `
+            <tr>
+              <td>${i.id}</td>
+              <td>${escapeHtml(i.company_name || i.company_id || "N/A")}</td>
+              <td><span class="pill pill-info">${escapeHtml((i.provider || "").toUpperCase())}</span></td>
+              <td>${escapeHtml(i.name || "")}</td>
+              <td>
+                <span class="pill ${i.enabled ? "pill-low" : "pill-info"}">
+                  ${i.enabled ? "Enabled" : "Disabled"}
+                </span>
+                <div class="pattern-meta">${escapeHtml(i.last_status || "N/A")}</div>
+              </td>
+              <td>${i.last_sync_at ? new Date(i.last_sync_at).toLocaleString() : "Never"}</td>
+              <td>${escapeHtml(i.last_error || "-")}</td>
+              <td>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+                    onclick='editIntegration(${JSON.stringify(i).replaceAll("'", "&apos;")})'>
+                    Edit
+                  </button>
+
+                  <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+                    onclick="testIntegration(${i.id})">
+                    Test
+                  </button>
+
+                  <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+                    onclick="syncIntegration(${i.id})">
+                    Sync Now
+                  </button>
+
+                  <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;border-color:rgba(239,68,68,.45);color:#fecaca;"
+                    onclick="deleteIntegration(${i.id})">
+                    Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+
+      } catch (err) {
+        panel.className = "empty";
+        panel.innerText = `Integrations error: ${err.message}`;
+        status.innerText = "Error loading integrations.";
+      }
+    }
+
+    async function saveIntegration() {
+      const status = document.getElementById("integrationsStatus");
+      const integrationId = document.getElementById("integrationId").value.trim();
+      const payload = getIntegrationPayload();
+
+      if (!payload.name || payload.name.length < 2) {
+        alert("Integration name is required.");
+        return;
+      }
+
+      status.innerText = integrationId ? "Updating integration..." : "Creating integration...";
+
+      try {
+        const url = integrationId ? `/integrations/${integrationId}` : "/integrations";
+        const method = integrationId ? "PUT" : "POST";
+
+        const res = await fetch(url, {
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${authToken}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          status.innerText = `Could not save integration: ${await res.text()}`;
+          return;
+        }
+
+        resetIntegrationForm();
+        await loadIntegrations();
+
+        status.innerText = "Integration saved.";
+
+      } catch (err) {
+        status.innerText = `Save error: ${err.message}`;
+      }
+    }
+
+    function editIntegration(integration) {
+      document.getElementById("integrationId").value = integration.id || "";
+      document.getElementById("integrationCompanyId").value = integration.company_id || "";
+      document.getElementById("integrationProvider").value = integration.provider || "aws";
+      document.getElementById("integrationName").value = integration.name || "";
+      document.getElementById("integrationEnabled").value = String(Boolean(integration.enabled));
+
+      renderIntegrationProviderFields();
+
+      const config = integration.config || {};
+
+      if (integration.provider === "aws") {
+        document.getElementById("awsRoleArn").value = config.role_arn || "";
+        document.getElementById("awsExternalId").value = config.external_id || "";
+        document.getElementById("awsRegion").value = config.region || "us-east-1";
+        document.getElementById("awsSources").value = (config.sources || ["guardduty", "cloudtrail", "securityhub"]).join(",");
+      }
+
+      if (integration.provider === "azure") {
+        document.getElementById("azureTenantId").value = config.tenant_id || "";
+        document.getElementById("azureClientId").value = config.client_id || "";
+        document.getElementById("azureClientSecretRef").value = config.client_secret_ref || "";
+        document.getElementById("azureSubscriptionId").value = config.subscription_id || "";
+        document.getElementById("azureSources").value = (config.sources || ["activity_logs", "entra_signins", "defender"]).join(",");
+      }
+
+      if (integration.provider === "gcp") {
+        document.getElementById("gcpProjectId").value = config.project_id || "";
+        document.getElementById("gcpServiceAccountSecretRef").value = config.service_account_secret_ref || "";
+        document.getElementById("gcpSources").value = (config.sources || ["audit_logs", "security_command_center"]).join(",");
+      }
+
+      document.getElementById("integrationsStatus").innerText =
+        `Editing integration #${integration.id}`;
+    }
+
+    function resetIntegrationForm() {
+      document.getElementById("integrationId").value = "";
+      document.getElementById("integrationCompanyId").value = "";
+      document.getElementById("integrationProvider").value = "aws";
+      document.getElementById("integrationName").value = "";
+      document.getElementById("integrationEnabled").value = "true";
+      renderIntegrationProviderFields();
+
+      document.getElementById("integrationsStatus").innerText =
+        "Ready for new integration.";
+    }
+
+    async function testIntegration(id) {
+      const status = document.getElementById("integrationsStatus");
+      status.innerText = `Testing integration #${id}...`;
+
+      try {
+        const res = await fetch(`/integrations/${id}/test`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          status.innerText = `Test failed: ${data.detail || res.status}`;
+          await loadIntegrations();
+          return;
+        }
+
+        status.innerText = data.message || "Integration test success.";
+        await loadIntegrations();
+
+      } catch (err) {
+        status.innerText = `Test error: ${err.message}`;
+      }
+    }
+
+    async function syncIntegration(id) {
+      const status = document.getElementById("integrationsStatus");
+      status.innerText = `Syncing integration #${id}...`;
+
+      try {
+        const res = await fetch(`/integrations/${id}/sync`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          status.innerText = `Sync failed: ${data.detail || res.status}`;
+          await loadIntegrations();
+          return;
+        }
+
+        status.innerText =
+          `Sync completed. Report ID: ${data.report_id}. Events: ${data.events_count}.`;
+
+        await loadIntegrations();
+
+      } catch (err) {
+        status.innerText = `Sync error: ${err.message}`;
+      }
+    }
+
+    async function deleteIntegration(id) {
+      if (!confirm(`¿Seguro que deseas eliminar la integración #${id}?`)) return;
+
+      try {
+        const res = await fetch(`/integrations/${id}`, {
+          method: "DELETE",
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          alert(`No se pudo eliminar integración: ${await res.text()}`);
+          return;
+        }
+
+        await loadIntegrations();
+
+      } catch (err) {
+        alert(`Delete integration error: ${err.message}`);
+      }
+    }
+
     loadSession();
 
   </script>

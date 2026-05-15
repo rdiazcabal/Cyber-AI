@@ -1707,8 +1707,10 @@
             <div class="grid">
               <div>
                 <div class="input-row">
-                  <label>Company ID</label>
-                  <input id="settingsCompanyId" placeholder="Solo super_admin puede consultar otra empresa">
+                  <label>Company</label>
+                  <select id="settingsCompanyId">
+                    <option value="">Loading companies...</option>
+                  </select>
                 </div>
 
                 <button class="secondary" onclick="loadCompanySettings()">
@@ -2635,6 +2637,7 @@
       const integrationsNav = document.getElementById("integrationsNav");
       if (integrationsNav) integrationsNav.classList.remove("active");
 
+      await loadCompanyOptions("settingsCompanyId", true);
       await loadCompanySettings();
     }
 
@@ -3115,8 +3118,7 @@
     }
 
     function getSettingsCompanyQuery() {
-      const companyInput = document.getElementById("settingsCompanyId");
-      const companyId = companyInput ? companyInput.value.trim() : "";
+      const companyId = getSelectedCompanyId("settingsCompanyId");
 
       if (currentUser && currentUser.role === "super_admin" && companyId) {
         return `?company_id=${encodeURIComponent(companyId)}`;
@@ -3126,8 +3128,7 @@
     }
 
     function getSettingsCompanyPayload() {
-      const companyInput = document.getElementById("settingsCompanyId");
-      const companyId = companyInput ? companyInput.value.trim() : "";
+      const companyId = getSelectedCompanyId("settingsCompanyId");
 
       const payload = {
         retention_days: Number(document.getElementById("settingsRetentionDays").value),
@@ -3135,7 +3136,7 @@
         allow_pdf_export: document.getElementById("settingsAllowPdfExport").value === "true"
       };
 
-      if (currentUser && currentUser.role === "super_admin" && companyId) {
+      if (companyId) {
         payload.company_id = Number(companyId);
       }
 
@@ -3160,7 +3161,7 @@
 
         const data = await res.json();
 
-        document.getElementById("settingsCompanyId").value = data.company_id || "";
+        document.getElementById("settingsCompanyId").value = String(data.company_id || "");
         document.getElementById("settingsRetentionDays").value = data.retention_days ?? 90;
         document.getElementById("settingsAlertingEnabled").value = String(Boolean(data.alerting_enabled));
         document.getElementById("settingsAllowPdfExport").value = String(Boolean(data.allow_pdf_export));

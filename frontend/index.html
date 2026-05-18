@@ -1111,7 +1111,7 @@
 
 <body>
 
-  <div id="loginView" class="auth-shell">
+  <div id="loginView" class="auth-shell hidden">
     <div class="panel">
       <div style="display:flex;justify-content:center;margin-bottom:14px;">
         <img src="/assets/2inc-cyberpro-logo.png" alt="2inc-cyberpro"
@@ -2056,6 +2056,7 @@
   </div>
 
   <script>
+
     function showDashboard() {
       document.getElementById("dashboardView").classList.remove("hidden");
       document.getElementById("historyView").classList.add("hidden");
@@ -3779,6 +3780,22 @@
       document.getElementById("appView").classList.toggle("hidden", !isLogged);
     }
 
+    function showLoginView() {
+      const loginView = document.getElementById("loginView");
+      const appView = document.getElementById("appView");
+
+      if (appView) appView.classList.add("hidden");
+      if (loginView) loginView.classList.remove("hidden");
+    }
+
+    function showAppView() {
+      const loginView = document.getElementById("loginView");
+      const appView = document.getElementById("appView");
+
+      if (loginView) loginView.classList.add("hidden");
+      if (appView) appView.classList.remove("hidden");
+    }
+
     async function handleLogin() {
       const username = document.getElementById("loginUsername").value;
       const password = document.getElementById("loginPassword").value;
@@ -3810,12 +3827,12 @@
       authToken = "";
       currentUser = null;
       localStorage.removeItem("cyberToken");
-      setAppVisibility(false);
+      showLoginView();
     }
 
     async function loadSession() {
       if (!authToken) {
-        setAppVisibility(false);
+        showLoginView();
         return;
       }
 
@@ -3826,7 +3843,8 @@
       });
 
       if (!res.ok) {
-        logout();
+        localStorage.removeItem("cyberToken");
+        showLoginView();
         return;
       }
 

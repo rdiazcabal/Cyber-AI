@@ -859,6 +859,30 @@
         display: none;
       }
     }
+
+    .nav-item.active {
+      background:
+        linear-gradient(135deg, rgba(212, 175, 55, 0.24), rgba(15, 23, 42, 0.95)) !important;
+      border: 1px solid rgba(212, 175, 55, 0.75) !important;
+      color: #f8d85c !important;
+      box-shadow:
+        inset 3px 0 0 rgba(245, 215, 110, 0.95),
+        0 0 18px rgba(212, 175, 55, 0.18) !important;
+    }
+
+    .nav-item.active .nav-icon {
+      color: #f8d85c !important;
+      stroke: #f8d85c !important;
+    }
+
+    body.sidebar-collapsed .nav-item.active {
+      background:
+        radial-gradient(circle at center, rgba(212, 175, 55, 0.35), rgba(15, 23, 42, 0.95)) !important;
+      border-color: rgba(245, 215, 110, 0.85) !important;
+      box-shadow:
+        0 0 0 1px rgba(245, 215, 110, 0.35),
+        0 0 18px rgba(212, 175, 55, 0.26) !important;
+    }
   </style>
 </head>
 
@@ -1810,7 +1834,20 @@
 
   <script>
 
+    function setActiveNav(activeNavId) {
+      document.querySelectorAll(".nav-item").forEach(item => {
+        item.classList.remove("active");
+      });
+
+      const activeItem = document.getElementById(activeNavId);
+      if (activeItem) {
+        activeItem.classList.add("active");
+      }
+    }
+
     function showDashboard() {
+      setActiveNav("dashboardNav");
+
       document.getElementById("dashboardView").classList.remove("hidden");
       document.getElementById("historyView").classList.add("hidden");
 
@@ -1873,6 +1910,9 @@
     }
 
     async function showHistory() {
+
+      setActiveNav("historyNav");
+
       document.getElementById("dashboardView").classList.add("hidden");
       document.getElementById("historyView").classList.remove("hidden");
 
@@ -1937,6 +1977,9 @@
     }
 
     async function showSOC() {
+
+      setActiveNav("socNav");
+
       document.getElementById("dashboardView").classList.add("hidden");
       document.getElementById("historyView").classList.add("hidden");
 
@@ -2001,6 +2044,9 @@
     }
 
     async function showCIS() {
+
+      setActiveNav("cisNav");
+
       document.getElementById("dashboardView").classList.add("hidden");
       document.getElementById("historyView").classList.add("hidden");
 
@@ -2065,6 +2111,9 @@
     }
 
     async function showCases() {
+
+      setActiveNav("casesNav");
+
       document.getElementById("dashboardView").classList.add("hidden");
       document.getElementById("historyView").classList.add("hidden");
 
@@ -2204,6 +2253,9 @@
     }
 
     async function showThreatHunting() {
+
+      setActiveNav("threatHuntingNav");
+
       document.getElementById("dashboardView").classList.add("hidden");
       document.getElementById("historyView").classList.add("hidden");
 
@@ -2267,6 +2319,9 @@
     }
 
     async function showAuditLogs() {
+
+      setActiveNav("auditLogsNav");
+
       document.getElementById("dashboardView").classList.add("hidden");
       document.getElementById("historyView").classList.add("hidden");
 
@@ -2331,6 +2386,9 @@
     }
 
     async function showCompanySettings() {
+
+      setActiveNav("companySettingsNav");
+
       document.getElementById("dashboardView").classList.add("hidden");
       document.getElementById("historyView").classList.add("hidden");
 
@@ -2396,6 +2454,9 @@
     }
 
     async function showExecutiveDashboard() {
+
+      setActiveNav("executiveNav");
+
       document.getElementById("dashboardView").classList.add("hidden");
       document.getElementById("historyView").classList.add("hidden");
 
@@ -2460,6 +2521,9 @@
     }
 
     async function showAlertRules() {
+
+      setActiveNav("alertRulesNav");
+
       document.getElementById("dashboardView").classList.add("hidden");
       document.getElementById("historyView").classList.add("hidden");
 

@@ -684,253 +684,6 @@
       gap: 10px;
     }
 
-    /* SIDEBAR BASE - FIX */
-    #appView.app {
-      display: grid;
-      grid-template-columns: 280px minmax(0, 1fr);
-      height: 100vh;
-    }
-
-    #appView.hidden {
-      display: none !important;
-    }
-
-    .sidebar {
-      position: relative;
-      width: 280px;
-      min-width: 280px;
-      height: 100vh;
-      background: linear-gradient(180deg, #080808, #000000);
-      padding: 22px;
-      border-right: 1px solid var(--border);
-      overflow-y: auto;
-      overflow-x: visible;
-    }
-
-    .main {
-      min-width: 0;
-      height: 100vh;
-      padding: 24px;
-      overflow: auto;
-    }
-
-    /* clean old broken collapse state */
-    body.sidebar-collapsed #appView.app {
-      grid-template-columns: 280px minmax(0, 1fr);
-    }
-
-    body.sidebar-collapsed .sidebar {
-      width: 280px;
-      min-width: 280px;
-      padding: 22px;
-    }
-
-    body.sidebar-collapsed .sidebar .brand-text,
-    body.sidebar-collapsed .sidebar .nav-title,
-    body.sidebar-collapsed .sidebar .nav-item span,
-
-    body.sidebar-collapsed .sidebar .nav-item {
-      justify-content: flex-start !important;
-      padding: 12px 14px !important;
-    }
-
-    @media (max-width: 860px) {
-      #appView.app {
-        grid-template-columns: 1fr;
-      }
-
-      .sidebar {
-        display: none;
-      }
-    }
-
-    /* SIDEBAR INLINE TOGGLE */
-    .brand {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-
-    .brand-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      min-width: 0;
-    }
-
-    .brand-text {
-      min-width: 0;
-    }
-
-    .brand-text h2 {
-      margin: 0;
-      font-size: 20px;
-      white-space: nowrap;
-    }
-
-    .sidebar-toggle-inline {
-      width: 32px;
-      height: 32px;
-      min-width: 32px;
-      margin: 0;
-      padding: 0;
-      border-radius: 999px;
-      border: 1px solid rgba(212, 175, 55, 0.55);
-      background:
-        radial-gradient(circle at top left, rgba(212, 175, 55, 0.35), transparent 45%),
-        #0b0f19;
-      color: #f5d76e;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      box-shadow:
-        0 0 0 3px rgba(212, 175, 55, 0.08),
-        0 8px 22px rgba(0, 0, 0, 0.45);
-    }
-
-    .sidebar-toggle-inline:hover {
-      transform: scale(1.06);
-      background:
-        radial-gradient(circle at top left, rgba(212, 175, 55, 0.50), transparent 45%),
-        #111827;
-    }
-
-    .sidebar-toggle-inline svg {
-      width: 17px;
-      height: 17px;
-      stroke: currentColor;
-      stroke-width: 2.5;
-      fill: none;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    /* COLLAPSED STATE */
-    body.sidebar-collapsed #appView.app {
-      grid-template-columns: 78px minmax(0, 1fr);
-    }
-
-    body.sidebar-collapsed .sidebar {
-      width: 78px;
-      min-width: 78px;
-      padding-left: 12px;
-      padding-right: 12px;
-    }
-
-    body.sidebar-collapsed .sidebar .brand {
-      justify-content: center;
-    }
-
-    body.sidebar-collapsed .sidebar .brand-left {
-      display: none;
-    }
-
-    body.sidebar-collapsed .sidebar .nav-title,
-    body.sidebar-collapsed .sidebar .nav-item span {
-      display: none !important;
-    }
-
-    body.sidebar-collapsed .sidebar .nav-item {
-      justify-content: center !important;
-      padding-left: 0 !important;
-      padding-right: 0 !important;
-    }
-
-    body.sidebar-collapsed .sidebar .nav-icon {
-      margin: 0 auto;
-    }
-
-    body.sidebar-collapsed .sidebar-toggle-inline {
-      margin: 0 auto 18px auto;
-    }
-
-    /* FIX: sidebar toggle must not inherit global button styles */
-    button.sidebar-toggle-inline {
-      width: 34px !important;
-      height: 34px !important;
-      min-width: 34px !important;
-      max-width: 34px !important;
-      padding: 0 !important;
-      margin: 0 !important;
-
-      border-radius: 999px !important;
-      border: 1px solid rgba(212, 175, 55, 0.55) !important;
-
-      background:
-        radial-gradient(circle at top left, rgba(212, 175, 55, 0.35), transparent 45%),
-        #0b0f19 !important;
-
-      color: #f5d76e !important;
-
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-
-      box-shadow:
-        0 0 0 3px rgba(212, 175, 55, 0.08),
-        0 8px 22px rgba(0, 0, 0, 0.45) !important;
-
-      cursor: pointer !important;
-      flex: 0 0 34px !important;
-    }
-
-    button.sidebar-toggle-inline:hover {
-      transform: scale(1.06);
-      background:
-        radial-gradient(circle at top left, rgba(212, 175, 55, 0.50), transparent 45%),
-        #111827 !important;
-    }
-
-    button.sidebar-toggle-inline svg {
-      width: 17px !important;
-      height: 17px !important;
-      stroke: currentColor !important;
-      stroke-width: 2.5 !important;
-      fill: none !important;
-      stroke-linecap: round !important;
-      stroke-linejoin: round !important;
-    }
-
-    body.sidebar-collapsed button.sidebar-toggle-inline {
-      margin: 0 auto 18px auto !important;
-    }
-
-    /* FIX: hide brand text when sidebar is collapsed */
-    body.sidebar-collapsed .sidebar .brand-text,
-    body.sidebar-collapsed .sidebar .brand-text h2,
-    body.sidebar-collapsed .sidebar .brand-text small {
-      display: none !important;
-      visibility: hidden !important;
-      width: 0 !important;
-      max-width: 0 !important;
-      overflow: hidden !important;
-    }
-
-    body.sidebar-collapsed .sidebar .brand {
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: center !important;
-      justify-content: center !important;
-      gap: 12px !important;
-      margin-bottom: 18px !important;
-    }
-
-    body.sidebar-collapsed .sidebar .brand-left {
-      display: flex !important;
-      justify-content: center !important;
-      width: 100% !important;
-    }
-
-    body.sidebar-collapsed .sidebar .logo {
-      margin: 0 auto !important;
-    }
-
-    body.sidebar-collapsed button.sidebar-toggle-inline {
-      margin: 0 auto !important;
-    }
-
     /* SIDEBAR FINAL CLEAN FIX */
     #appView.app {
       display: grid;
@@ -3216,9 +2969,7 @@
 
       try {
         const payload = {};
-
-        const companyInput = document.getElementById("settingsCompanyId");
-        const companyId = companyInput ? companyInput.value.trim() : "";
+        const companyId = getSelectedCompanyId("settingsCompanyId");
 
         if (currentUser && currentUser.role === "super_admin" && companyId) {
           payload.company_id = Number(companyId);
@@ -3904,7 +3655,7 @@
         );
       }
 
-      setAppVisibility(true);
+      showAppView();
       showDashboard();
       await loadReports();
     }
@@ -4780,8 +4531,7 @@
       try {
         let url = "/compliance/cis8/pdf";
 
-        const companyInput = document.getElementById("settingsCompanyId");
-        const companyId = companyInput ? companyInput.value.trim() : "";
+        const companyId = getSelectedCompanyId("settingsCompanyId");
 
         if (currentUser && currentUser.role === "super_admin" && companyId) {
           url += `?company_id=${encodeURIComponent(companyId)}`;
@@ -4943,8 +4693,7 @@
       try {
         let url = "/executive/pdf";
 
-        const companyInput = document.getElementById("settingsCompanyId");
-        const companyId = companyInput ? companyInput.value.trim() : "";
+        const companyId = getSelectedCompanyId("settingsCompanyId");
 
         if (currentUser && currentUser.role === "super_admin" && companyId) {
           url += `?company_id=${encodeURIComponent(companyId)}`;

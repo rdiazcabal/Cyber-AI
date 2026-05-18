@@ -4794,48 +4794,6 @@
       window.restoreSidebarState();
     });
 
-    window.updateSidebarToggleIcon = function () {
-      const icon = document.getElementById("sidebarToggleIcon");
-      const btn = document.getElementById("sidebarToggleBtn");
-
-      if (!icon) return;
-
-      const collapsed = document.body.classList.contains("sidebar-collapsed");
-
-      icon.innerHTML = collapsed
-        ? `<path d="M9 18l6-6-6-6"></path>`
-        : `<path d="M15 18l-6-6 6-6"></path>`;
-
-      if (btn) {
-        btn.title = collapsed ? "Mostrar menú" : "Ocultar menú";
-      }
-    };
-
-    window.toggleSidebar = function () {
-      document.body.classList.toggle("sidebar-collapsed");
-
-      const collapsed = document.body.classList.contains("sidebar-collapsed");
-      localStorage.setItem("sidebarCollapsed", collapsed ? "true" : "false");
-
-      window.updateSidebarToggleIcon();
-    };
-
-    window.restoreSidebarState = function () {
-      const collapsed = localStorage.getItem("sidebarCollapsed") === "true";
-
-      if (collapsed) {
-        document.body.classList.add("sidebar-collapsed");
-      } else {
-        document.body.classList.remove("sidebar-collapsed");
-      }
-
-      window.updateSidebarToggleIcon();
-    };
-
-    document.addEventListener("DOMContentLoaded", function () {
-      window.restoreSidebarState();
-    });
-
     function renderIntegrationProviderFields() {
       const provider = document.getElementById("integrationProvider").value;
       const box = document.getElementById("integrationProviderFields");

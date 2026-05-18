@@ -1803,6 +1803,18 @@
                     <option value="false">Disabled</option>
                   </select>
                 </div>
+                <div class="input-row">
+                  <label>Auto Sync</label>
+                  <select id="integrationSyncEnabled">
+                    <option value="false">Manual only</option>
+                    <option value="true">Enabled</option>
+                  </select>
+                </div>
+
+                <div class="input-row">
+                  <label>Sync Interval Minutes</label>
+                  <input id="integrationSyncInterval" type="number" min="5" value="60">
+                </div>
               </div>
 
               <div>
@@ -1827,12 +1839,91 @@
               No integrations loaded yet.
             </div>
           </div>
-
+          <div class="panel">
+            <h3>Sync History</h3>
+            <div class="panel-subtitle">
+              Historial de ejecuciones manuales y automáticas.
+            </div>
+            <div id="integrationSyncHistoryPanel" class="empty">
+              Select an integration to view sync history.
+            </div>
+          </div>
         </div>
     </main>
   </div>
 
   <script>
+
+    async function loadIntegrationSyncRuns(integrationId) {
+      const panel = document.getElementById("integrationSyncHistoryPanel");
+
+      if (!panel) return;
+
+      panel.className = "empty";
+      panel.innerText = `Loading sync history for integration #${integrationId}...`;
+
+      try {
+        const res = await fetch(`/integrations/${integrationId}/sync-runs`, {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          panel.innerText = `Could not load sync history: ${await res.text()}`;
+          return;
+        }
+
+        const runs = await res.json();
+
+        if (!runs.length) {
+          panel.innerText = "No sync runs yet.";
+          return;
+        }
+
+        panel.className = "";
+
+        panel.innerHTML = `
+      <table class="user-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Status</th>
+            <th>Trigger</th>
+            <th>Started</th>
+            <th>Duration</th>
+            <th>Events</th>
+            <th>Report</th>
+            <th>Case</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${runs.map(r => `
+            <tr>
+              <td>${r.id}</td>
+              <td>
+                <span class="pill ${r.status === "success" ? "pill-low" : r.status === "failed" ? "pill-critical" : "pill-info"}">
+                  ${escapeHtml(r.status)}
+                </span>
+              </td>
+              <td>${escapeHtml(r.trigger_type || "manual")}</td>
+              <td>${formatDate(r.started_at)}</td>
+              <td>${r.duration_ms ? `${r.duration_ms} ms` : "N/A"}</td>
+              <td>${r.events_count ?? 0}</td>
+              <td>${r.report_id ? `#${r.report_id}` : "N/A"}</td>
+              <td>${r.case_id ? `#${r.case_id}` : "N/A"}</td>
+              <td>${escapeHtml(r.error_message || "-")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+
+      } catch (err) {
+        panel.innerText = `Sync history error: ${err.message}`;
+      }
+    }
 
     function setActiveNav(activeNavId) {
       document.querySelectorAll(".nav-item").forEach(item => {
@@ -4960,6 +5051,8 @@
         provider,
         name: document.getElementById("integrationName").value.trim(),
         enabled: document.getElementById("integrationEnabled").value === "true",
+        sync_enabled: document.getElementById("integrationSyncEnabled").value === "true",
+        sync_interval_minutes: Number(document.getElementById("integrationSyncInterval").value || 60),
         auth_type: document.getElementById("integrationAuthType").value,
         config: {}
       };
@@ -5176,6 +5269,8 @@
       document.getElementById("integrationProvider").value = integration.provider || "aws";
       document.getElementById("integrationName").value = integration.name || "";
       document.getElementById("integrationEnabled").value = String(Boolean(integration.enabled));
+      document.getElementById("integrationSyncEnabled").value = String(Boolean(integration.sync_enabled));
+      document.getElementById("integrationSyncInterval").value = integration.sync_interval_minutes || 60;
 
       renderIntegrationProviderFields();
 
@@ -5212,6 +5307,8 @@
       document.getElementById("integrationProvider").value = "aws";
       document.getElementById("integrationName").value = "";
       document.getElementById("integrationEnabled").value = "true";
+      document.getElementById("integrationSyncEnabled").value = "false";
+      document.getElementById("integrationSyncInterval").value = 60;
       renderIntegrationProviderFields();
 
       document.getElementById("integrationsStatus").innerText =

@@ -8,6 +8,8 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from io import BytesIO
+from datetime import datetime, timedelta
+import os
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
@@ -26,6 +28,7 @@ from app.mitre_mapper import build_mitre_coverage
 from app.database import Base, engine, get_db
 from app.models import (
     AnalysisReport,
+    AnalysisReport,
     User,
     Company,
     SecurityCase,
@@ -35,6 +38,7 @@ from app.models import (
     CompanySettings,
     AlertRule,
     CloudIntegration,
+    IntegrationSyncRun,
 )
 
 from app.auth import (
@@ -1018,6 +1022,71 @@ def create_security_case_if_needed(
         )
 
     return case
+
+def mask_secret_value(value: str | None) -> str | None:
+    if not value:
+        return value
+
+    if len(value) <= 8:
+        return "***"
+
+    return value[:4] + "***" + value[-4:]
+
+def resolve_secret_ref(secret_ref: str | None) -> str | None:
+    """
+    Supported formats:
+    - env:VARIABLE_NAME
+    - aws-sm:secret-name
+    """
+    if not secret_ref:
+        return None
+
+    secret_ref = secret_ref.strip()
+
+    if secret_ref.startswith("env:"):
+        env_name = secret_ref.replace("env:", "", 1).strip()
+        return os.getenv(env_name)
+
+    if secret_ref.startswith("aws-sm:"):
+        secret_name = secret_ref.replace("aws-sm:", "", 1).strip()
+
+        try:
+            import boto3
+            client = boto3.client("secretsmanager")
+            response = client.get_secret_value(SecretId=secret_name)
+            return response.get("SecretString")
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Could not resolve AWS Secrets Manager secret: {str(e)}"
+            )
+
+    raise HTTPException(
+        status_code=400,
+        detail="Invalid secret_ref format. Use env:NAME or aws-sm:secret-name"
+    )
+
+def validate_secret_refs(provider: str, config: dict):
+    """
+    Validates that secret refs are references, not raw secrets.
+    """
+    provider = (provider or "").lower()
+
+    if provider == "azure":
+        ref = config.get("client_secret_ref")
+        if ref and not (ref.startswith("env:") or ref.startswith("aws-sm:")):
+            raise HTTPException(
+                status_code=400,
+                detail="Azure client_secret_ref must use env:NAME or aws-sm:secret-name"
+            )
+
+    if provider == "gcp":
+        ref = config.get("service_account_secret_ref")
+        if ref and not (ref.startswith("env:") or ref.startswith("aws-sm:")):
+            raise HTTPException(
+                status_code=400,
+                detail="GCP service_account_secret_ref must use env:NAME or aws-sm:secret-name"
+            )
 
 @app.post("/analyze")
 def analyze(event: dict):
@@ -3263,6 +3332,10 @@ def integration_to_dict(integration: CloudIntegration, company_name: str | None 
         "enabled": integration.enabled,
         "auth_type": integration.auth_type,
         "config": safe_config,
+        "sync_enabled": integration.sync_enabled,
+        "sync_interval_minutes": integration.sync_interval_minutes,
+        "next_sync_at": integration.next_sync_at,
+        "last_scheduler_run_at": integration.last_scheduler_run_at,
         "last_sync_at": integration.last_sync_at,
         "last_status": integration.last_status,
         "last_error": integration.last_error,
@@ -3378,8 +3451,6 @@ def create_integration(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    from datetime import datetime
-
     provider = normalize_provider_name(payload.get("provider"))
     name = (payload.get("name") or "").strip()
     auth_type = (payload.get("auth_type") or "").strip()
@@ -3411,6 +3482,22 @@ def create_integration(
         config=config,
     )
 
+    validate_secret_refs(
+        provider=provider,
+        config=config,
+    )
+
+    sync_enabled = bool(payload.get("sync_enabled", False))
+    sync_interval_minutes = int(payload.get("sync_interval_minutes", 60) or 60)
+
+    if sync_interval_minutes < 5:
+        raise HTTPException(
+            status_code=400,
+            detail="sync_interval_minutes must be at least 5"
+        )
+
+    now = datetime.utcnow()
+
     integration = CloudIntegration(
         company_id=company.id,
         provider=provider,
@@ -3418,10 +3505,25 @@ def create_integration(
         enabled=bool(payload.get("enabled", True)),
         auth_type=auth_type,
         config_json=json.dumps(config),
+
+        # Scheduler fields
+        sync_enabled=sync_enabled,
+        sync_interval_minutes=sync_interval_minutes,
+        next_sync_at=(
+            now + timedelta(minutes=sync_interval_minutes)
+            if sync_enabled
+            else None
+        ),
+        last_scheduler_run_at=None,
+
+        # Status fields
         last_status="created",
         last_error=None,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        last_sync_at=None,
+
+        # Timestamps
+        created_at=now,
+        updated_at=now,
     )
 
     db.add(integration)
@@ -3436,14 +3538,25 @@ def create_integration(
         resource_id=integration.id,
         details={
             "company_id": integration.company_id,
+            "company_name": company.name,
             "provider": integration.provider,
             "name": integration.name,
             "auth_type": integration.auth_type,
             "enabled": integration.enabled,
+            "sync_enabled": integration.sync_enabled,
+            "sync_interval_minutes": integration.sync_interval_minutes,
+            "next_sync_at": (
+                str(integration.next_sync_at)
+                if integration.next_sync_at
+                else None
+            ),
         },
     )
 
-    return integration_to_dict(integration, company.name)
+    return integration_to_dict(
+        integration=integration,
+        company_name=company.name,
+    )
 
 @app.put("/integrations/{integration_id}")
 def update_integration(
@@ -3452,8 +3565,6 @@ def update_integration(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    from datetime import datetime
-
     query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
 
     if current_user.role != "super_admin":
@@ -3463,6 +3574,16 @@ def update_integration(
 
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
+
+    old_values = {
+        "provider": integration.provider,
+        "name": integration.name,
+        "enabled": integration.enabled,
+        "auth_type": integration.auth_type,
+        "sync_enabled": integration.sync_enabled,
+        "sync_interval_minutes": integration.sync_interval_minutes,
+        "next_sync_at": str(integration.next_sync_at) if integration.next_sync_at else None,
+    }
 
     if "provider" in payload:
         integration.provider = normalize_provider_name(payload.get("provider"))
@@ -3481,17 +3602,52 @@ def update_integration(
 
     if "config" in payload:
         config = payload.get("config") or {}
+
         validate_integration_payload(
             provider=integration.provider,
             auth_type=integration.auth_type,
             config=config,
         )
+
+        validate_secret_refs(
+            provider=integration.provider,
+            config=config,
+        )
+
         integration.config_json = json.dumps(config)
+
+    if "sync_enabled" in payload:
+        integration.sync_enabled = bool(payload.get("sync_enabled"))
+
+    if "sync_interval_minutes" in payload:
+        sync_interval_minutes = int(payload.get("sync_interval_minutes", 60) or 60)
+
+        if sync_interval_minutes < 5:
+            raise HTTPException(
+                status_code=400,
+                detail="sync_interval_minutes must be at least 5"
+            )
+
+        integration.sync_interval_minutes = sync_interval_minutes
+
+    if "sync_enabled" in payload or "sync_interval_minutes" in payload:
+        if integration.sync_enabled:
+            integration.next_sync_at = datetime.utcnow() + timedelta(
+                minutes=integration.sync_interval_minutes
+            )
+        else:
+            integration.next_sync_at = None
 
     integration.updated_at = datetime.utcnow()
 
     db.commit()
     db.refresh(integration)
+
+    company = (
+        db.query(Company)
+        .filter(Company.id == integration.company_id)
+        .first()
+    )
 
     audit_action(
         db=db,
@@ -3501,14 +3657,22 @@ def update_integration(
         resource_id=integration.id,
         details={
             "company_id": integration.company_id,
+            "company_name": company.name if company else None,
             "provider": integration.provider,
             "name": integration.name,
             "enabled": integration.enabled,
+            "auth_type": integration.auth_type,
+            "sync_enabled": integration.sync_enabled,
+            "sync_interval_minutes": integration.sync_interval_minutes,
+            "next_sync_at": (
+                str(integration.next_sync_at)
+                if integration.next_sync_at
+                else None
+            ),
             "updated_fields": list(payload.keys()),
+            "old_values": old_values,
         },
     )
-
-    company = db.query(Company).filter(Company.id == integration.company_id).first()
 
     return integration_to_dict(
         integration=integration,
@@ -3617,38 +3781,41 @@ def test_integration(
 
         raise HTTPException(status_code=400, detail=f"Integration test failed: {str(e)}")
 
-@app.post("/integrations/{integration_id}/sync")
-def sync_integration(
-    integration_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+def run_cloud_integration_sync(
+    db: Session,
+    integration: CloudIntegration,
+    current_user: User | None = None,
+    trigger_type: str = "manual",
 ):
-    from datetime import datetime
+    started_at = datetime.utcnow()
 
-    query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
+    sync_run = IntegrationSyncRun(
+        integration_id=integration.id,
+        company_id=integration.company_id,
+        provider=integration.provider,
+        status="running",
+        trigger_type=trigger_type,
+        started_at=started_at,
+        created_by_user_id=current_user.id if current_user else None,
+    )
 
-    if current_user.role != "super_admin":
-        query = query.filter(CloudIntegration.company_id == current_user.company_id)
-
-    integration = query.first()
-
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
-
-    if not integration.enabled:
-        raise HTTPException(status_code=400, detail="Integration is disabled")
+    db.add(sync_run)
+    db.commit()
+    db.refresh(sync_run)
 
     try:
         events = generate_sample_events_for_integration(integration)
 
         if not events:
-            raise HTTPException(status_code=400, detail="No events returned from integration")
+            raise Exception("No events returned from integration")
 
         data = {
             "title": f"{integration.provider.upper()} Integration Sync - {integration.name}",
             "events": events,
             "integration_id": integration.id,
             "provider": integration.provider,
+            "trigger_type": trigger_type,
+            "sync_run_id": sync_run.id,
         }
 
         result = correlate_events(events)
@@ -3666,6 +3833,8 @@ def sync_integration(
             "id": integration.id,
             "provider": integration.provider,
             "name": integration.name,
+            "trigger_type": trigger_type,
+            "sync_run_id": sync_run.id,
         }
 
         try:
@@ -3713,13 +3882,88 @@ def sync_integration(
         except Exception as e:
             print(f"Could not evaluate alert rules for integration sync: {e}")
 
-        integration.last_sync_at = datetime.utcnow()
+        finished_at = datetime.utcnow()
+
+        sync_run.status = "success"
+        sync_run.finished_at = finished_at
+        sync_run.duration_ms = int((finished_at - started_at).total_seconds() * 1000)
+        sync_run.events_count = len(events)
+        sync_run.report_id = report.id
+        sync_run.case_id = case.id if case else None
+
+        integration.last_sync_at = finished_at
         integration.last_status = "sync_success"
         integration.last_error = None
-        integration.updated_at = datetime.utcnow()
+
+        if trigger_type == "scheduler":
+            integration.last_scheduler_run_at = finished_at
+
+        if integration.sync_enabled:
+            integration.next_sync_at = finished_at + timedelta(minutes=integration.sync_interval_minutes)
 
         db.commit()
+        db.refresh(sync_run)
         db.refresh(integration)
+
+        return {
+            "status": "success",
+            "sync_run_id": sync_run.id,
+            "integration_id": integration.id,
+            "provider": integration.provider,
+            "events_count": len(events),
+            "report_id": report.id,
+            "case_id": case.id if case else None,
+            "result": result,
+        }
+
+    except Exception as e:
+        finished_at = datetime.utcnow()
+
+        sync_run.status = "failed"
+        sync_run.finished_at = finished_at
+        sync_run.duration_ms = int((finished_at - started_at).total_seconds() * 1000)
+        sync_run.error_message = str(e)
+
+        integration.last_sync_at = finished_at
+        integration.last_status = "sync_failed"
+        integration.last_error = str(e)
+
+        if trigger_type == "scheduler":
+            integration.last_scheduler_run_at = finished_at
+
+        if integration.sync_enabled:
+            integration.next_sync_at = finished_at + timedelta(minutes=integration.sync_interval_minutes)
+
+        db.commit()
+
+        raise
+
+@app.post("/integrations/{integration_id}/sync")
+def sync_integration(
+    integration_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(CloudIntegration.company_id == current_user.company_id)
+
+    integration = query.first()
+
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+
+    if not integration.enabled:
+        raise HTTPException(status_code=400, detail="Integration is disabled")
+
+    try:
+        result = run_cloud_integration_sync(
+            db=db,
+            integration=integration,
+            current_user=current_user,
+            trigger_type="manual",
+        )
 
         audit_action(
             db=db,
@@ -3731,31 +3975,16 @@ def sync_integration(
                 "company_id": integration.company_id,
                 "provider": integration.provider,
                 "name": integration.name,
-                "events_count": len(events),
-                "report_id": report.id,
-                "case_id": case.id if case else None,
+                "events_count": result.get("events_count"),
+                "report_id": result.get("report_id"),
+                "case_id": result.get("case_id"),
+                "sync_run_id": result.get("sync_run_id"),
             },
         )
 
-        return {
-            "status": "success",
-            "integration_id": integration.id,
-            "provider": integration.provider,
-            "events_count": len(events),
-            "report_id": report.id,
-            "case_id": case.id if case else None,
-            "result": result,
-        }
+        return result
 
-    except HTTPException:
-        raise
     except Exception as e:
-        integration.last_status = "sync_failed"
-        integration.last_error = str(e)
-        integration.updated_at = datetime.utcnow()
-
-        db.commit()
-
         audit_action(
             db=db,
             current_user=current_user,
@@ -3771,3 +4000,148 @@ def sync_integration(
         )
 
         raise HTTPException(status_code=500, detail=f"Integration sync failed: {str(e)}")
+
+@app.get("/integrations/{integration_id}/sync-runs")
+def get_integration_sync_runs(
+    integration_id: int,
+    limit: int = 25,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(CloudIntegration.company_id == current_user.company_id)
+
+    integration = query.first()
+
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+
+    runs = (
+        db.query(IntegrationSyncRun)
+        .filter(IntegrationSyncRun.integration_id == integration.id)
+        .order_by(IntegrationSyncRun.started_at.desc())
+        .limit(min(limit, 100))
+        .all()
+    )
+
+    return [
+        {
+            "id": r.id,
+            "integration_id": r.integration_id,
+            "company_id": r.company_id,
+            "provider": r.provider,
+            "status": r.status,
+            "trigger_type": r.trigger_type,
+            "started_at": r.started_at,
+            "finished_at": r.finished_at,
+            "duration_ms": r.duration_ms,
+            "events_count": r.events_count,
+            "report_id": r.report_id,
+            "case_id": r.case_id,
+            "error_message": r.error_message,
+            "created_by_user_id": r.created_by_user_id,
+        }
+        for r in runs
+    ]
+
+@app.put("/integrations/{integration_id}/schedule")
+def update_integration_schedule(
+    integration_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
+
+    if current_user.role != "super_admin":
+        query = query.filter(CloudIntegration.company_id == current_user.company_id)
+
+    integration = query.first()
+
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+
+    sync_enabled = bool(payload.get("sync_enabled", False))
+    interval = int(payload.get("sync_interval_minutes", integration.sync_interval_minutes or 60))
+
+    if interval < 5:
+        raise HTTPException(status_code=400, detail="sync_interval_minutes must be at least 5")
+
+    integration.sync_enabled = sync_enabled
+    integration.sync_interval_minutes = interval
+    integration.next_sync_at = datetime.utcnow() + timedelta(minutes=interval) if sync_enabled else None
+    integration.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(integration)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="UPDATE_INTEGRATION_SCHEDULE",
+        resource_type="cloud_integration",
+        resource_id=integration.id,
+        details={
+            "company_id": integration.company_id,
+            "provider": integration.provider,
+            "sync_enabled": integration.sync_enabled,
+            "sync_interval_minutes": integration.sync_interval_minutes,
+            "next_sync_at": str(integration.next_sync_at) if integration.next_sync_at else None,
+        },
+    )
+
+    return integration_to_dict(integration)
+
+@app.post("/scheduler/integrations/run-due")
+def run_due_integrations_scheduler(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    now = datetime.utcnow()
+
+    integrations = (
+        db.query(CloudIntegration)
+        .filter(
+            CloudIntegration.enabled == True,
+            CloudIntegration.sync_enabled == True,
+            CloudIntegration.next_sync_at != None,
+            CloudIntegration.next_sync_at <= now,
+        )
+        .all()
+    )
+
+    results = []
+
+    for integration in integrations:
+        try:
+            result = run_cloud_integration_sync(
+                db=db,
+                integration=integration,
+                current_user=current_user,
+                trigger_type="scheduler",
+            )
+
+            results.append({
+                "integration_id": integration.id,
+                "provider": integration.provider,
+                "status": "success",
+                "sync_run_id": result.get("sync_run_id"),
+                "report_id": result.get("report_id"),
+                "events_count": result.get("events_count"),
+            })
+
+        except Exception as e:
+            results.append({
+                "integration_id": integration.id,
+                "provider": integration.provider,
+                "status": "failed",
+                "error": str(e),
+            })
+
+    return {
+        "due_count": len(integrations),
+        "results": results,
+    }    
+

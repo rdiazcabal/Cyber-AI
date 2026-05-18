@@ -147,6 +147,33 @@ class CloudIntegration(Base):
     last_sync_at = Column(DateTime, nullable=True)
     last_status = Column(String(50), nullable=True)
     last_error = Column(Text, nullable=True)
+    sync_enabled = Column(Boolean, default=False, nullable=False)
+    sync_interval_minutes = Column(Integer, default=60, nullable=False)
+    next_sync_at = Column(DateTime, nullable=True)
+    last_scheduler_run_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+class IntegrationSyncRun(Base):
+    __tablename__ = "integration_sync_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    integration_id = Column(Integer, ForeignKey("cloud_integrations.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+
+    provider = Column(String(30), nullable=False)
+    status = Column(String(50), nullable=False, default="running")  # running, success, failed
+    trigger_type = Column(String(50), nullable=False, default="manual")  # manual, scheduler
+
+    started_at = Column(DateTime, default=datetime.utcnow)
+    finished_at = Column(DateTime, nullable=True)
+    duration_ms = Column(Integer, nullable=True)
+
+    events_count = Column(Integer, default=0)
+    report_id = Column(Integer, ForeignKey("analysis_reports.id"), nullable=True)
+    case_id = Column(Integer, ForeignKey("security_cases.id"), nullable=True)
+
+    error_message = Column(Text, nullable=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)

@@ -10,7 +10,7 @@ env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: cyber-ai
   ECS_CLUSTER: securi-cluster
-  ECS_SERVICE: cyber-ai-service
+  ECS_SERVICE: cyber-ai-task-service
   ECS_TASK_DEFINITION: ecs/cyber-ai-taskdef.json
   CONTAINER_NAME: cyber-ai
 

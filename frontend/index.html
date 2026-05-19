@@ -5204,6 +5204,11 @@
                     Sync Now
                   </button>
 
+                  <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+                    onclick="loadIntegrationSyncRuns(${i.id})">
+                    History
+                  </button>
+
                   <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;border-color:rgba(239,68,68,.45);color:#fecaca;"
                     onclick="deleteIntegration(${i.id})">
                     Delete
@@ -5367,6 +5372,7 @@
           `Sync completed. Report ID: ${data.report_id}. Events: ${data.events_count}.`;
 
         await loadIntegrations();
+        await loadIntegrationSyncRuns(id);
 
       } catch (err) {
         status.innerText = `Sync error: ${err.message}`;

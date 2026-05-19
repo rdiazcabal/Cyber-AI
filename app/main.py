@@ -3413,6 +3413,68 @@ def generate_sample_events_for_integration(integration: CloudIntegration) -> lis
 
     return []
 
+def mask_secret_value(value: str | None) -> str | None:
+    if not value:
+        return value
+
+    if len(value) <= 8:
+        return "***"
+
+    return value[:4] + "***" + value[-4:]
+
+def resolve_secret_ref(secret_ref: str | None) -> str | None:
+    """
+    Supported formats:
+    - env:VARIABLE_NAME
+    - aws-sm:secret-name
+    """
+    if not secret_ref:
+        return None
+
+    secret_ref = secret_ref.strip()
+
+    if secret_ref.startswith("env:"):
+        env_name = secret_ref.replace("env:", "", 1).strip()
+        return os.getenv(env_name)
+
+    if secret_ref.startswith("aws-sm:"):
+        secret_name = secret_ref.replace("aws-sm:", "", 1).strip()
+
+        try:
+            import boto3
+            client = boto3.client("secretsmanager")
+            response = client.get_secret_value(SecretId=secret_name)
+            return response.get("SecretString")
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Could not resolve AWS Secrets Manager secret: {str(e)}"
+            )
+
+    raise HTTPException(
+        status_code=400,
+        detail="Invalid secret_ref format. Use env:NAME or aws-sm:secret-name"
+    )
+
+def validate_secret_refs(provider: str, config: dict):
+    provider = (provider or "").lower()
+
+    if provider == "azure":
+        ref = config.get("client_secret_ref")
+        if ref and not (ref.startswith("env:") or ref.startswith("aws-sm:")):
+            raise HTTPException(
+                status_code=400,
+                detail="Azure client_secret_ref must use env:NAME or aws-sm:secret-name"
+            )
+
+    if provider == "gcp":
+        ref = config.get("service_account_secret_ref")
+        if ref and not (ref.startswith("env:") or ref.startswith("aws-sm:")):
+            raise HTTPException(
+                status_code=400,
+                detail="GCP service_account_secret_ref must use env:NAME or aws-sm:secret-name"
+            )
+
 @app.get("/integrations")
 def list_integrations(
     company_id: int | None = None,

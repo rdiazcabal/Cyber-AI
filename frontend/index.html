@@ -1400,6 +1400,9 @@
               <button onclick="searchIOC()">
                 Search IOC
               </button>
+              <button class="secondary" onclick="checkIpReputation()">
+                Check IP Reputation
+              </button>
 
               <button class="secondary" onclick="clearThreatHunting()">
                 Clear
@@ -5457,6 +5460,90 @@
       if (!value) return "";
 
       return Number(value);
+    }
+
+    async function checkIpReputation() {
+      const input = document.getElementById("iocSearchInput");
+      const panel = document.getElementById("iocSearchResultsPanel");
+      const status = document.getElementById("iocSearchStatus");
+
+      const ip = input.value.trim();
+
+      if (!ip) {
+        status.innerText = "Enter an IP address first.";
+        return;
+      }
+
+      status.innerText = `Checking reputation for ${ip}...`;
+
+      try {
+        const res = await fetch(`/threat/ip-reputation?ip=${encodeURIComponent(ip)}`, {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          status.innerText = `Reputation lookup failed: ${data.detail || res.status}`;
+          return;
+        }
+
+        panel.className = "";
+
+        panel.innerHTML = `
+      <div class="pattern-card">
+        <div class="pattern-header">
+          <span class="pill ${data.risk_level === "Critical" ? "pill-critical" : data.risk_level === "High" ? "pill-high" : data.risk_level === "Medium" ? "pill-medium" : "pill-low"}">
+            ${escapeHtml(data.risk_level)}
+          </span>
+          <span class="pill pill-info">Score ${data.risk_score}</span>
+          <span class="pattern-title">${escapeHtml(data.ip)}</span>
+        </div>
+
+        <div class="pattern-meta" style="margin-top:10px;">
+          <b>Source:</b> ${escapeHtml(data.summary.source)}<br>
+          <b>OTX Pulses:</b> ${data.summary.pulse_count ?? 0}<br>
+          <b>Country:</b> ${escapeHtml(data.summary.country || "N/A")}<br>
+          <b>ASN:</b> ${escapeHtml(data.summary.asn || "N/A")}
+        </div>
+
+        <div class="pattern-card">
+          <b>Tags</b>
+          <div class="pattern-meta">
+            ${(data.summary.tags || []).length ? data.summary.tags.map(t => `<span class="pill pill-info">${escapeHtml(t)}</span>`).join(" ") : "No tags found."}
+          </div>
+        </div>
+
+        <div class="pattern-card">
+          <b>Malware Families</b>
+          <div class="pattern-meta">
+            ${(data.summary.malware_families || []).length ? data.summary.malware_families.map(t => `<span class="pill pill-high">${escapeHtml(t)}</span>`).join(" ") : "No malware family found."}
+          </div>
+        </div>
+
+        <div class="pattern-card">
+          <b>Reasons</b>
+          <ul>
+            ${(data.summary.reasons || []).map(r => `<li>${escapeHtml(r)}</li>`).join("") || "<li>No suspicious reputation signals found.</li>"}
+          </ul>
+        </div>
+
+        <div class="pattern-card">
+          <b>Recommendations</b>
+          <ul>
+            ${(data.recommendations || []).map(r => `<li>${escapeHtml(r)}</li>`).join("")}
+          </ul>
+        </div>
+      </div>
+    `;
+
+        status.innerText = `Reputation lookup completed for ${ip}.`;
+
+      } catch (err) {
+        status.innerText = `Reputation lookup error: ${err.message}`;
+      }
     }
 
     loadSession();

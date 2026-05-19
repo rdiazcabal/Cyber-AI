@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from io import BytesIO
 from datetime import datetime, timedelta
 import os
+import requests
+import ipaddress
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
@@ -1087,6 +1089,148 @@ def validate_secret_refs(provider: str, config: dict):
                 status_code=400,
                 detail="GCP service_account_secret_ref must use env:NAME or aws-sm:secret-name"
             )
+
+def get_otx_ip_reputation(ip: str) -> dict:
+    otx_key = os.getenv("OTX_API_KEY")
+
+    if not otx_key:
+        return {
+            "enabled": False,
+            "source": "AlienVault OTX",
+            "message": "OTX_API_KEY not configured"
+        }
+
+    url = f"https://otx.alienvault.com/api/v1/indicators/IPv4/{ip}/general"
+
+    headers = {
+        "X-OTX-API-KEY": otx_key,
+        "Accept": "application/json"
+    }
+
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+
+        if res.status_code == 404:
+            return {
+                "enabled": True,
+                "source": "AlienVault OTX",
+                "found": False,
+                "pulse_count": 0,
+                "tags": [],
+                "malware_families": [],
+                "message": "IP not found in OTX"
+            }
+
+        if not res.ok:
+            return {
+                "enabled": True,
+                "source": "AlienVault OTX",
+                "error": True,
+                "status_code": res.status_code,
+                "message": res.text[:300]
+            }
+
+        data = res.json()
+
+        pulse_info = data.get("pulse_info", {}) or {}
+        pulses = pulse_info.get("pulses", []) or []
+
+        tags = []
+        malware_families = []
+
+        for pulse in pulses[:10]:
+            for tag in pulse.get("tags", []) or []:
+                if tag not in tags:
+                    tags.append(tag)
+
+            for malware in pulse.get("malware_families", []) or []:
+                display_name = malware.get("display_name") or malware.get("name")
+                if display_name and display_name not in malware_families:
+                    malware_families.append(display_name)
+
+        return {
+            "enabled": True,
+            "source": "AlienVault OTX",
+            "found": True,
+            "pulse_count": pulse_info.get("count", len(pulses)),
+            "tags": tags[:20],
+            "malware_families": malware_families[:20],
+            "country": data.get("country_name"),
+            "asn": data.get("asn"),
+            "raw_summary": {
+                "indicator": data.get("indicator"),
+                "type": data.get("type"),
+                "sections": data.get("sections", []),
+            }
+        }
+
+    except Exception as e:
+        return {
+            "enabled": True,
+            "source": "AlienVault OTX",
+            "error": True,
+            "message": str(e)
+        }
+
+def calculate_ip_reputation_score(otx_result: dict) -> dict:
+    score = 0
+    reasons = []
+
+    pulse_count = otx_result.get("pulse_count", 0) or 0
+    malware_families = otx_result.get("malware_families", []) or []
+    tags = otx_result.get("tags", []) or []
+
+    if pulse_count >= 10:
+        score += 60
+        reasons.append("IP appears in 10 or more OTX pulses")
+    elif pulse_count >= 5:
+        score += 45
+        reasons.append("IP appears in 5 or more OTX pulses")
+    elif pulse_count >= 1:
+        score += 25
+        reasons.append("IP appears in OTX threat intelligence pulses")
+
+    if malware_families:
+        score += 25
+        reasons.append("IP is associated with malware families")
+
+    dangerous_tags = [
+        "malware",
+        "phishing",
+        "botnet",
+        "c2",
+        "command-and-control",
+        "ransomware",
+        "trojan",
+        "scanner",
+        "bruteforce"
+    ]
+
+    matched_tags = [
+        tag for tag in tags
+        if str(tag).lower() in dangerous_tags
+    ]
+
+    if matched_tags:
+        score += 15
+        reasons.append(f"Threat tags detected: {', '.join(matched_tags[:5])}")
+
+    score = min(score, 100)
+
+    if score >= 80:
+        risk_level = "Critical"
+    elif score >= 60:
+        risk_level = "High"
+    elif score >= 30:
+        risk_level = "Medium"
+    else:
+        risk_level = "Low"
+
+    return {
+        "score": score,
+        "risk_level": risk_level,
+        "reasons": reasons
+    }
 
 @app.post("/analyze")
 def analyze(event: dict):
@@ -4207,3 +4351,56 @@ def run_due_integrations_scheduler(
         "results": results,
     }    
 
+@app.get("/threat/ip-reputation")
+def ip_reputation_lookup(
+    ip: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        ipaddress.ip_address(ip)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid IP address")
+
+    otx_result = get_otx_ip_reputation(ip)
+    scoring = calculate_ip_reputation_score(otx_result)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="CHECK_IP_REPUTATION",
+        resource_type="ip_reputation",
+        resource_id=ip,
+        details={
+            "ip": ip,
+            "source": "AlienVault OTX",
+            "score": scoring.get("score"),
+            "risk_level": scoring.get("risk_level"),
+        },
+    )
+
+    return {
+        "ip": ip,
+        "risk_score": scoring.get("score"),
+        "risk_level": scoring.get("risk_level"),
+        "summary": {
+            "source": "AlienVault OTX",
+            "pulse_count": otx_result.get("pulse_count", 0),
+            "malware_families": otx_result.get("malware_families", []),
+            "tags": otx_result.get("tags", []),
+            "country": otx_result.get("country"),
+            "asn": otx_result.get("asn"),
+            "reasons": scoring.get("reasons", []),
+        },
+        "sources": {
+            "otx": otx_result
+        },
+        "recommendations": [
+            "Review recent logs for connections involving this IP.",
+            "Check whether this IP appears in authentication, firewall or proxy logs.",
+            "Block or monitor the IP if it appears in high-risk activity.",
+            "Correlate this IP with users, assets and timestamps before taking containment action."
+        ]
+    }
+
+    

@@ -1,0 +1,85 @@
+name: Deploy Cyber-AI to ECS Fargate
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: cyber-ai
+  ECS_CLUSTER: securi-cluster
+  ECS_SERVICE: cyber-ai-service
+  ECS_TASK_DEFINITION: ecs/cyber-ai-taskdef.json
+  CONTAINER_NAME: cyber-ai
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and Deploy to ECS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::269531437168:role/GitHubActionsECSDeployRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag and push image
+        id: build-image
+        shell: bash
+        run: |
+          IMAGE_URI=269531437168.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${GITHUB_SHA}
+          LATEST_URI=269531437168.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest
+
+          docker build -t $IMAGE_URI -t $LATEST_URI .
+          docker push $IMAGE_URI
+          docker push $LATEST_URI
+
+          echo "image=$IMAGE_URI" >> $GITHUB_OUTPUT
+
+      - name: Render task definition
+        shell: bash
+        run: |
+          jq \
+            --arg IMAGE "${{ steps.build-image.outputs.image }}" \
+            '.containerDefinitions[0].image = $IMAGE' \
+            $ECS_TASK_DEFINITION > taskdef-rendered.json
+
+      - name: Register task definition
+        id: register-task
+        shell: bash
+        run: |
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://taskdef-rendered.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "task_def_arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+
+      - name: Deploy ECS service
+        shell: bash
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
+            --task-definition "${{ steps.register-task.outputs.task_def_arn }}" \
+            --force-new-deployment
+
+      - name: Wait for ECS service stability
+        shell: bash
+        run: |
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE

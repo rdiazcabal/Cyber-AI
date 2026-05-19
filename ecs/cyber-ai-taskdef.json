@@ -1,0 +1,86 @@
+{
+    "family": "cyber-ai-task",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "1024",
+    "memory": "2048",
+    "executionRoleArn": "arn:aws:iam::269531437168:role/ecsTaskExecutionRole",
+    "taskRoleArn": "arn:aws:iam::269531437168:role/cyberAiTaskRole",
+    "containerDefinitions": [
+        {
+            "name": "cyber-ai",
+            "image": "269531437168.dkr.ecr.us-east-1.amazonaws.com/cyber-ai:latest",
+            "essential": true,
+            "portMappings": [
+                {
+                    "containerPort": 8080,
+                    "protocol": "tcp"
+                }
+            ],
+            "environment": [
+                {
+                    "name": "APP_ENV",
+                    "value": "production"
+                }
+            ],
+            "secrets": [
+                {
+                    "name": "GROQ_API_KEY",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:269531437168:secret:CyberAI-2incpro-oyhh54:GROQ_API_KEY::"
+                },
+                {
+                    "name": "GROQ_MODEL",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:269531437168:secret:CyberAI-2incpro-oyhh54:GROQ_MODEL::"
+                },
+                {
+                    "name": "ABUSEIPDB_API_KEY",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:269531437168:secret:CyberAI-2incpro-oyhh54:ABUSEIPDB_API_KEY::"
+                },
+                {
+                    "name": "ADMIN_USER",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:269531437168:secret:CyberAI-2incpro-oyhh54:ADMIN_USER::"
+                },
+                {
+                    "name": "ADMIN_PASSWORD",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:269531437168:secret:CyberAI-2incpro-oyhh54:ADMIN_PASSWORD::"
+                },
+                {
+                    "name": "JWT_SECRET_KEY",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:269531437168:secret:CyberAI-2incpro-oyhh54:JWT_SECRET_KEY::"
+                },
+                {
+                    "name": "ADMIN_COMPANY",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:269531437168:secret:CyberAI-2incpro-oyhh54:ADMIN_COMPANY::"
+                },
+                {
+                    "name": "DATABASE_URL",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:269531437168:secret:CyberAI-2incpro-oyhh54:DATABASE_URL::"
+                },
+                {
+                    "name": "OTX_API_KEY",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:269531437168:secret:CyberAI-2incpro-oyhh54:OTX_API_KEY::"
+                }
+            ],
+            "healthCheck": {
+                "command": [
+                    "CMD-SHELL",
+                    "curl -f http://localhost:8080/docs || exit 1"
+                ],
+                "interval": 30,
+                "timeout": 5,
+                "retries": 3,
+                "startPeriod": 90
+            },
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/cyber-ai",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "ecs"
+                }
+            }
+        }
+    ]
+}

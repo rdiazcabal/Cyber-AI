@@ -5,7 +5,7 @@
         "FARGATE"
     ],
     "cpu": "1024",
-    "memory": "2048",
+    "memory": "1024",
     "executionRoleArn": "arn:aws:iam::269531437168:role/ecsTaskExecutionRole",
     "taskRoleArn": "arn:aws:iam::269531437168:role/cyberAiTaskRole",
     "containerDefinitions": [

@@ -508,6 +508,9 @@ def admin_create_user(
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
+    # SaaS plan limit validation
+    enforce_user_limit(db, company.id)
+
     if len(username) < 3:
         raise HTTPException(status_code=400, detail="Username must have at least 3 characters")
 
@@ -517,30 +520,30 @@ def admin_create_user(
         raise HTTPException(status_code=409, detail="Username already exists")
 
     user = User(
-    username=username,
-    password_hash=hash_password(password),
-    full_name=full_name,
-    role=role,
-    company_id=company.id,
-    is_active=True,
-)
+        username=username,
+        password_hash=hash_password(password),
+        full_name=full_name,
+        role=role,
+        company_id=company.id,
+        is_active=True,
+    )
 
     db.add(user)
     db.commit()
     db.refresh(user)
 
     audit_action(
-    db=db,
-    current_user=current_user,
-    action="CREATE_USER",
-    resource_type="user",
-    resource_id=user.id,
-    details={
-        "username": user.username,
-        "role": user.role,
-        "company_id": user.company_id,
-    },
-)
+        db=db,
+        current_user=current_user,
+        action="CREATE_USER",
+        resource_type="user",
+        resource_id=user.id,
+        details={
+            "username": user.username,
+            "role": user.role,
+            "company_id": user.company_id,
+        },
+    )
 
     return {
         "id": user.id,
@@ -1582,76 +1585,76 @@ def analyze_and_save(
         "result": result
     }
 
-@app.get("/reports")
+@app.get("/reports") 
 def list_reports(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    query = db.query(AnalysisReport)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+    ):
+        query = db.query(AnalysisReport)
 
-    if current_user.role != "super_admin":
-        query = query.filter(AnalysisReport.company_id == current_user.company_id)
+        if current_user.role != "super_admin":
+            query = query.filter(AnalysisReport.company_id == current_user.company_id)
 
-    reports = query.order_by(AnalysisReport.created_at.desc()).all()
+        reports = query.order_by(AnalysisReport.created_at.desc()).all()
 
-    result = []
+        result = []
 
-    for report in reports:
-        company = None
-        if report.company_id:
-            company = db.query(Company).filter(Company.id == report.company_id).first()
+        for report in reports:
+            company = None
+            if report.company_id:
+                company = db.query(Company).filter(Company.id == report.company_id).first()
 
-        # 🔥 NUEVO: Parse result_json (para SOC insights)
-        severity = "Unknown"
-        summary = None
-        ioc_count = 0
+            # 🔥 NUEVO: Parse result_json (para SOC insights)
+            severity = "Unknown"
+            summary = None
+            ioc_count = 0
 
-        try:
-            parsed = json.loads(report.result_json or "{}")
+            try:
+                parsed = json.loads(report.result_json or "{}")
 
-            ai_struct = parsed.get("ai_structured_analysis", {})
+                ai_struct = parsed.get("ai_structured_analysis", {})
 
-            severity = ai_struct.get("severity", "Unknown")
-            summary = ai_struct.get("summary")
+                severity = ai_struct.get("severity", "Unknown")
+                summary = ai_struct.get("summary")
 
-            iocs = parsed.get("iocs", {})
-            ioc_count = (
-                len(iocs.get("ips", [])) +
-                len(iocs.get("domains", [])) +
-                len(iocs.get("urls", []))
+                iocs = parsed.get("iocs", {})
+                ioc_count = (
+                    len(iocs.get("ips", [])) +
+                    len(iocs.get("domains", [])) +
+                    len(iocs.get("urls", []))
+                )
+
+            except:
+                pass
+
+            # 🔥 NUEVO: Buscar case asociado
+            case = db.query(SecurityCase).filter(SecurityCase.report_id == report.id).first()
+
+            case_status = case.status if case else None
+            case_id = case.id if case else None
+
+            result.append(
+                {
+                    "company_id": report.company_id,
+                    "company_name": company.name if company else None,
+
+                    "id": report.id,
+                    "title": report.title,
+
+                    "risk_score": report.risk_score,
+                    "severity": severity,
+                    "summary": summary,
+
+                    "ioc_count": ioc_count,
+
+                    "case_id": case_id,
+                    "case_status": case_status,
+
+                    "created_at": report.created_at,
+                }
             )
 
-        except:
-            pass
-
-        # 🔥 NUEVO: Buscar case asociado
-        case = db.query(SecurityCase).filter(SecurityCase.report_id == report.id).first()
-
-        case_status = case.status if case else None
-        case_id = case.id if case else None
-
-        result.append(
-            {
-                "company_id": report.company_id,
-                "company_name": company.name if company else None,
-
-                "id": report.id,
-                "title": report.title,
-
-                "risk_score": report.risk_score,
-                "severity": severity,
-                "summary": summary,
-
-                "ioc_count": ioc_count,
-
-                "case_id": case_id,
-                "case_status": case_status,
-
-                "created_at": report.created_at,
-            }
-        )
-
-    return result
+        return result
 
 @app.get("/threat/search")
 def search_threat(

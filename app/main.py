@@ -3856,6 +3856,25 @@ def create_integration(
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
+    # SaaS plan: max integrations
+    enforce_integration_limit(db, company.id)
+
+    # SaaS plan: provider feature lock
+    if provider == "aws":
+        require_plan_feature(db, current_user, "aws_integration")
+
+    if provider == "azure":
+        require_plan_feature(db, current_user, "azure_integration")
+
+    if provider == "gcp":
+        require_plan_feature(db, current_user, "gcp_integration")
+
+    sync_enabled = bool(payload.get("sync_enabled", False))
+
+    # SaaS plan: automatic sync lock
+    if sync_enabled:
+        require_plan_feature(db, current_user, "auto_sync")
+
     validate_integration_payload(
         provider=provider,
         auth_type=auth_type,
@@ -3867,7 +3886,6 @@ def create_integration(
         config=config,
     )
 
-    sync_enabled = bool(payload.get("sync_enabled", False))
     sync_interval_minutes = int(payload.get("sync_interval_minutes", 60) or 60)
 
     if sync_interval_minutes < 5:
@@ -3886,7 +3904,6 @@ def create_integration(
         auth_type=auth_type,
         config_json=json.dumps(config),
 
-        # Scheduler fields
         sync_enabled=sync_enabled,
         sync_interval_minutes=sync_interval_minutes,
         next_sync_at=(
@@ -3896,12 +3913,10 @@ def create_integration(
         ),
         last_scheduler_run_at=None,
 
-        # Status fields
         last_status="created",
         last_error=None,
         last_sync_at=None,
 
-        # Timestamps
         created_at=now,
         updated_at=now,
     )

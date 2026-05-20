@@ -11,6 +11,12 @@ class Company(Base):
     name = Column(String(150), unique=True, nullable=False, index=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    plan = Column(String(30), default="starter", nullable=False)
+subscription_status = Column(String(30), default="active", nullable=False)
+max_users = Column(Integer, default=3, nullable=False)
+max_integrations = Column(Integer, default=0, nullable=False)
+billing_email = Column(String(255), nullable=True)
+trial_ends_at = Column(DateTime, nullable=True)
 
 
 class AnalysisReport(Base):

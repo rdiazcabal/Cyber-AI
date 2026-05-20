@@ -201,6 +201,70 @@ def auth_me(
         "is_active": current_user.is_active,
     }
 
+def get_company_subscription(db: Session, company_id: int):
+    company = db.query(Company).filter(Company.id == company_id).first()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    plan_name = company.plan or "starter"
+    plan = PLAN_LIMITS.get(plan_name)
+
+    if not plan:
+        raise HTTPException(status_code=400, detail="Invalid company plan")
+
+    if company.subscription_status not in ["active", "trial"]:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Subscription is {company.subscription_status}"
+        )
+
+    return company, plan_name, plan
+
+def require_plan_feature(db: Session, current_user: User, feature: str):
+    company, plan_name, plan = get_company_subscription(
+        db=db,
+        company_id=current_user.company_id,
+    )
+
+    if not plan["features"].get(feature, False):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Feature '{feature}' is not available in plan '{plan_name}'"
+        )
+
+    return company, plan_name, plan
+
+def enforce_user_limit(db: Session, company_id: int):
+    company, plan_name, plan = get_company_subscription(db, company_id)
+
+    users_count = (
+        db.query(User)
+        .filter(User.company_id == company_id)
+        .count()
+    )
+
+    if users_count >= plan["max_users"]:
+        raise HTTPException(
+            status_code=403,
+            detail=f"User limit reached for plan '{plan_name}'. Max users: {plan['max_users']}"
+        )
+
+def enforce_integration_limit(db: Session, company_id: int):
+    company, plan_name, plan = get_company_subscription(db, company_id)
+
+    integrations_count = (
+        db.query(CloudIntegration)
+        .filter(CloudIntegration.company_id == company_id)
+        .count()
+    )
+
+    if integrations_count >= plan["max_integrations"]:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Integration limit reached for plan '{plan_name}'. Max integrations: {plan['max_integrations']}"
+        )
+
 @app.get("/admin/companies")
 def admin_list_companies(
     db: Session = Depends(get_db),
@@ -266,6 +330,113 @@ def admin_create_company(
         "id": company.id,
         "name": company.name,
         "is_active": company.is_active,
+    }
+
+@app.get("/billing/plan")
+def get_billing_plan(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    company = db.query(Company).filter(Company.id == current_user.company_id).first()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    plan_name = company.plan or "starter"
+    plan = PLAN_LIMITS.get(plan_name, PLAN_LIMITS["starter"])
+
+    users_count = (
+        db.query(User)
+        .filter(User.company_id == company.id)
+        .count()
+    )
+
+    integrations_count = (
+        db.query(CloudIntegration)
+        .filter(CloudIntegration.company_id == company.id)
+        .count()
+    )
+
+    return {
+        "company_id": company.id,
+        "company_name": company.name,
+        "plan": plan_name,
+        "plan_label": plan["label"],
+        "subscription_status": company.subscription_status,
+        "billing_email": company.billing_email,
+        "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,
+        "usage": {
+            "users": users_count,
+            "integrations": integrations_count,
+        },
+        "limits": {
+            "max_users": plan["max_users"],
+            "max_integrations": plan["max_integrations"],
+        },
+        "features": plan["features"],
+    }
+
+@app.put("/admin/companies/{company_id}/plan")
+def update_company_plan(
+    company_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    company = db.query(Company).filter(Company.id == company_id).first()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    plan_name = (payload.get("plan") or "").strip().lower()
+    subscription_status = (
+        payload.get("subscription_status") or company.subscription_status or "active"
+    ).strip().lower()
+
+    if plan_name not in PLAN_LIMITS:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+
+    if subscription_status not in ["active", "trial", "past_due", "suspended", "cancelled"]:
+        raise HTTPException(status_code=400, detail="Invalid subscription status")
+
+    plan = PLAN_LIMITS[plan_name]
+
+    company.plan = plan_name
+    company.subscription_status = subscription_status
+    company.max_users = plan["max_users"]
+    company.max_integrations = plan["max_integrations"]
+
+    if "billing_email" in payload:
+        company.billing_email = payload.get("billing_email")
+
+    db.commit()
+    db.refresh(company)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="UPDATE_COMPANY_PLAN",
+        resource_type="company",
+        resource_id=company.id,
+        details={
+            "company_id": company.id,
+            "company_name": company.name,
+            "plan": company.plan,
+            "subscription_status": company.subscription_status,
+            "max_users": company.max_users,
+            "max_integrations": company.max_integrations,
+            "billing_email": company.billing_email,
+        },
+    )
+
+    return {
+        "id": company.id,
+        "name": company.name,
+        "plan": company.plan,
+        "subscription_status": company.subscription_status,
+        "max_users": company.max_users,
+        "max_integrations": company.max_integrations,
+        "billing_email": company.billing_email,
     }
 
 @app.get("/admin/users")
@@ -4402,5 +4573,89 @@ def ip_reputation_lookup(
             "Correlate this IP with users, assets and timestamps before taking containment action."
         ]
     }
+
+PLAN_LIMITS = {
+    "starter": {
+        "label": "Starter",
+        "max_users": 3,
+        "max_integrations": 0,
+        "features": {
+            "manual_analysis": True,
+            "pdf_reports": True,
+            "cis8_basic": True,
+            "threat_hunting": True,
+            "aws_integration": False,
+            "azure_integration": False,
+            "gcp_integration": False,
+            "soc_cases": False,
+            "alert_rules": False,
+            "executive_dashboard": False,
+            "audit_logs": False,
+            "auto_sync": False,
+            "custom_retention": False,
+        },
+    },
+    "professional": {
+        "label": "Professional",
+        "max_users": 10,
+        "max_integrations": 1,
+        "features": {
+            "manual_analysis": True,
+            "pdf_reports": True,
+            "cis8_basic": True,
+            "threat_hunting": True,
+            "aws_integration": True,
+            "azure_integration": False,
+            "gcp_integration": False,
+            "soc_cases": True,
+            "alert_rules": True,
+            "executive_dashboard": True,
+            "audit_logs": True,
+            "auto_sync": True,
+            "custom_retention": False,
+        },
+    },
+    "business": {
+        "label": "Business",
+        "max_users": 50,
+        "max_integrations": 5,
+        "features": {
+            "manual_analysis": True,
+            "pdf_reports": True,
+            "cis8_basic": True,
+            "threat_hunting": True,
+            "aws_integration": True,
+            "azure_integration": True,
+            "gcp_integration": True,
+            "soc_cases": True,
+            "alert_rules": True,
+            "executive_dashboard": True,
+            "audit_logs": True,
+            "auto_sync": True,
+            "custom_retention": True,
+        },
+    },
+    "enterprise": {
+        "label": "Enterprise",
+        "max_users": 9999,
+        "max_integrations": 9999,
+        "features": {
+            "manual_analysis": True,
+            "pdf_reports": True,
+            "cis8_basic": True,
+            "threat_hunting": True,
+            "aws_integration": True,
+            "azure_integration": True,
+            "gcp_integration": True,
+            "soc_cases": True,
+            "alert_rules": True,
+            "executive_dashboard": True,
+            "audit_logs": True,
+            "auto_sync": True,
+            "custom_retention": True,
+        },
+    },
+}
+
 
     

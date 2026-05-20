@@ -4,7 +4,7 @@
     "requiresCompatibilities": [
         "FARGATE"
     ],
-    "cpu": "1024",
+    "cpu": "512",
     "memory": "1024",
     "executionRoleArn": "arn:aws:iam::269531437168:role/ecsTaskExecutionRole",
     "taskRoleArn": "arn:aws:iam::269531437168:role/cyberAiTaskRole",

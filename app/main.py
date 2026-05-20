@@ -3827,194 +3827,65 @@ def list_integrations(
 
 @app.post("/integrations")
 def create_integration(
-    payload: dict,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
-):
-    provider = normalize_provider_name(payload.get("provider"))
-    name = (payload.get("name") or "").strip()
-    auth_type = (payload.get("auth_type") or "").strip()
-    config = payload.get("config") or {}
-
-    if len(name) < 2:
-        raise HTTPException(status_code=400, detail="Integration name is required")
-
-    company_id = payload.get("company_id")
-
-    if current_user.role != "super_admin":
-        company_id = current_user.company_id
-
-    if not company_id:
-        raise HTTPException(status_code=400, detail="company_id is required")
-
-    company = (
-        db.query(Company)
-        .filter(Company.id == int(company_id), Company.is_active == True)
-        .first()
-    )
-
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
-
-    # SaaS plan: max integrations
-    enforce_integration_limit(db, company.id)
-
-    # SaaS plan: provider feature lock
-    if provider == "aws":
-        require_plan_feature(db, current_user, "aws_integration")
-
-    if provider == "azure":
-        require_plan_feature(db, current_user, "azure_integration")
-
-    if provider == "gcp":
-        require_plan_feature(db, current_user, "gcp_integration")
-
-    sync_enabled = bool(payload.get("sync_enabled", False))
-
-    # SaaS plan: automatic sync lock
-    if sync_enabled:
-        require_plan_feature(db, current_user, "auto_sync")
-
-    validate_integration_payload(
-        provider=provider,
-        auth_type=auth_type,
-        config=config,
-    )
-
-    validate_secret_refs(
-        provider=provider,
-        config=config,
-    )
-
-    sync_interval_minutes = int(payload.get("sync_interval_minutes", 60) or 60)
-
-    if sync_interval_minutes < 5:
-        raise HTTPException(
-            status_code=400,
-            detail="sync_interval_minutes must be at least 5"
-        )
-
-    now = datetime.utcnow()
-
-    integration = CloudIntegration(
-        company_id=company.id,
-        provider=provider,
-        name=name,
-        enabled=bool(payload.get("enabled", True)),
-        auth_type=auth_type,
-        config_json=json.dumps(config),
-
-        sync_enabled=sync_enabled,
-        sync_interval_minutes=sync_interval_minutes,
-        next_sync_at=(
-            now + timedelta(minutes=sync_interval_minutes)
-            if sync_enabled
-            else None
-        ),
-        last_scheduler_run_at=None,
-
-        last_status="created",
-        last_error=None,
-        last_sync_at=None,
-
-        created_at=now,
-        updated_at=now,
-    )
-
-    db.add(integration)
-    db.commit()
-    db.refresh(integration)
-
-    audit_action(
-        db=db,
-        current_user=current_user,
-        action="CREATE_INTEGRATION",
-        resource_type="cloud_integration",
-        resource_id=integration.id,
-        details={
-            "company_id": integration.company_id,
-            "company_name": company.name,
-            "provider": integration.provider,
-            "name": integration.name,
-            "auth_type": integration.auth_type,
-            "enabled": integration.enabled,
-            "sync_enabled": integration.sync_enabled,
-            "sync_interval_minutes": integration.sync_interval_minutes,
-            "next_sync_at": (
-                str(integration.next_sync_at)
-                if integration.next_sync_at
-                else None
-            ),
-        },
-    )
-
-    return integration_to_dict(
-        integration=integration,
-        company_name=company.name,
-    )
-
-@app.put("/integrations/{integration_id}")
-def update_integration(
-    integration_id: int,
-    payload: dict,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
-):
-    query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
-
-    if current_user.role != "super_admin":
-        query = query.filter(CloudIntegration.company_id == current_user.company_id)
-
-    integration = query.first()
-
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
-
-    old_values = {
-        "provider": integration.provider,
-        "name": integration.name,
-        "enabled": integration.enabled,
-        "auth_type": integration.auth_type,
-        "sync_enabled": integration.sync_enabled,
-        "sync_interval_minutes": integration.sync_interval_minutes,
-        "next_sync_at": str(integration.next_sync_at) if integration.next_sync_at else None,
-    }
-
-    if "provider" in payload:
-        integration.provider = normalize_provider_name(payload.get("provider"))
-
-    if "name" in payload:
+        payload: dict,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin),
+    ):
+        provider = normalize_provider_name(payload.get("provider"))
         name = (payload.get("name") or "").strip()
-        if len(name) < 2:
-            raise HTTPException(status_code=400, detail="Integration name is required")
-        integration.name = name
-
-    if "enabled" in payload:
-        integration.enabled = bool(payload.get("enabled"))
-
-    if "auth_type" in payload:
-        integration.auth_type = (payload.get("auth_type") or "").strip()
-
-    if "config" in payload:
+        auth_type = (payload.get("auth_type") or "").strip()
         config = payload.get("config") or {}
 
+        if len(name) < 2:
+            raise HTTPException(status_code=400, detail="Integration name is required")
+
+        company_id = payload.get("company_id")
+
+        if current_user.role != "super_admin":
+            company_id = current_user.company_id
+
+        if not company_id:
+            raise HTTPException(status_code=400, detail="company_id is required")
+
+        company = (
+            db.query(Company)
+            .filter(Company.id == int(company_id), Company.is_active == True)
+            .first()
+        )
+
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+
+        # SaaS plan: max integrations
+        enforce_integration_limit(db, company.id)
+
+        # SaaS plan: provider feature lock
+        if provider == "aws":
+            require_plan_feature(db, current_user, "aws_integration")
+
+        if provider == "azure":
+            require_plan_feature(db, current_user, "azure_integration")
+
+        if provider == "gcp":
+            require_plan_feature(db, current_user, "gcp_integration")
+
+        sync_enabled = bool(payload.get("sync_enabled", False))
+
+        # SaaS plan: automatic sync lock
+        if sync_enabled:
+            require_plan_feature(db, current_user, "auto_sync")
+
         validate_integration_payload(
-            provider=integration.provider,
-            auth_type=integration.auth_type,
+            provider=provider,
+            auth_type=auth_type,
             config=config,
         )
 
         validate_secret_refs(
-            provider=integration.provider,
+            provider=provider,
             config=config,
         )
 
-        integration.config_json = json.dumps(config)
-
-    if "sync_enabled" in payload:
-        integration.sync_enabled = bool(payload.get("sync_enabled"))
-
-    if "sync_interval_minutes" in payload:
         sync_interval_minutes = int(payload.get("sync_interval_minutes", 60) or 60)
 
         if sync_interval_minutes < 5:
@@ -4023,56 +3894,210 @@ def update_integration(
                 detail="sync_interval_minutes must be at least 5"
             )
 
-        integration.sync_interval_minutes = sync_interval_minutes
+        now = datetime.utcnow()
 
-    if "sync_enabled" in payload or "sync_interval_minutes" in payload:
-        if integration.sync_enabled:
-            integration.next_sync_at = datetime.utcnow() + timedelta(
-                minutes=integration.sync_interval_minutes
-            )
-        else:
-            integration.next_sync_at = None
+        integration = CloudIntegration(
+            company_id=company.id,
+            provider=provider,
+            name=name,
+            enabled=bool(payload.get("enabled", True)),
+            auth_type=auth_type,
+            config_json=json.dumps(config),
 
-    integration.updated_at = datetime.utcnow()
+            sync_enabled=sync_enabled,
+            sync_interval_minutes=sync_interval_minutes,
+            next_sync_at=(
+                now + timedelta(minutes=sync_interval_minutes)
+                if sync_enabled
+                else None
+            ),
+            last_scheduler_run_at=None,
 
-    db.commit()
-    db.refresh(integration)
+            last_status="created",
+            last_error=None,
+            last_sync_at=None,
 
-    company = (
-        db.query(Company)
-        .filter(Company.id == integration.company_id)
-        .first()
-    )
+            created_at=now,
+            updated_at=now,
+        )
 
-    audit_action(
-        db=db,
-        current_user=current_user,
-        action="UPDATE_INTEGRATION",
-        resource_type="cloud_integration",
-        resource_id=integration.id,
-        details={
-            "company_id": integration.company_id,
-            "company_name": company.name if company else None,
+        db.add(integration)
+        db.commit()
+        db.refresh(integration)
+
+        audit_action(
+            db=db,
+            current_user=current_user,
+            action="CREATE_INTEGRATION",
+            resource_type="cloud_integration",
+            resource_id=integration.id,
+            details={
+                "company_id": integration.company_id,
+                "company_name": company.name,
+                "provider": integration.provider,
+                "name": integration.name,
+                "auth_type": integration.auth_type,
+                "enabled": integration.enabled,
+                "sync_enabled": integration.sync_enabled,
+                "sync_interval_minutes": integration.sync_interval_minutes,
+                "next_sync_at": (
+                    str(integration.next_sync_at)
+                    if integration.next_sync_at
+                    else None
+                ),
+            },
+        )
+
+        return integration_to_dict(
+            integration=integration,
+            company_name=company.name,
+        )
+
+@app.put("/integrations/{integration_id}")
+def update_integration(
+        integration_id: int,
+        payload: dict,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin),
+    ):
+        query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
+
+        if current_user.role != "super_admin":
+            query = query.filter(CloudIntegration.company_id == current_user.company_id)
+
+        integration = query.first()
+
+        if not integration:
+            raise HTTPException(status_code=404, detail="Integration not found")
+
+        old_values = {
             "provider": integration.provider,
             "name": integration.name,
             "enabled": integration.enabled,
             "auth_type": integration.auth_type,
             "sync_enabled": integration.sync_enabled,
             "sync_interval_minutes": integration.sync_interval_minutes,
-            "next_sync_at": (
-                str(integration.next_sync_at)
-                if integration.next_sync_at
-                else None
-            ),
-            "updated_fields": list(payload.keys()),
-            "old_values": old_values,
-        },
-    )
+            "next_sync_at": str(integration.next_sync_at) if integration.next_sync_at else None,
+        }
 
-    return integration_to_dict(
-        integration=integration,
-        company_name=company.name if company else None,
-    )
+        target_provider = integration.provider
+
+        if "provider" in payload:
+            target_provider = normalize_provider_name(payload.get("provider"))
+
+        # SaaS plan: provider feature lock
+        if target_provider == "aws":
+            require_plan_feature(db, current_user, "aws_integration")
+
+        if target_provider == "azure":
+            require_plan_feature(db, current_user, "azure_integration")
+
+        if target_provider == "gcp":
+            require_plan_feature(db, current_user, "gcp_integration")
+
+        # SaaS plan: auto sync lock
+        requested_sync_enabled = (
+            bool(payload.get("sync_enabled"))
+            if "sync_enabled" in payload
+            else bool(integration.sync_enabled)
+        )
+
+        if requested_sync_enabled:
+            require_plan_feature(db, current_user, "auto_sync")
+
+        if "provider" in payload:
+            integration.provider = target_provider
+
+        if "name" in payload:
+            name = (payload.get("name") or "").strip()
+            if len(name) < 2:
+                raise HTTPException(status_code=400, detail="Integration name is required")
+            integration.name = name
+
+        if "enabled" in payload:
+            integration.enabled = bool(payload.get("enabled"))
+
+        if "auth_type" in payload:
+            integration.auth_type = (payload.get("auth_type") or "").strip()
+
+        if "config" in payload:
+            config = payload.get("config") or {}
+
+            validate_integration_payload(
+                provider=integration.provider,
+                auth_type=integration.auth_type,
+                config=config,
+            )
+
+            validate_secret_refs(
+                provider=integration.provider,
+                config=config,
+            )
+
+            integration.config_json = json.dumps(config)
+
+        if "sync_enabled" in payload:
+            integration.sync_enabled = bool(payload.get("sync_enabled"))
+
+        if "sync_interval_minutes" in payload:
+            sync_interval_minutes = int(payload.get("sync_interval_minutes", 60) or 60)
+
+            if sync_interval_minutes < 5:
+                raise HTTPException(
+                    status_code=400,
+                    detail="sync_interval_minutes must be at least 5"
+                )
+
+            integration.sync_interval_minutes = sync_interval_minutes
+
+        if "sync_enabled" in payload or "sync_interval_minutes" in payload:
+            if integration.sync_enabled:
+                integration.next_sync_at = datetime.utcnow() + timedelta(
+                    minutes=integration.sync_interval_minutes
+                )
+            else:
+                integration.next_sync_at = None
+
+        integration.updated_at = datetime.utcnow()
+
+        db.commit()
+        db.refresh(integration)
+
+        company = (
+            db.query(Company)
+            .filter(Company.id == integration.company_id)
+            .first()
+        )
+
+        audit_action(
+            db=db,
+            current_user=current_user,
+            action="UPDATE_INTEGRATION",
+            resource_type="cloud_integration",
+            resource_id=integration.id,
+            details={
+                "company_id": integration.company_id,
+                "company_name": company.name if company else None,
+                "provider": integration.provider,
+                "name": integration.name,
+                "enabled": integration.enabled,
+                "auth_type": integration.auth_type,
+                "sync_enabled": integration.sync_enabled,
+                "sync_interval_minutes": integration.sync_interval_minutes,
+                "next_sync_at": (
+                    str(integration.next_sync_at)
+                    if integration.next_sync_at
+                    else None
+                ),
+                "updated_fields": list(payload.keys()),
+                "old_values": old_values,
+            },
+        )
+
+        return integration_to_dict(
+            integration=integration,
+            company_name=company.name if company else None,
+        )
 
 @app.delete("/integrations/{integration_id}")
 def delete_integration(
@@ -4352,6 +4377,19 @@ def sync_integration(
     if not integration.enabled:
         raise HTTPException(status_code=400, detail="Integration is disabled")
 
+    # SaaS plan: manual/cloud sync lock
+    require_plan_feature(db, current_user, "auto_sync")
+
+    # SaaS plan: provider feature lock
+    if integration.provider == "aws":
+        require_plan_feature(db, current_user, "aws_integration")
+
+    if integration.provider == "azure":
+        require_plan_feature(db, current_user, "azure_integration")
+
+    if integration.provider == "gcp":
+        require_plan_feature(db, current_user, "gcp_integration")
+
     try:
         result = run_cloud_integration_sync(
             db=db,
@@ -4461,12 +4499,22 @@ def update_integration_schedule(
     sync_enabled = bool(payload.get("sync_enabled", False))
     interval = int(payload.get("sync_interval_minutes", integration.sync_interval_minutes or 60))
 
+    if sync_enabled:
+        require_plan_feature(db, current_user, "auto_sync")
+
     if interval < 5:
-        raise HTTPException(status_code=400, detail="sync_interval_minutes must be at least 5")
+        raise HTTPException(
+            status_code=400,
+            detail="sync_interval_minutes must be at least 5"
+        )
 
     integration.sync_enabled = sync_enabled
     integration.sync_interval_minutes = interval
-    integration.next_sync_at = datetime.utcnow() + timedelta(minutes=interval) if sync_enabled else None
+    integration.next_sync_at = (
+        datetime.utcnow() + timedelta(minutes=interval)
+        if sync_enabled
+        else None
+    )
     integration.updated_at = datetime.utcnow()
 
     db.commit()

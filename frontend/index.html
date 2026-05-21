@@ -1026,7 +1026,7 @@
           <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
           <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
         </svg>
-        <span>Usuarios Aplicativo</span>
+        <span>Usuarios / Compañias</span>
       </a>
 
       <a class="nav-item hidden" id="auditLogsNav" href="javascript:void(0)" onclick="showAuditLogs()">
@@ -1214,6 +1214,8 @@
           </div>
 
         </div>
+
+        <!-- BILLING PLAN VIEW -->
         <div id="billingPlanView" class="hidden">
           <div class="header">
             <div>
@@ -5771,6 +5773,9 @@
 
       return true;
     }
+    // ==============================
+    // BILLING PLAN
+    // ==============================
     async function showBillingPlan() {
       setActiveNav("billingPlanNav");
 
@@ -5818,8 +5823,10 @@
 
         document.getElementById("billingPlanName").innerText = data.plan_label || data.plan || "-";
         document.getElementById("billingPlanStatus").innerText = data.subscription_status || "-";
+
         document.getElementById("billingUsersUsage").innerText =
           `${data.usage?.users ?? 0}/${data.limits?.max_users ?? 0}`;
+
         document.getElementById("billingIntegrationsUsage").innerText =
           `${data.usage?.integrations ?? 0}/${data.limits?.max_integrations ?? 0}`;
 
@@ -5877,6 +5884,8 @@
     </div>
   `).join("");
     }
+
+
 
     loadSession();
 

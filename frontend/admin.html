@@ -624,6 +624,12 @@
       document.getElementById("accessDenied").classList.add("hidden");
       document.getElementById("adminPanel").classList.remove("hidden");
 
+      const usersSection = document.getElementById("usersSection");
+      const companiesSection = document.getElementById("companiesSection");
+
+      if (usersSection) usersSection.classList.remove("hidden");
+      if (companiesSection) companiesSection.classList.add("hidden");
+
       configureRoleOptions();
 
       document.getElementById("adminStatus").innerText = "Puedes gestionar usuarios desde aquí.";

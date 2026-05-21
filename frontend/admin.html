@@ -545,6 +545,33 @@
           </div>
         </div>
 
+        <!-- BILLING OVERVIEW SECTION -->
+        <div style="grid-column: 1 / -1; margin-top: 18px;">
+          <h3>Billing Overview</h3>
+          <div class="panel-subtitle">
+            Vista general de planes, uso, límites y estado de licencias por empresa.
+          </div>
+
+          <table class="user-table">
+            <thead>
+              <tr>
+                <th>Empresa</th>
+                <th>Plan</th>
+                <th>Suscripción</th>
+                <th>Licencia</th>
+                <th>Expira</th>
+                <th>Días</th>
+                <th>Usuarios</th>
+                <th>Integraciones</th>
+              </tr>
+            </thead>
+            <tbody id="billingOverviewTable">
+              <tr>
+                <td colspan="8" class="empty">Cargando billing overview...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </main>
   </div>
@@ -985,6 +1012,7 @@
         usersSection.classList.add("hidden");
         companiesSection.classList.remove("hidden");
         renderCompaniesAdmin();
+        loadBillingOverview();
         return;
       }
 
@@ -1183,6 +1211,74 @@
         updateLicenseSummary();
       }
     });
+
+    async function loadBillingOverview() {
+      const tbody = document.getElementById("billingOverviewTable");
+
+      if (!tbody) return;
+
+      tbody.innerHTML = `
+    <tr>
+      <td colspan="8" class="empty">Cargando billing overview...</td>
+    </tr>
+  `;
+
+      const res = await fetch("/admin/billing/overview", {
+        headers: authHeaders()
+      });
+
+      const data = await res.json().catch(() => ([]));
+
+      if (!res.ok) {
+        tbody.innerHTML = `
+      <tr>
+        <td colspan="8" class="empty">No se pudo cargar billing overview: ${data.detail || res.status}</td>
+      </tr>
+    `;
+        return;
+      }
+
+      if (!data.length) {
+        tbody.innerHTML = `
+      <tr>
+        <td colspan="8" class="empty">No hay empresas para mostrar.</td>
+      </tr>
+    `;
+        return;
+      }
+
+      tbody.innerHTML = data.map(item => {
+        const maxUsers = item.limits?.max_users ?? "Unlimited";
+        const maxIntegrations = item.limits?.max_integrations ?? "Unlimited";
+
+        return `
+      <tr>
+        <td>${item.company_id} - ${item.company_name}</td>
+        <td>${item.plan_label || item.plan || "-"}</td>
+        <td>${item.subscription_status || "-"}</td>
+        <td>${licenseStatusLabel(item.license_status)}</td>
+        <td>${formatDateInput(item.plan_expires_at) || "-"}</td>
+        <td>${item.days_remaining ?? "-"}</td>
+        <td>${item.usage?.users ?? 0}/${maxUsers}</td>
+        <td>${item.usage?.integrations ?? 0}/${maxIntegrations}</td>
+      </tr>
+    `;
+      }).join("");
+    }
+
+    function licenseStatusLabel(status) {
+      const labels = {
+        internal_unlimited: "Internal Unlimited",
+        active: "Active",
+        expiring_soon: "Expiring Soon",
+        expired: "Expired",
+        missing_license_dates: "Missing Dates",
+        license_not_required: "License Not Required"
+      };
+
+      return labels[status] || status || "-";
+    }
+
 
     initAdminPage();
   </script>

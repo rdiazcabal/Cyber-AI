@@ -563,6 +563,89 @@ def update_company_plan(
         "plan_expires_at": company.plan_expires_at,
     }
 
+@app.get("/admin/billing/overview")
+def admin_billing_overview(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    companies = db.query(Company).order_by(Company.name.asc()).all()
+
+    now = datetime.utcnow()
+    result = []
+
+    for company in companies:
+        plan_name = company.plan or "starter"
+        plan = PLAN_LIMITS.get(plan_name, PLAN_LIMITS["starter"])
+
+        users_count = (
+            db.query(User)
+            .filter(User.company_id == company.id)
+            .count()
+        )
+
+        integrations_count = (
+            db.query(CloudIntegration)
+            .filter(CloudIntegration.company_id == company.id)
+            .count()
+        )
+
+        is_internal_unlimited = company.id == 1
+
+        if is_internal_unlimited:
+            license_status = "internal_unlimited"
+            days_remaining = None
+            max_users = None
+            max_integrations = None
+            plan_label = "Internal Unlimited"
+        else:
+            max_users = plan["max_users"]
+            max_integrations = plan["max_integrations"]
+            plan_label = plan["label"]
+
+            if not company.license_required:
+                license_status = "license_not_required"
+                days_remaining = None
+            elif not company.plan_expires_at:
+                license_status = "missing_license_dates"
+                days_remaining = None
+            else:
+                days_remaining = (company.plan_expires_at - now).days
+
+                if days_remaining < 0:
+                    license_status = "expired"
+                elif days_remaining <= 30:
+                    license_status = "expiring_soon"
+                else:
+                    license_status = "active"
+
+        result.append({
+            "company_id": company.id,
+            "company_name": company.name,
+            "is_active": company.is_active,
+
+            "plan": "internal_unlimited" if is_internal_unlimited else plan_name,
+            "plan_label": plan_label,
+            "subscription_status": "active" if is_internal_unlimited else company.subscription_status,
+            "billing_email": company.billing_email,
+
+            "license_required": False if is_internal_unlimited else company.license_required,
+            "license_status": license_status,
+            "plan_started_at": str(company.plan_started_at) if company.plan_started_at else None,
+            "plan_expires_at": str(company.plan_expires_at) if company.plan_expires_at else None,
+            "days_remaining": days_remaining,
+
+            "usage": {
+                "users": users_count,
+                "integrations": integrations_count,
+            },
+            "limits": {
+                "max_users": max_users,
+                "max_integrations": max_integrations,
+            },
+        })
+
+    return result
+
 @app.get("/admin/users")
 def admin_list_users(
     db: Session = Depends(get_db),

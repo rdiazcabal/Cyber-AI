@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SecuRI | Security Operations</title>
+  <title>SecuRI | Operacionde de Seguridad</title>
 
   <style>
     :root {
@@ -1001,6 +1001,14 @@
       </a>
 
       <div class="nav-title">Admin</div>
+      <a class="nav-item" id="billingPlanNav" href="javascript:void(0)" onclick="showBillingPlan()">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+          <path d="M3 10h18"></path>
+          <path d="M7 15h4"></path>
+        </svg>
+        <span>Plan/ Facturación</span>
+      </a>
 
       <a class="nav-item hidden" id="companySettingsNav" href="javascript:void(0)" onclick="showCompanySettings()">
         <svg class="nav-icon" viewBox="0 0 24 24">
@@ -1009,16 +1017,9 @@
             d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z">
           </path>
         </svg>
-        <span>Company Settings</span>
+        <span>Opciones de Empresa</span>
       </a>
-      <a class="nav-item" id="billingPlanNav" href="javascript:void(0)" onclick="showBillingPlan()">
-        <svg class="nav-icon" viewBox="0 0 24 24">
-          <rect x="3" y="5" width="18" height="14" rx="2"></rect>
-          <path d="M3 10h18"></path>
-          <path d="M7 15h4"></path>
-        </svg>
-        <span>Billing / Plan</span>
-      </a>
+
       <a class="nav-item hidden" id="navUsuarios" href="/admin">
         <svg class="nav-icon" viewBox="0 0 24 24">
           <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
@@ -1037,8 +1038,9 @@
           <path d="M8 17h8"></path>
           <path d="M8 9h2"></path>
         </svg>
-        <span>Audit Logs</span>
+        <span>Log de Auditoria</span>
       </a>
+
       <a class="nav-item hidden" id="integrationsNav" href="javascript:void(0)" onclick="showIntegrations()">
         <svg class="nav-icon" viewBox="0 0 24 24">
           <path d="M12 3v6"></path>
@@ -1050,7 +1052,7 @@
           <path d="M5.6 18.4l4.2-4.2"></path>
           <path d="M14.2 9.8l4.2-4.2"></path>
         </svg>
-        <span>Cloud Integrations</span>
+        <span>Integraciones Cloud</span>
       </a>
 
       <a class="nav-item hidden" id="alertRulesNav" href="javascript:void(0)" onclick="showAlertRules()">
@@ -1058,7 +1060,7 @@
           <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
           <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
         </svg>
-        <span>Alert Rules</span>
+        <span>Reglas de Alertas</span>
       </a>
 
       <div class="nav-item" id="sessionUser">
@@ -1078,8 +1080,9 @@
 
         <div class="header">
           <div>
-            <h1>SecuRi Security Dashboard</h1>
-            <p>Multi-cloud SOC correlation · Threat Intelligence · ML anomaly detection · MITRE ATT&CK</p>
+            <h1>SecuRi Panel de Monitoreo</h1>
+            <p>Correlación SOC multi-nube · Inteligencia de amenazas · Detección de anomalías mediante aprendizaje
+              automático · MITRE ATT&CK</p>
           </div>
           <div class="api-status">
             <span class="pulse"></span> API Online
@@ -1132,7 +1135,7 @@
 
           <div class="grid">
             <div class="panel">
-              <h3>Input Security Events</h3>
+              <h3>Eventos de Seguridad</h3>
               <div class="panel-subtitle">
                 Pega eventos JSON o carga archivos.
               </div>
@@ -1145,19 +1148,19 @@
               </div>
 
               <div class="actions">
-                <button class="secondary" onclick="loadSample()">Load Sample</button>
-                <button class="secondary" onclick="clearInput()">Clear</button>
-                <button class="secondary" onclick="uploadAnalyze()">Upload & Analyze</button>
-                <button onclick="analyze()">Analyze</button>
+                <button class="secondary" onclick="loadSample()">Cargar muestra</button>
+                <button class="secondary" onclick="clearInput()">Limpiar</button>
+                <button class="secondary" onclick="uploadAnalyze()">Subir y Analizar</button>
+                <button onclick="analyze()">Analizar</button>
               </div>
 
               <div id="statusLine" class="status-line">
-                Waiting for analysis...
+                Esperando análisis...
               </div>
             </div>
 
             <div class="panel">
-              <h3>Attack Timeline</h3>
+              <h3>Timeline de Ataque</h3>
               <div id="timeline" class="empty">
                 No timeline data yet.
               </div>
@@ -1165,42 +1168,42 @@
           </div>
 
           <div class="panel">
-            <h3>Incident Summary</h3>
+            <h3>Resumen de Incidentes</h3>
             <div id="incidentPanel" class="empty">
               No incident detected yet.
             </div>
           </div>
 
           <div class="panel">
-            <h3>Detection Feed</h3>
+            <h3>Feed de Detección</h3>
             <div id="detectionPanel" class="empty">
               No detections yet.
             </div>
           </div>
 
           <div class="panel">
-            <h3>MITRE Coverage</h3>
+            <h3>Cobertura MITRE</h3>
             <div id="mitrePanel" class="empty">
               No MITRE coverage yet.
             </div>
           </div>
 
           <div class="panel">
-            <h3>Detected Patterns</h3>
+            <h3>Patrones Detectados</h3>
             <div id="patternsPanel" class="empty">
               No patterns detected yet.
             </div>
           </div>
 
           <div class="panel">
-            <h3>Indicators of Compromise</h3>
+            <h3>Indicadores de Compromiso</h3>
             <div id="iocPanel" class="empty">
               No IOCs extracted yet.
             </div>
           </div>
 
           <div class="panel">
-            <h3>Threat Intelligence</h3>
+            <h3>Inteligencia de Amenazas</h3>
             <div id="threatIntelPanel" class="empty">
               No threat intelligence data available.
             </div>

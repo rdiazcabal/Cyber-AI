@@ -458,6 +458,96 @@
               </table>
             </div>
           </div>
+          <div id="companiesSection" class="hidden">
+            <div class="grid">
+              <div>
+                <h3>Empresas / Licencias</h3>
+                <div class="panel-subtitle">
+                  Crea empresas y administra planes SaaS con vigencia de licencia.
+                </div>
+
+                <div class="input-row">
+                  <label>Empresa existente</label>
+                  <select id="companyAdminSelect" onchange="selectCompanyForEdit()"></select>
+                </div>
+
+                <div class="input-row">
+                  <label>Nombre de empresa</label>
+                  <input id="companyNameAdmin" placeholder="Nombre de la empresa">
+                </div>
+
+                <div class="input-row">
+                  <label>Plan</label>
+                  <select id="companyPlan">
+                    <option value="starter">Starter</option>
+                    <option value="professional">Professional</option>
+                    <option value="business">Business</option>
+                    <option value="enterprise">Enterprise</option>
+                  </select>
+                </div>
+
+                <div class="input-row">
+                  <label>Estado de suscripción</label>
+                  <select id="companySubscriptionStatus">
+                    <option value="active">Active</option>
+                    <option value="trial">Trial</option>
+                    <option value="past_due">Past Due</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+
+                <div class="input-row">
+                  <label>Billing Email</label>
+                  <input id="companyBillingEmail" type="email" placeholder="billing@empresa.com">
+                </div>
+
+                <div class="input-row">
+                  <label>Inicio de licencia</label>
+                  <input id="companyPlanStartedAt" type="date">
+                </div>
+
+                <div class="input-row">
+                  <label>Expiración de licencia</label>
+                  <input id="companyPlanExpiresAt" type="date">
+                </div>
+
+                <div id="companyLicenseSummary" class="card-note">
+                  Selecciona una empresa para ver la licencia.
+                </div>
+
+                <button onclick="createCompanyFromAdmin()">Crear empresa</button>
+                <button class="secondary" onclick="saveCompanyPlanLicense()">Guardar plan/licencia</button>
+
+                <div id="companyAdminStatus" class="status-line"></div>
+              </div>
+
+              <div>
+                <h3>Listado de empresas</h3>
+                <div class="panel-subtitle">
+                  La empresa ID 1 no requiere licencia. Las demás requieren vigencia entre 180 y 365 días.
+                </div>
+
+                <table class="user-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Empresa</th>
+                      <th>Plan</th>
+                      <th>Estado</th>
+                      <th>Licencia</th>
+                      <th>Expira</th>
+                    </tr>
+                  </thead>
+                  <tbody id="companiesTable">
+                    <tr>
+                      <td colspan="6" class="empty">Cargando empresas...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
     </main>
   </div>
@@ -852,7 +942,7 @@
         return;
       }
 
-      document.getElementById("adminStatus").innerText = "Usuario eliminado.";
+      document.getElementById("adminStatus").innerText = "Usuario desactivado correctamente.";
       await loadUsers();
     }
     async function changeUserPassword(id, username) {

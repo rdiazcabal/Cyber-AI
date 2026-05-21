@@ -751,23 +751,45 @@ def admin_delete_user(
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot delete your own account")
 
+    # Soft delete: avoid FK errors with audit logs, cases, notes, sync runs, etc.
+    old_username = user.username
+    old_role = user.role
+    old_company_id = user.company_id
+
+    user.is_active = False
+    user.failed_login_attempts = 0
+    user.locked_until = None
+
+    # Keep username unique but mark it as deleted
+    user.username = f"deleted_user_{user.id}_{int(datetime.utcnow().timestamp())}"
+
+    # Optional cleanup of personal visible fields
+    user.full_name = "Deleted User"
 
     audit_action(
-    db=db,
-    current_user=current_user,
-    action="DELETE_USER",
-    resource_type="user",
-    resource_id=user.id,
-    details={
-        "username": user.username,
-        "role": user.role,
-        "company_id": user.company_id,
-    },
+        db=db,
+        current_user=current_user,
+        action="DELETE_USER",
+        resource_type="user",
+        resource_id=user.id,
+        details={
+            "deleted_user_id": user.id,
+            "old_username": old_username,
+            "old_role": old_role,
+            "old_company_id": old_company_id,
+            "soft_delete": True,
+        },
     )
-    db.delete(user)
-    db.commit()
 
-    return {"message": "User deleted", "id": user_id}
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "message": "User disabled and anonymized",
+        "id": user.id,
+        "old_username": old_username,
+        "is_active": user.is_active,
+    }
 
 @app.get("/")
 def home():

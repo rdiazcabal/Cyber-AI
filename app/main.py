@@ -1,4 +1,3 @@
-from app.main import is_internal_unlimited
 from app import pdf_report
 import json
 

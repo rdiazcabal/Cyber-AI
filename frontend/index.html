@@ -900,11 +900,11 @@
       </div>
       <div class="input-row">
         <label>Usuario</label>
-        <input id="loginUsername" placeholder="Escribe tu usuario asignado">
+        <input id="loginUsername" autocomplete="off" placeholder="Escribe tu usuario asignado">
       </div>
       <div class="input-row">
         <label>Contraseña</label>
-        <input id="loginPassword" type="password" placeholder="Escribe tu contraseña">
+        <input id="loginPassword" autocomplete="off" type="password" placeholder="Escribe tu contraseña">
       </div>
       <button onclick="handleLogin()">Iniciar sesión</button>
       <div id="loginStatus" class="status-line">Esperando autenticación...</div>
@@ -3705,41 +3705,63 @@
     }
 
     async function handleLogin() {
-      const username = document.getElementById("loginUsername").value;
-      const password = document.getElementById("loginPassword").value;
+      const usernameInput = document.getElementById("loginUsername");
+      const passwordInput = document.getElementById("loginPassword");
+      const status = document.getElementById("loginStatus");
+
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
 
       const form = new URLSearchParams();
       form.append("username", username);
       form.append("password", password);
 
-      const res = await fetch("/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: form
-      });
+      try {
+        const res = await fetch("/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: form
+        });
 
-      if (!res.ok) {
-        document.getElementById("loginStatus").innerText = "Credenciales inválidas.";
-        return;
+        if (!res.ok) {
+          clearSessionData();
+          status.innerText = "Credenciales inválidas.";
+          return;
+        }
+
+        const data = await res.json();
+
+        authToken = data.access_token;
+
+        const expiresInMinutes = Number(data.expires_in_minutes || 30);
+        const expiresAt = Date.now() + expiresInMinutes * 60 * 1000;
+
+        localStorage.setItem("cyberToken", authToken);
+        localStorage.setItem("cyberTokenExpiresAt", String(expiresAt));
+
+        // Limpia contraseña visible del formulario
+        passwordInput.value = "";
+
+        status.innerText = "Autenticación exitosa.";
+
+        await loadSession();
+
+      } catch (err) {
+        clearSessionData();
+        status.innerText = `Error de autenticación: ${err.message}`;
       }
-
-      const data = await res.json();
-      authToken = data.access_token;
-      localStorage.setItem("cyberToken", authToken);
-      document.getElementById("loginStatus").innerText = "Autenticación exitosa.";
-
-      await loadSession();
     }
 
     function logout() {
-      authToken = "";
-      currentUser = null;
-      localStorage.removeItem("cyberToken");
+      clearSessionData();
       showLoginView();
     }
 
     async function loadSession() {
-      if (!authToken) {
+      const tokenExpiresAt = Number(localStorage.getItem("cyberTokenExpiresAt") || "0");
+
+      if (!authToken || !tokenExpiresAt || Date.now() >= tokenExpiresAt) {
+        clearSessionData();
         showLoginView();
         return;
       }
@@ -3815,6 +3837,38 @@
       showAppView();
       showDashboard();
       await loadReports();
+    }
+
+    function clearSessionData() {
+      authToken = null;
+      currentUser = null;
+      currentPlan = null;
+
+      localStorage.removeItem("cyberToken");
+      localStorage.removeItem("cyberTokenExpiresAt");
+      sessionStorage.clear();
+
+      const usernameFields = [
+        "username",
+        "loginUsername",
+        "adminUsername"
+      ];
+
+      const passwordFields = [
+        "password",
+        "loginPassword",
+        "adminPassword"
+      ];
+
+      usernameFields.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+      });
+
+      passwordFields.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+      });
     }
 
     function loadSample() {

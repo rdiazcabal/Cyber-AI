@@ -172,6 +172,7 @@ def login(
     return {
         "access_token": token,
         "token_type": "bearer",
+        "expires_in_minutes": int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")),
         "user": {
             "id": authenticated_user.id,
             "username": authenticated_user.username,
@@ -1998,6 +1999,9 @@ def list_audit_logs(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
+    # SaaS plan: Audit Logs lock
+    require_plan_feature(db, current_user, "audit_logs")
+
     query = db.query(AuditLog)
 
     if current_user.role != "super_admin":
@@ -2699,6 +2703,9 @@ def list_alert_rules(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
+    # SaaS plan: Alert Rules lock
+    require_plan_feature(db, current_user, "alert_rules")
+
     query = db.query(AlertRule)
 
     if current_user.role != "super_admin":
@@ -2738,6 +2745,9 @@ def create_alert_rule(
     current_user: User = Depends(require_admin)
 ):
     from datetime import datetime
+
+    # SaaS plan: Alert Rules lock
+    require_plan_feature(db, current_user, "alert_rules")
 
     name = (payload.get("name") or "").strip()
     if len(name) < 2:
@@ -2831,6 +2841,9 @@ def update_alert_rule(
 ):
     from datetime import datetime
 
+    # SaaS plan: Alert Rules lock
+    require_plan_feature(db, current_user, "alert_rules")
+
     query = db.query(AlertRule).filter(AlertRule.id == rule_id)
 
     if current_user.role != "super_admin":
@@ -2919,6 +2932,9 @@ def delete_alert_rule(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
+    # SaaS plan: Alert Rules lock
+    require_plan_feature(db, current_user, "alert_rules")
+
     query = db.query(AlertRule).filter(AlertRule.id == rule_id)
 
     if current_user.role != "super_admin":

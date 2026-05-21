@@ -16,6 +16,9 @@ class Company(Base):
     max_integrations = Column(Integer, default=0, nullable=False)
     billing_email = Column(String(255), nullable=True)
     trial_ends_at = Column(DateTime, nullable=True)
+    plan_started_at = Column(DateTime, nullable=True)
+    plan_expires_at = Column(DateTime, nullable=True)
+    license_required = Column(Boolean, default=True, nullable=False)
 
 
 class AnalysisReport(Base):

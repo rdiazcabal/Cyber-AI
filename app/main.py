@@ -214,10 +214,42 @@ def get_company_subscription(db: Session, company_id: int):
     if not plan:
         raise HTTPException(status_code=400, detail="Invalid company plan")
 
+    # Company ID 1 is internal and does not require license validation
+    if company.id == 1 or company.license_required is False:
+        return company, plan_name, plan
+
     if company.subscription_status not in ["active", "trial"]:
         raise HTTPException(
             status_code=402,
             detail=f"Subscription is {company.subscription_status}"
+        )
+
+    if not company.plan_started_at or not company.plan_expires_at:
+        raise HTTPException(
+            status_code=402,
+            detail="Company license dates are required"
+        )
+
+    now = datetime.utcnow()
+
+    if company.plan_expires_at <= now:
+        raise HTTPException(
+            status_code=402,
+            detail="Company license has expired"
+        )
+
+    duration_days = (company.plan_expires_at - company.plan_started_at).days
+
+    if duration_days < 180:
+        raise HTTPException(
+            status_code=400,
+            detail="Plan validity must be at least 6 months"
+        )
+
+    if duration_days > 365:
+        raise HTTPException(
+            status_code=400,
+            detail="Plan validity cannot exceed 1 year"
         )
 
     return company, plan_name, plan
@@ -366,6 +398,9 @@ def get_billing_plan(
         "subscription_status": company.subscription_status,
         "billing_email": company.billing_email,
         "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,
+        "license_required": company.license_required,
+        "plan_started_at": str(company.plan_started_at) if company.plan_started_at else None,
+        "plan_expires_at": str(company.plan_expires_at) if company.plan_expires_at else None,
         "usage": {
             "users": users_count,
             "integrations": integrations_count,
@@ -410,6 +445,55 @@ def update_company_plan(
     if "billing_email" in payload:
         company.billing_email = payload.get("billing_email")
 
+    # Company 1 is internal and does not require license
+    if company.id == 1:
+        company.license_required = False
+        company.plan_started_at = None
+        company.plan_expires_at = None
+    else:
+        company.license_required = True
+
+        started_raw = payload.get("plan_started_at")
+        expires_raw = payload.get("plan_expires_at")
+
+        if not started_raw or not expires_raw:
+            raise HTTPException(
+                status_code=400,
+                detail="plan_started_at and plan_expires_at are required for licensed companies"
+            )
+
+        try:
+            plan_started_at = datetime.fromisoformat(started_raw.replace("Z", "+00:00")).replace(tzinfo=None)
+            plan_expires_at = datetime.fromisoformat(expires_raw.replace("Z", "+00:00")).replace(tzinfo=None)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid date format. Use ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS"
+            )
+
+        if plan_expires_at <= plan_started_at:
+            raise HTTPException(
+                status_code=400,
+                detail="plan_expires_at must be after plan_started_at"
+            )
+
+        duration_days = (plan_expires_at - plan_started_at).days
+
+        if duration_days < 180:
+            raise HTTPException(
+                status_code=400,
+                detail="Plan validity must be at least 6 months"
+            )
+
+        if duration_days > 365:
+            raise HTTPException(
+                status_code=400,
+                detail="Plan validity cannot exceed 1 year"
+            )
+
+        company.plan_started_at = plan_started_at
+        company.plan_expires_at = plan_expires_at
+
     db.commit()
     db.refresh(company)
 
@@ -427,6 +511,9 @@ def update_company_plan(
             "max_users": company.max_users,
             "max_integrations": company.max_integrations,
             "billing_email": company.billing_email,
+            "license_required": company.license_required,
+            "plan_started_at": str(company.plan_started_at) if company.plan_started_at else None,
+            "plan_expires_at": str(company.plan_expires_at) if company.plan_expires_at else None,
         },
     )
 
@@ -438,6 +525,9 @@ def update_company_plan(
         "max_users": company.max_users,
         "max_integrations": company.max_integrations,
         "billing_email": company.billing_email,
+        "license_required": company.license_required,
+        "plan_started_at": company.plan_started_at,
+        "plan_expires_at": company.plan_expires_at,
     }
 
 @app.get("/admin/users")

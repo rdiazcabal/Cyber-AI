@@ -325,8 +325,11 @@ def admin_list_companies(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    if current_user.role == "super_admin":
+    # Master Super Admin: company_id 1 can see all companies
+    if current_user.role == "super_admin" and current_user.company_id == 1:
         companies = db.query(Company).order_by(Company.name.asc()).all()
+
+    # Client Super Admin / Company Admin: only own company
     else:
         companies = (
             db.query(Company)
@@ -342,14 +345,12 @@ def admin_list_companies(
             "is_active": company.is_active,
             "created_at": company.created_at,
 
-            # SaaS plan fields
             "plan": company.plan,
             "subscription_status": company.subscription_status,
             "max_users": company.max_users,
             "max_integrations": company.max_integrations,
             "billing_email": company.billing_email,
 
-            # License fields
             "license_required": company.license_required,
             "plan_started_at": str(company.plan_started_at) if company.plan_started_at else None,
             "plan_expires_at": str(company.plan_expires_at) if company.plan_expires_at else None,
@@ -364,6 +365,8 @@ def admin_create_company(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_super_admin),
 ):
+    require_master_company(current_user)
+
     name = (payload.get("name") or "").strip()
 
     if len(name) < 2:

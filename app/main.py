@@ -1,3 +1,4 @@
+from app.main import is_internal_unlimited
 from app import pdf_report
 import json
 
@@ -260,6 +261,10 @@ def require_plan_feature(db: Session, current_user: User, feature: str):
         company_id=current_user.company_id,
     )
 
+    # Company ID 1 is internal and has all features enabled
+    if company.id == 1:
+        return company, "internal_unlimited", plan
+
     if not plan["features"].get(feature, False):
         raise HTTPException(
             status_code=403,
@@ -270,6 +275,10 @@ def require_plan_feature(db: Session, current_user: User, feature: str):
 
 def enforce_user_limit(db: Session, company_id: int):
     company, plan_name, plan = get_company_subscription(db, company_id)
+
+    # Company ID 1 is internal and has unlimited users
+    if company.id == 1:
+        return
 
     users_count = (
         db.query(User)
@@ -285,6 +294,10 @@ def enforce_user_limit(db: Session, company_id: int):
 
 def enforce_integration_limit(db: Session, company_id: int):
     company, plan_name, plan = get_company_subscription(db, company_id)
+
+    # Company ID 1 is internal and has unlimited integrations
+    if company.id == 1:
+        return
 
     integrations_count = (
         db.query(CloudIntegration)
@@ -403,15 +416,22 @@ def get_billing_plan(
         .count()
     )
 
+    is_internal_unlimited = company.id == 1
+
+    features = plan["features"]
+
+    if is_internal_unlimited:
+        features = {key: True for key in plan["features"].keys()}
+
     return {
         "company_id": company.id,
         "company_name": company.name,
-        "plan": plan_name,
-        "plan_label": plan["label"],
-        "subscription_status": company.subscription_status,
+        "plan": "internal_unlimited" if is_internal_unlimited else plan_name,
+        "plan_label": "Internal Unlimited" if is_internal_unlimited else plan["label"],
+        "subscription_status": "active" if is_internal_unlimited else company.subscription_status,
         "billing_email": company.billing_email,
         "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,
-        "license_required": company.license_required,
+        "license_required": False if is_internal_unlimited else company.license_required,
         "plan_started_at": str(company.plan_started_at) if company.plan_started_at else None,
         "plan_expires_at": str(company.plan_expires_at) if company.plan_expires_at else None,
         "usage": {
@@ -419,10 +439,10 @@ def get_billing_plan(
             "integrations": integrations_count,
         },
         "limits": {
-            "max_users": plan["max_users"],
-            "max_integrations": plan["max_integrations"],
+            "max_users": None if is_internal_unlimited else plan["max_users"],
+            "max_integrations": None if is_internal_unlimited else plan["max_integrations"],
         },
-        "features": plan["features"],
+        "features": features,
     }
 
 @app.put("/admin/companies/{company_id}/plan")

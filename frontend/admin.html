@@ -706,35 +706,50 @@
       const companiesNav = document.getElementById("companiesNav");
       const billingOverviewNav = document.getElementById("billingOverviewNav");
 
-      if (currentUser.role === "super_admin") {
+      const isMasterSuperAdmin =
+        currentUser.role === "super_admin" && Number(currentUser.company_id) === 1;
+
+      if (isMasterSuperAdmin) {
         roleSelect.innerHTML = `
-          <option value="analyst">Analista</option>
-          <option value="company_admin">Admin de empresa</option>
-          <option value="super_admin">Super Admin</option>
-        `;
+      <option value="analyst">Analista</option>
+      <option value="company_admin">Admin de empresa</option>
+      <option value="super_admin">Super Admin</option>
+    `;
 
         superAdminNote.classList.remove("hidden");
         companyAdminNote.classList.add("hidden");
 
-        if (currentUser.company_id === 1) {
-          if (companiesNav) companiesNav.classList.remove("hidden");
-          if (billingOverviewNav) billingOverviewNav.classList.remove("hidden");
-        } else {
-          if (companiesNav) companiesNav.classList.add("hidden");
-          if (billingOverviewNav) billingOverviewNav.classList.add("hidden");
-        }
-      } else {
-        roleSelect.innerHTML = `
-          <option value="analyst">Analista</option>
-          <option value="company_admin">Admin de empresa</option>
-        `;
+        if (companiesNav) companiesNav.classList.remove("hidden");
+        if (billingOverviewNav) billingOverviewNav.classList.remove("hidden");
 
-        superAdminNote.classList.add("hidden");
-        companyAdminNote.classList.remove("hidden");
+        return;
+      }
+
+      if (currentUser.role === "super_admin") {
+        roleSelect.innerHTML = `
+      <option value="analyst">Analista</option>
+      <option value="company_admin">Admin de empresa</option>
+    `;
+
+        superAdminNote.classList.remove("hidden");
+        companyAdminNote.classList.add("hidden");
 
         if (companiesNav) companiesNav.classList.add("hidden");
         if (billingOverviewNav) billingOverviewNav.classList.add("hidden");
+
+        return;
       }
+
+      roleSelect.innerHTML = `
+    <option value="analyst">Analista</option>
+    <option value="company_admin">Admin de empresa</option>
+  `;
+
+      superAdminNote.classList.add("hidden");
+      companyAdminNote.classList.remove("hidden");
+
+      if (companiesNav) companiesNav.classList.add("hidden");
+      if (billingOverviewNav) billingOverviewNav.classList.add("hidden");
     }
 
     async function loadUsers() {

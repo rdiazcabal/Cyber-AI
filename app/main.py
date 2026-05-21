@@ -146,13 +146,99 @@ def login(
 
         raise HTTPException(status_code=403, detail="User is inactive")
 
+    company = None
+    if authenticated_user.company_id:
+        company = (
+            db.query(Company)
+            .filter(Company.id == authenticated_user.company_id)
+            .first()
+        )
+
+    # Company/license validation before issuing token.
+    # Company ID 1 is the internal/master company and is never blocked by license.
+    if company and company.id != 1:
+        if not company.is_active:
+            audit_login_event(
+                db=db,
+                request=request,
+                action="LOGIN_BLOCKED",
+                username=authenticated_user.username,
+                user=authenticated_user,
+                details={
+                    "reason": "Company is inactive",
+                    "company_id": company.id,
+                    "company_name": company.name,
+                }
+            )
+
+            raise HTTPException(
+                status_code=403,
+                detail="Company is inactive"
+            )
+
+        if company.subscription_status not in ["active", "trial"]:
+            audit_login_event(
+                db=db,
+                request=request,
+                action="LOGIN_BLOCKED",
+                username=authenticated_user.username,
+                user=authenticated_user,
+                details={
+                    "reason": f"Subscription is {company.subscription_status}",
+                    "company_id": company.id,
+                    "company_name": company.name,
+                    "subscription_status": company.subscription_status,
+                }
+            )
+
+            raise HTTPException(
+                status_code=402,
+                detail=f"Subscription is {company.subscription_status}"
+            )
+
+        if company.license_required:
+            if not company.plan_expires_at:
+                audit_login_event(
+                    db=db,
+                    request=request,
+                    action="LOGIN_BLOCKED",
+                    username=authenticated_user.username,
+                    user=authenticated_user,
+                    details={
+                        "reason": "Company license is missing",
+                        "company_id": company.id,
+                        "company_name": company.name,
+                    }
+                )
+
+                raise HTTPException(
+                    status_code=402,
+                    detail="Company license is missing"
+                )
+
+            if company.plan_expires_at <= datetime.utcnow():
+                audit_login_event(
+                    db=db,
+                    request=request,
+                    action="LOGIN_BLOCKED",
+                    username=authenticated_user.username,
+                    user=authenticated_user,
+                    details={
+                        "reason": "Company license has expired",
+                        "company_id": company.id,
+                        "company_name": company.name,
+                        "plan_expires_at": str(company.plan_expires_at),
+                    }
+                )
+
+                raise HTTPException(
+                    status_code=402,
+                    detail="Company license has expired"
+                )
+
     authenticated_user.failed_login_attempts = 0
     authenticated_user.locked_until = None
     db.commit()
-
-    company = None
-    if authenticated_user.company_id:
-        company = db.query(Company).filter(Company.id == authenticated_user.company_id).first()
 
     token = create_access_token({"sub": authenticated_user.username})
 
@@ -166,6 +252,7 @@ def login(
             "username": authenticated_user.username,
             "role": authenticated_user.role,
             "company_id": authenticated_user.company_id,
+            "company_name": company.name if company else None,
         }
     )
 
@@ -876,6 +963,13 @@ def admin_create_user(
     if role not in allowed_roles:
         raise HTTPException(status_code=400, detail="Invalid role")
 
+    # Only master company can create super_admin users
+    if role == "super_admin" and current_user.company_id != 1:
+        raise HTTPException(
+            status_code=403,
+            detail="Only master company can create super admin users"
+        )    
+
     if current_user.role != "super_admin" and role == "super_admin":
         raise HTTPException(status_code=403, detail="Company admin cannot create super admin")
 
@@ -967,6 +1061,13 @@ def admin_update_user(
 
         if new_role not in ["analyst", "company_admin", "super_admin"]:
             raise HTTPException(status_code=400, detail="Invalid role")
+
+        # Only master company can assign super_admin role
+        if new_role == "super_admin" and current_user.company_id != 1:
+            raise HTTPException(
+                status_code=403,
+                detail="Only master company can assign super admin role"
+            )
 
         if current_user.role != "super_admin" and new_role == "super_admin":
             raise HTTPException(status_code=403, detail="Company admin cannot assign super admin")

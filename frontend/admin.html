@@ -354,6 +354,7 @@
       <div class="nav-item" id="sessionUser">Cargando sesión...</div>
       <div class="nav-item" id="sessionCompany">Empresa: -</div>
       <div class="nav-item" onclick="showAdminSection('users')">Usuarios</div>
+      <div class="nav-item hidden" id="billingOverviewNav" onclick="showAdminSection('billing')">Billing Overview</div>
       <div class="nav-item hidden" id="companiesNav" onclick="showAdminSection('companies')">Empresas / Licencias</div>
     </aside>
 
@@ -546,7 +547,7 @@
         </div>
 
         <!-- BILLING OVERVIEW SECTION -->
-        <div style="grid-column: 1 / -1; margin-top: 18px;">
+        <div id="billingOverviewSection" class="hidden">
           <h3>Billing Overview</h3>
           <div class="panel-subtitle">
             Vista general de planes, uso, límites y estado de licencias por empresa.
@@ -703,25 +704,36 @@
       const superAdminNote = document.getElementById("superAdminNote");
       const companyAdminNote = document.getElementById("companyAdminNote");
       const companiesNav = document.getElementById("companiesNav");
+      const billingOverviewNav = document.getElementById("billingOverviewNav");
 
       if (currentUser.role === "super_admin") {
         roleSelect.innerHTML = `
-      <option value="analyst">Analista</option>
-      <option value="company_admin">Admin de empresa</option>
-      <option value="super_admin">Super Admin</option>
-    `;
+          <option value="analyst">Analista</option>
+          <option value="company_admin">Admin de empresa</option>
+          <option value="super_admin">Super Admin</option>
+        `;
+
         superAdminNote.classList.remove("hidden");
         companyAdminNote.classList.add("hidden");
-        if (companiesNav) {
-          if (currentUser.company_id === 1) {
-            companiesNav.classList.remove("hidden");
-          } else {
-            companiesNav.classList.add("hidden");
-          }
+
+        if (currentUser.company_id === 1) {
+          if (companiesNav) companiesNav.classList.remove("hidden");
+          if (billingOverviewNav) billingOverviewNav.classList.remove("hidden");
+        } else {
+          if (companiesNav) companiesNav.classList.add("hidden");
+          if (billingOverviewNav) billingOverviewNav.classList.add("hidden");
         }
+      } else {
+        roleSelect.innerHTML = `
+          <option value="analyst">Analista</option>
+          <option value="company_admin">Admin de empresa</option>
+        `;
+
         superAdminNote.classList.add("hidden");
         companyAdminNote.classList.remove("hidden");
+
         if (companiesNav) companiesNav.classList.add("hidden");
+        if (billingOverviewNav) billingOverviewNav.classList.add("hidden");
       }
     }
 
@@ -1003,21 +1015,36 @@
     function showAdminSection(section) {
       const usersSection = document.getElementById("usersSection");
       const companiesSection = document.getElementById("companiesSection");
+      const billingOverviewSection = document.getElementById("billingOverviewSection");
+
+      if (usersSection) usersSection.classList.add("hidden");
+      if (companiesSection) companiesSection.classList.add("hidden");
+      if (billingOverviewSection) billingOverviewSection.classList.add("hidden");
 
       if (section === "companies") {
         if (currentUser.role !== "super_admin" || currentUser.company_id !== 1) {
-          document.getElementById("adminStatus").innerText = "Solo Super Admin de la compañía master puede administrar empresas y licencias.";
+          document.getElementById("adminStatus").innerText =
+            "Solo Super Admin de la compañía master puede administrar empresas y licencias.";
           return;
         }
 
-        usersSection.classList.add("hidden");
         companiesSection.classList.remove("hidden");
         renderCompaniesAdmin();
+        return;
+      }
+
+      if (section === "billing") {
+        if (currentUser.role !== "super_admin" || currentUser.company_id !== 1) {
+          document.getElementById("adminStatus").innerText =
+            "Solo Super Admin de la compañía master puede ver Billing Overview.";
+          return;
+        }
+
+        billingOverviewSection.classList.remove("hidden");
         loadBillingOverview();
         return;
       }
 
-      companiesSection.classList.add("hidden");
       usersSection.classList.remove("hidden");
     }
 

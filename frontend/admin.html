@@ -712,12 +712,13 @@
     `;
         superAdminNote.classList.remove("hidden");
         companyAdminNote.classList.add("hidden");
-        if (companiesNav) companiesNav.classList.remove("hidden");
-      } else {
-        roleSelect.innerHTML = `
-      <option value="analyst">Analista</option>
-      <option value="company_admin">Admin de empresa</option>
-    `;
+        if (companiesNav) {
+          if (currentUser.company_id === 1) {
+            companiesNav.classList.remove("hidden");
+          } else {
+            companiesNav.classList.add("hidden");
+          }
+        }
         superAdminNote.classList.add("hidden");
         companyAdminNote.classList.remove("hidden");
         if (companiesNav) companiesNav.classList.add("hidden");
@@ -1004,8 +1005,8 @@
       const companiesSection = document.getElementById("companiesSection");
 
       if (section === "companies") {
-        if (currentUser.role !== "super_admin") {
-          document.getElementById("adminStatus").innerText = "Solo Super Admin puede administrar empresas.";
+        if (currentUser.role !== "super_admin" || currentUser.company_id !== 1) {
+          document.getElementById("adminStatus").innerText = "Solo Super Admin de la compañía master puede administrar empresas y licencias.";
           return;
         }
 

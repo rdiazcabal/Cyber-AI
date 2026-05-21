@@ -3868,13 +3868,24 @@
           body: form
         });
 
-        if (!res.ok) {
+        const contentType = res.headers.get("content-type") || "";
+        const rawText = await res.text();
+
+        if (!contentType.includes("application/json")) {
           clearSessionData();
-          status.innerText = "Credenciales inválidas.";
+          status.innerText =
+            `Login endpoint returned non-JSON response. HTTP ${res.status}. Check /auth/login route or deploy.`;
+          console.error("LOGIN RAW RESPONSE:", rawText);
           return;
         }
 
-        const data = await res.json();
+        const data = JSON.parse(rawText);
+
+        if (!res.ok) {
+          clearSessionData();
+          status.innerText = data.detail || "Credenciales inválidas.";
+          return;
+        }
 
         authToken = data.access_token;
 
@@ -3884,9 +3895,7 @@
         localStorage.setItem("cyberToken", authToken);
         localStorage.setItem("cyberTokenExpiresAt", String(expiresAt));
 
-        // Limpia contraseña visible del formulario
         passwordInput.value = "";
-
         status.innerText = "Autenticación exitosa.";
 
         await loadSession();

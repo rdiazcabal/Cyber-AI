@@ -203,6 +203,13 @@ def auth_me(
         "is_active": current_user.is_active,
     }
 
+def require_master_company(current_user: User):
+    if current_user.role != "super_admin" or current_user.company_id != 1:
+        raise HTTPException(
+            status_code=403,
+            detail="Only master company super admin can access this resource"
+        )
+
 def get_company_subscription(db: Session, company_id: int):
     company = db.query(Company).filter(Company.id == company_id).first()
 
@@ -391,6 +398,167 @@ def admin_create_company(
         "is_active": company.is_active,
     }
 
+@app.post("/admin/customers/onboard")
+def onboard_customer(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    require_master_company(current_user)
+
+    company_name = (payload.get("company_name") or "").strip()
+    plan_name = (payload.get("plan") or "starter").strip().lower()
+    subscription_status = (payload.get("subscription_status") or "active").strip().lower()
+    billing_email = (payload.get("billing_email") or "").strip() or None
+
+    admin_username = (payload.get("admin_username") or "").strip()
+    admin_password = payload.get("admin_password") or ""
+    admin_full_name = (payload.get("admin_full_name") or "").strip() or "Company Admin"
+
+    plan_started_at_raw = payload.get("plan_started_at")
+    plan_expires_at_raw = payload.get("plan_expires_at")
+
+    if len(company_name) < 2:
+        raise HTTPException(status_code=400, detail="Company name must have at least 2 characters")
+
+    if plan_name not in PLAN_LIMITS:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+
+    if subscription_status not in ["active", "trial", "past_due", "suspended", "cancelled"]:
+        raise HTTPException(status_code=400, detail="Invalid subscription status")
+
+    if len(admin_username) < 3:
+        raise HTTPException(status_code=400, detail="Admin username must have at least 3 characters")
+
+    validate_password_policy(admin_password)
+
+    existing_user = db.query(User).filter(User.username == admin_username).first()
+    if existing_user:
+        raise HTTPException(status_code=409, detail="Admin username already exists")
+
+    existing_company = db.query(Company).filter(Company.name == company_name).first()
+    if existing_company:
+        raise HTTPException(status_code=409, detail="Company already exists")
+
+    plan = PLAN_LIMITS[plan_name]
+
+    if not plan_started_at_raw or not plan_expires_at_raw:
+        raise HTTPException(
+            status_code=400,
+            detail="plan_started_at and plan_expires_at are required"
+        )
+
+    try:
+        plan_started_at = datetime.fromisoformat(
+            str(plan_started_at_raw).replace("Z", "+00:00")
+        ).replace(tzinfo=None)
+
+        plan_expires_at = datetime.fromisoformat(
+            str(plan_expires_at_raw).replace("Z", "+00:00")
+        ).replace(tzinfo=None)
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS"
+        )
+
+    if plan_expires_at <= plan_started_at:
+        raise HTTPException(
+            status_code=400,
+            detail="plan_expires_at must be after plan_started_at"
+        )
+
+    duration_days = (plan_expires_at - plan_started_at).days
+
+    if duration_days < 180:
+        raise HTTPException(
+            status_code=400,
+            detail="Plan validity must be at least 6 months"
+        )
+
+    if duration_days > 365:
+        raise HTTPException(
+            status_code=400,
+            detail="Plan validity cannot exceed 1 year"
+        )
+
+    company = Company(
+        name=company_name,
+        is_active=True,
+        plan=plan_name,
+        subscription_status=subscription_status,
+        max_users=plan["max_users"],
+        max_integrations=plan["max_integrations"],
+        billing_email=billing_email,
+        license_required=True,
+        plan_started_at=plan_started_at,
+        plan_expires_at=plan_expires_at,
+        trial_ends_at=None,
+    )
+
+    db.add(company)
+    db.flush()
+
+    admin_user = User(
+        username=admin_username,
+        password_hash=hash_password(admin_password),
+        full_name=admin_full_name,
+        role="company_admin",
+        company_id=company.id,
+        is_active=True,
+    )
+
+    db.add(admin_user)
+    db.flush()
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="ONBOARD_CUSTOMER",
+        resource_type="company",
+        resource_id=company.id,
+        details={
+            "company_id": company.id,
+            "company_name": company.name,
+            "plan": company.plan,
+            "subscription_status": company.subscription_status,
+            "billing_email": company.billing_email,
+            "license_required": company.license_required,
+            "plan_started_at": str(company.plan_started_at),
+            "plan_expires_at": str(company.plan_expires_at),
+            "duration_days": duration_days,
+            "admin_user_id": admin_user.id,
+            "admin_username": admin_user.username,
+        },
+    )
+
+    db.commit()
+    db.refresh(company)
+    db.refresh(admin_user)
+
+    return {
+        "message": "Customer onboarded successfully",
+        "company": {
+            "id": company.id,
+            "name": company.name,
+            "plan": company.plan,
+            "subscription_status": company.subscription_status,
+            "billing_email": company.billing_email,
+            "license_required": company.license_required,
+            "plan_started_at": str(company.plan_started_at),
+            "plan_expires_at": str(company.plan_expires_at),
+            "max_users": company.max_users,
+            "max_integrations": company.max_integrations,
+        },
+        "admin_user": {
+            "id": admin_user.id,
+            "username": admin_user.username,
+            "full_name": admin_user.full_name,
+            "role": admin_user.role,
+            "company_id": admin_user.company_id,
+        }
+    }
+
 @app.get("/billing/plan")
 def get_billing_plan(
     db: Session = Depends(get_db),
@@ -452,6 +620,8 @@ def update_company_plan(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_super_admin),
 ):
+    require_master_company(current_user)
+
     company = db.query(Company).filter(Company.id == company_id).first()
 
     if not company:
@@ -568,6 +738,7 @@ def admin_billing_overview(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_super_admin),
 ):
+    require_master_company(current_user)
     companies = db.query(Company).order_by(Company.name.asc()).all()
 
     now = datetime.utcnow()

@@ -319,6 +319,19 @@ def admin_list_companies(
             "name": company.name,
             "is_active": company.is_active,
             "created_at": company.created_at,
+
+            # SaaS plan fields
+            "plan": company.plan,
+            "subscription_status": company.subscription_status,
+            "max_users": company.max_users,
+            "max_integrations": company.max_integrations,
+            "billing_email": company.billing_email,
+
+            # License fields
+            "license_required": company.license_required,
+            "plan_started_at": str(company.plan_started_at) if company.plan_started_at else None,
+            "plan_expires_at": str(company.plan_expires_at) if company.plan_expires_at else None,
+            "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,
         }
         for company in companies
     ]

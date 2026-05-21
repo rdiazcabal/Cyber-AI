@@ -9,13 +9,16 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import User, Company
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-this-secret")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
-ADMIN_USER = os.getenv("ADMIN_USER", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "CyberAI123!")
+ADMIN_USER = os.getenv("ADMIN_USER")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 ADMIN_COMPANY = os.getenv("ADMIN_COMPANY", "Cyber-AI Internal")
+
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY environment variable is required")
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -24,10 +27,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
-
 def verify_password(plain_password: str, password_hash: str) -> bool:
     return pwd_context.verify(plain_password, password_hash)
-
 
 def authenticate_user(db: Session, username: str, password: str):
     user = db.query(User).filter(User.username == username).first()
@@ -40,7 +41,6 @@ def authenticate_user(db: Session, username: str, password: str):
 
     return user
 
-
 def create_access_token(data: dict):
     to_encode = data.copy()
 
@@ -49,7 +49,6 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
 
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
@@ -71,20 +70,21 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-
 def require_super_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != "super_admin":
         raise HTTPException(status_code=403, detail="Super admin role required")
     return current_user
-
 
 def require_admin(current_user: User = Depends(get_current_user)):
     if current_user.role not in ["super_admin", "company_admin"]:
         raise HTTPException(status_code=403, detail="Admin role required")
     return current_user
 
-
 def bootstrap_admin_user():
+    if not ADMIN_USER or not ADMIN_PASSWORD:
+        print("Bootstrap admin skipped: ADMIN_USER or ADMIN_PASSWORD not configured")
+        return
+
     db = SessionLocal()
     try:
         company = db.query(Company).filter(Company.name == ADMIN_COMPANY).first()
@@ -93,6 +93,11 @@ def bootstrap_admin_user():
             company = Company(
                 name=ADMIN_COMPANY,
                 is_active=True,
+                plan="enterprise",
+                subscription_status="active",
+                max_users=999999,
+                max_integrations=999999,
+                license_required=False,
             )
             db.add(company)
             db.commit()
@@ -105,7 +110,7 @@ def bootstrap_admin_user():
                 User(
                     username=ADMIN_USER,
                     password_hash=hash_password(ADMIN_PASSWORD),
-                    full_name="Container Admin",
+                    full_name="Master Admin",
                     role="super_admin",
                     company_id=company.id,
                     is_active=True,
@@ -141,16 +146,13 @@ def bootstrap_admin_user():
 def is_super_admin(user: User) -> bool:
     return user.role == "super_admin"
 
-
 def is_company_admin(user: User) -> bool:
     return user.role == "company_admin"
-
 
 def require_super_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != "super_admin":
         raise HTTPException(status_code=403, detail="Super admin role required")
     return current_user
-
 
 def require_admin_scope(current_user: User = Depends(get_current_user)):
     if current_user.role not in ["super_admin", "company_admin"]:

@@ -54,7 +54,22 @@ from app.auth import (
 )
 from app.pdf_report import generate_pdf_report
 
-app = FastAPI(title="2 Inc CyberPro")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production").lower()
+
+if ENVIRONMENT == "production":
+    app = FastAPI(
+        title="SecuRI",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
+else:
+    app = FastAPI(
+        title="SecuRI",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+    )
 Base.metadata.create_all(bind=engine)
 bootstrap_admin_user()
 

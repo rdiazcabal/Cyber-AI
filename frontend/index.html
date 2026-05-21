@@ -5599,6 +5599,39 @@
       }
     }
 
+    function validateCompanyLicenseForm(companyId, planStartedAt, planExpiresAt) {
+      if (Number(companyId) === 1) {
+        return true;
+      }
+
+      if (!planStartedAt || !planExpiresAt) {
+        alert("Plan start date and expiration date are required.");
+        return false;
+      }
+
+      const start = new Date(planStartedAt);
+      const end = new Date(planExpiresAt);
+
+      if (end <= start) {
+        alert("Plan expiration date must be after start date.");
+        return false;
+      }
+
+      const durationDays = Math.floor((end - start) / (1000 * 60 * 60 * 24));
+
+      if (durationDays < 180) {
+        alert("License duration must be at least 6 months.");
+        return false;
+      }
+
+      if (durationDays > 365) {
+        alert("License duration cannot exceed 1 year.");
+        return false;
+      }
+
+      return true;
+    }
+
     loadSession();
 
   </script>

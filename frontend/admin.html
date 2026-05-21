@@ -353,6 +353,8 @@
       <a class="nav-item" href="/">← Volver al dashboard</a>
       <div class="nav-item" id="sessionUser">Cargando sesión...</div>
       <div class="nav-item" id="sessionCompany">Empresa: -</div>
+      <button class="nav-item" onclick="showAdminSection('users')">Usuarios</button>
+      <button class="nav-item" id="companiesNav" onclick="showAdminSection('companies')">Empresas / Licencias</button>
     </aside>
 
     <main>
@@ -371,90 +373,92 @@
       </div>
 
       <div id="adminPanel" class="panel hidden">
-        <div class="grid">
-          <div>
-            <h3>Crear usuario</h3>
-            <div class="panel-subtitle">
-              El Super Admin puede asignar cualquier empresa. El Admin de empresa solo puede crear usuarios dentro de su
-              propia empresa.
-            </div>
+        <div id="usersSection">
+          <div class="grid">
+            <div>
+              <h3>Crear usuario</h3>
+              <div class="panel-subtitle">
+                El Super Admin puede asignar cualquier empresa. El Admin de empresa solo puede crear usuarios dentro de
+                su
+                propia empresa.
+              </div>
 
-            <div id="superAdminNote" class="card-note hidden">
-              Estás operando como <b>Super Admin</b>. Puedes crear empresas, usuarios globales y admins por empresa.
-            </div>
+              <div id="superAdminNote" class="card-note hidden">
+                Estás operando como <b>Super Admin</b>. Puedes crear empresas, usuarios globales y admins por empresa.
+              </div>
 
-            <div id="companyAdminNote" class="card-note hidden">
-              Estás operando como <b>Admin de empresa</b>. Solo puedes gestionar usuarios de tu empresa.
-            </div>
+              <div id="companyAdminNote" class="card-note hidden">
+                Estás operando como <b>Admin de empresa</b>. Solo puedes gestionar usuarios de tu empresa.
+              </div>
 
-            <div class="input-row">
-              <label>Usuario</label>
-              <input id="newUsername" placeholder="analyst01">
-            </div>
+              <div class="input-row">
+                <label>Usuario</label>
+                <input id="newUsername" placeholder="analyst01">
+              </div>
 
-            <div class="input-row">
-              <label>Nombre completo</label>
-              <input id="newFullname" placeholder="SOC Analyst">
-            </div>
+              <div class="input-row">
+                <label>Nombre completo</label>
+                <input id="newFullname" placeholder="SOC Analyst">
+              </div>
 
-            <div class="input-row">
-              <label>Empresa</label>
-              <select id="newCompany"></select>
-            </div>
+              <div class="input-row">
+                <label>Empresa</label>
+                <select id="newCompany"></select>
+              </div>
 
-            <div id="companyCreateBlock" class="input-row hidden">
+              <!-- <div id="companyCreateBlock" class="input-row hidden">
               <label>Nueva empresa</label>
               <div class="company-create-row">
                 <input id="newCompanyName" placeholder="Nombre de la empresa">
                 <button class="secondary" onclick="createCompany()" type="button">Crear</button>
               </div>
+            </div> -->
+
+              <div class="input-row">
+                <label>Contraseña</label>
+                <input id="newPassword" type="password" placeholder="mínimo 8 caracteres">
+              </div>
+
+              <div class="input-row">
+                <label>Rol</label>
+                <select id="newRole">
+                  <option value="analyst">Analista</option>
+                  <option value="company_admin">Admin de empresa</option>
+                  <option value="super_admin">Super Admin</option>
+                </select>
+              </div>
+
+              <button onclick="createUser()">Crear usuario</button>
+
+              <div id="adminStatus" class="status-line">Cargando situación del panel...</div>
             </div>
 
-            <div class="input-row">
-              <label>Contraseña</label>
-              <input id="newPassword" type="password" placeholder="mínimo 8 caracteres">
+            <div>
+              <h3>Usuarios</h3>
+              <div class="panel-subtitle" id="usersSubtitle">
+                Usuarios disponibles según tu alcance de permisos.
+              </div>
+
+              <table class="user-table">
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Nombre</th>
+                    <th>Empresa</th>
+                    <th>Rol</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="usersTable">
+                  <tr>
+                    <td colspan="6" class="empty">Cargando usuarios...</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-
-            <div class="input-row">
-              <label>Rol</label>
-              <select id="newRole">
-                <option value="analyst">Analista</option>
-                <option value="company_admin">Admin de empresa</option>
-                <option value="super_admin">Super Admin</option>
-              </select>
-            </div>
-
-            <button onclick="createUser()">Crear usuario</button>
-
-            <div id="adminStatus" class="status-line">Cargando situación del panel...</div>
-          </div>
-
-          <div>
-            <h3>Usuarios</h3>
-            <div class="panel-subtitle" id="usersSubtitle">
-              Usuarios disponibles según tu alcance de permisos.
-            </div>
-
-            <table class="user-table">
-              <thead>
-                <tr>
-                  <th>Usuario</th>
-                  <th>Nombre</th>
-                  <th>Empresa</th>
-                  <th>Rol</th>
-                  <th>Estado</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody id="usersTable">
-                <tr>
-                  <td colspan="6" class="empty">Cargando usuarios...</td>
-                </tr>
-              </tbody>
-            </table>
           </div>
         </div>
-      </div>
     </main>
   </div>
 
@@ -600,33 +604,30 @@
       }
     }
 
-    async function createCompany() {
-      const name = document.getElementById("newCompanyName").value.trim();
+    function configureRoleOptions() {
+      const roleSelect = document.getElementById("newRole");
+      const superAdminNote = document.getElementById("superAdminNote");
+      const companyAdminNote = document.getElementById("companyAdminNote");
+      const companiesNav = document.getElementById("companiesNav");
 
-      if (!name) {
-        document.getElementById("adminStatus").innerText = "Escribe el nombre de la empresa.";
-        return;
+      if (currentUser.role === "super_admin") {
+        roleSelect.innerHTML = `
+      <option value="analyst">Analista</option>
+      <option value="company_admin">Admin de empresa</option>
+      <option value="super_admin">Super Admin</option>
+    `;
+        superAdminNote.classList.remove("hidden");
+        companyAdminNote.classList.add("hidden");
+        if (companiesNav) companiesNav.classList.remove("hidden");
+      } else {
+        roleSelect.innerHTML = `
+      <option value="analyst">Analista</option>
+      <option value="company_admin">Admin de empresa</option>
+    `;
+        superAdminNote.classList.add("hidden");
+        companyAdminNote.classList.remove("hidden");
+        if (companiesNav) companiesNav.classList.add("hidden");
       }
-
-      const res = await fetch("/admin/companies", {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({ name })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        document.getElementById("adminStatus").innerText =
-          `Error creando empresa: ${data.detail || res.status}`;
-        return;
-      }
-
-      document.getElementById("newCompanyName").value = "";
-      document.getElementById("adminStatus").innerText = `Empresa ${data.name} creada.`;
-
-      await loadCompanies();
-      document.getElementById("newCompany").value = String(data.id);
     }
 
     async function loadUsers() {
@@ -902,6 +903,219 @@
 
       await loadUsers();
     }
+
+    function showAdminSection(section) {
+      const usersSection = document.getElementById("usersSection");
+      const companiesSection = document.getElementById("companiesSection");
+
+      if (section === "companies") {
+        if (currentUser.role !== "super_admin") {
+          document.getElementById("adminStatus").innerText = "Solo Super Admin puede administrar empresas.";
+          return;
+        }
+
+        usersSection.classList.add("hidden");
+        companiesSection.classList.remove("hidden");
+        renderCompaniesAdmin();
+        return;
+      }
+
+      companiesSection.classList.add("hidden");
+      usersSection.classList.remove("hidden");
+    }
+
+    function renderCompaniesAdmin() {
+      const select = document.getElementById("companyAdminSelect");
+      const tbody = document.getElementById("companiesTable");
+
+      if (!companies.length) {
+        select.innerHTML = `<option value="">Sin empresas</option>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="empty">Sin empresas disponibles.</td></tr>`;
+        return;
+      }
+
+      select.innerHTML = `
+    <option value="">Nueva empresa</option>
+    ${companies.map(c => `<option value="${c.id}">${c.id} - ${c.name}</option>`).join("")}
+  `;
+
+      tbody.innerHTML = companies.map(c => `
+    <tr>
+      <td>${c.id}</td>
+      <td>${c.name}</td>
+      <td>${c.plan || "-"}</td>
+      <td>${c.subscription_status || "-"}</td>
+      <td>${c.id === 1 || c.license_required === false ? "No requerida" : "Requerida"}</td>
+      <td>${c.plan_expires_at || "-"}</td>
+    </tr>
+  `).join("");
+    }
+
+    function selectCompanyForEdit() {
+      const companyId = Number(document.getElementById("companyAdminSelect").value);
+      const company = companies.find(c => c.id === companyId);
+
+      document.getElementById("companyNameAdmin").value = company ? company.name : "";
+      document.getElementById("companyPlan").value = company?.plan || "starter";
+      document.getElementById("companySubscriptionStatus").value = company?.subscription_status || "active";
+      document.getElementById("companyBillingEmail").value = company?.billing_email || "";
+      document.getElementById("companyPlanStartedAt").value = formatDateInput(company?.plan_started_at);
+      document.getElementById("companyPlanExpiresAt").value = formatDateInput(company?.plan_expires_at);
+
+      updateLicenseSummary();
+    }
+
+    function formatDateInput(value) {
+      if (!value) return "";
+      return String(value).slice(0, 10);
+    }
+
+    function updateLicenseSummary() {
+      const companyId = Number(document.getElementById("companyAdminSelect").value);
+      const startValue = document.getElementById("companyPlanStartedAt").value;
+      const endValue = document.getElementById("companyPlanExpiresAt").value;
+      const summary = document.getElementById("companyLicenseSummary");
+
+      if (companyId === 1) {
+        summary.innerText = "Empresa interna: licencia no requerida.";
+        return;
+      }
+
+      if (!startValue || !endValue) {
+        summary.innerText = "Empresas externas requieren fecha de inicio y expiración.";
+        return;
+      }
+
+      const start = new Date(startValue);
+      const end = new Date(endValue);
+      const days = Math.floor((end - start) / (1000 * 60 * 60 * 24));
+
+      summary.innerText = `Duración de licencia: ${days} días. Permitido: mínimo 180, máximo 365.`;
+    }
+
+    function validateCompanyLicenseForm(companyId, planStartedAt, planExpiresAt) {
+      if (Number(companyId) === 1) {
+        return true;
+      }
+
+      if (!planStartedAt || !planExpiresAt) {
+        alert("Las fechas de licencia son requeridas para empresas externas.");
+        return false;
+      }
+
+      const start = new Date(planStartedAt);
+      const end = new Date(planExpiresAt);
+
+      if (end <= start) {
+        alert("La fecha de expiración debe ser posterior al inicio.");
+        return false;
+      }
+
+      const durationDays = Math.floor((end - start) / (1000 * 60 * 60 * 24));
+
+      if (durationDays < 180) {
+        alert("La licencia debe durar al menos 6 meses.");
+        return false;
+      }
+
+      if (durationDays > 365) {
+        alert("La licencia no puede exceder 1 año.");
+        return false;
+      }
+
+      return true;
+    }
+
+    async function createCompanyFromAdmin() {
+      const name = document.getElementById("companyNameAdmin").value.trim();
+
+      if (!name) {
+        document.getElementById("companyAdminStatus").innerText = "Escribe el nombre de la empresa.";
+        return;
+      }
+
+      const res = await fetch("/admin/companies", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ name })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        document.getElementById("companyAdminStatus").innerText =
+          `Error creando empresa: ${data.detail || res.status}`;
+        return;
+      }
+
+      document.getElementById("companyAdminStatus").innerText = `Empresa ${data.name} creada. Ahora asigna plan/licencia.`;
+
+      await loadCompanies();
+      renderCompaniesAdmin();
+
+      document.getElementById("companyAdminSelect").value = String(data.id);
+      selectCompanyForEdit();
+    }
+
+    async function saveCompanyPlanLicense() {
+      const companyId = Number(document.getElementById("companyAdminSelect").value);
+
+      if (!companyId) {
+        document.getElementById("companyAdminStatus").innerText = "Selecciona una empresa existente.";
+        return;
+      }
+
+      const plan = document.getElementById("companyPlan").value;
+      const subscriptionStatus = document.getElementById("companySubscriptionStatus").value;
+      const billingEmail = document.getElementById("companyBillingEmail").value.trim();
+      const planStartedAt = document.getElementById("companyPlanStartedAt").value;
+      const planExpiresAt = document.getElementById("companyPlanExpiresAt").value;
+
+      if (!validateCompanyLicenseForm(companyId, planStartedAt, planExpiresAt)) {
+        return;
+      }
+
+      const payload = {
+        plan: plan,
+        subscription_status: subscriptionStatus,
+        billing_email: billingEmail || null
+      };
+
+      if (companyId !== 1) {
+        payload.plan_started_at = planStartedAt;
+        payload.plan_expires_at = planExpiresAt;
+      }
+
+      const res = await fetch(`/admin/companies/${companyId}/plan`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        document.getElementById("companyAdminStatus").innerText =
+          `No se pudo guardar licencia: ${data.detail || res.status}`;
+        return;
+      }
+
+      document.getElementById("companyAdminStatus").innerText =
+        `Plan/licencia actualizado para ${data.name}.`;
+
+      await loadCompanies();
+      renderCompaniesAdmin();
+    }
+
+    document.addEventListener("input", function (event) {
+      if (
+        event.target &&
+        ["companyPlanStartedAt", "companyPlanExpiresAt"].includes(event.target.id)
+      ) {
+        updateLicenseSummary();
+      }
+    });
+
     initAdminPage();
   </script>
 </body>

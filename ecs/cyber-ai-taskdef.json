@@ -23,6 +23,10 @@
                 {
                     "name": "APP_ENV",
                     "value": "production"
+                },
+                {
+                    "name": "ENVIRONMENT",
+                    "value": "production"
                 }
             ],
             "secrets": [

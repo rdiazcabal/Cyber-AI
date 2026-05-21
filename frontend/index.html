@@ -1011,7 +1011,14 @@
         </svg>
         <span>Company Settings</span>
       </a>
-
+      <a class="nav-item" id="billingPlanNav" href="javascript:void(0)" onclick="showBillingPlan()">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+          <path d="M3 10h18"></path>
+          <path d="M7 15h4"></path>
+        </svg>
+        <span>Billing / Plan</span>
+      </a>
       <a class="nav-item hidden" id="navUsuarios" href="/admin">
         <svg class="nav-icon" viewBox="0 0 24 24">
           <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
@@ -1207,7 +1214,87 @@
           </div>
 
         </div>
+        <div id="billingPlanView" class="hidden">
+          <div class="header">
+            <div>
+              <h1>Billing / Plan</h1>
+              <p>Consulta tu plan activo, vigencia de licencia, límites y funciones disponibles.</p>
+            </div>
+            <div class="api-status">
+              <span class="pulse"></span> Subscription
+            </div>
+          </div>
 
+          <div class="cards">
+            <div class="card card-total">
+              <div class="card-label">Plan</div>
+              <h2 id="billingPlanName" class="card-value">-</h2>
+              <div class="card-foot">Plan contratado</div>
+            </div>
+
+            <div class="card card-risk">
+              <div class="card-label">Estado</div>
+              <h2 id="billingPlanStatus" class="card-value">-</h2>
+              <div class="card-foot">Suscripción</div>
+            </div>
+
+            <div class="card card-patterns">
+              <div class="card-label">Usuarios</div>
+              <h2 id="billingUsersUsage" class="card-value">0/0</h2>
+              <div class="card-foot">Uso actual</div>
+            </div>
+
+            <div class="card card-high">
+              <div class="card-label">Integraciones</div>
+              <h2 id="billingIntegrationsUsage" class="card-value">0/0</h2>
+              <div class="card-foot">Cloud integrations</div>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="panel">
+              <h3>Licencia</h3>
+              <div class="panel-subtitle">
+                Información de vigencia y facturación.
+              </div>
+
+              <div class="kv-grid">
+                <div class="kv">
+                  <div class="kv-label">Empresa</div>
+                  <div id="billingCompanyName" class="kv-value">-</div>
+                </div>
+
+                <div class="kv">
+                  <div class="kv-label">Billing Email</div>
+                  <div id="billingEmail" class="kv-value">-</div>
+                </div>
+
+                <div class="kv">
+                  <div class="kv-label">Inicio</div>
+                  <div id="billingPlanStartedAt" class="kv-value">-</div>
+                </div>
+
+                <div class="kv">
+                  <div class="kv-label">Expira</div>
+                  <div id="billingPlanExpiresAt" class="kv-value">-</div>
+                </div>
+              </div>
+
+              <div id="billingLicenseMessage" class="status-line"></div>
+            </div>
+
+            <div class="panel">
+              <h3>Funciones del plan</h3>
+              <div class="panel-subtitle">
+                Funciones habilitadas o bloqueadas según tu plan.
+              </div>
+
+              <div id="billingFeaturesList" class="detection-feed">
+                <div class="empty">Cargando features...</div>
+              </div>
+            </div>
+          </div>
+        </div>
         <!-- HISTORY VIEW -->
         <div id="historyView" class="hidden">
 
@@ -2000,6 +2087,12 @@
 
       const integrationsNav = document.getElementById("integrationsNav");
       if (integrationsNav) integrationsNav.classList.remove("active");
+
+      const billingPlanView = document.getElementById("billingPlanView");
+      if (billingPlanView) billingPlanView.classList.add("hidden");
+
+      const billingPlanNav = document.getElementById("billingPlanNav");
+      if (billingPlanNav) billingPlanNav.classList.remove("active");
     }
 
     async function showHistory() {
@@ -2065,6 +2158,12 @@
 
       const integrationsNav = document.getElementById("integrationsNav");
       if (integrationsNav) integrationsNav.classList.remove("active");
+
+      const billingPlanView = document.getElementById("billingPlanView");
+      if (billingPlanView) billingPlanView.classList.add("hidden");
+
+      const billingPlanNav = document.getElementById("billingPlanNav");
+      if (billingPlanNav) billingPlanNav.classList.remove("active");
 
       await loadReports();
     }
@@ -2133,6 +2232,12 @@
       const integrationsNav = document.getElementById("integrationsNav");
       if (integrationsNav) integrationsNav.classList.remove("active");
 
+      const billingPlanView = document.getElementById("billingPlanView");
+      if (billingPlanView) billingPlanView.classList.add("hidden");
+
+      const billingPlanNav = document.getElementById("billingPlanNav");
+      if (billingPlanNav) billingPlanNav.classList.remove("active");
+
       await loadSOCOverview();
     }
 
@@ -2200,6 +2305,12 @@
       const integrationsNav = document.getElementById("integrationsNav");
       if (integrationsNav) integrationsNav.classList.remove("active");
 
+      const billingPlanView = document.getElementById("billingPlanView");
+      if (billingPlanView) billingPlanView.classList.add("hidden");
+
+      const billingPlanNav = document.getElementById("billingPlanNav");
+      if (billingPlanNav) billingPlanNav.classList.remove("active");
+
       await loadCISOverview();
     }
 
@@ -2266,6 +2377,12 @@
 
       const integrationsNav = document.getElementById("integrationsNav");
       if (integrationsNav) integrationsNav.classList.remove("active");
+
+      const billingPlanView = document.getElementById("billingPlanView");
+      if (billingPlanView) billingPlanView.classList.add("hidden");
+
+      const billingPlanNav = document.getElementById("billingPlanNav");
+      if (billingPlanNav) billingPlanNav.classList.remove("active");
 
       await loadCases();
     }
@@ -2409,6 +2526,12 @@
       const integrationsNav = document.getElementById("integrationsNav");
       if (integrationsNav) integrationsNav.classList.remove("active");
 
+      const billingPlanView = document.getElementById("billingPlanView");
+      if (billingPlanView) billingPlanView.classList.add("hidden");
+
+      const billingPlanNav = document.getElementById("billingPlanNav");
+      if (billingPlanNav) billingPlanNav.classList.remove("active");
+
     }
 
     async function showAuditLogs() {
@@ -2475,6 +2598,11 @@
       const integrationsNav = document.getElementById("integrationsNav");
       if (integrationsNav) integrationsNav.classList.remove("active");
 
+      const billingPlanView = document.getElementById("billingPlanView");
+      if (billingPlanView) billingPlanView.classList.add("hidden");
+
+      const billingPlanNav = document.getElementById("billingPlanNav");
+      if (billingPlanNav) billingPlanNav.classList.remove("active");
       await loadAuditLogs();
     }
 
@@ -2541,6 +2669,12 @@
 
       const integrationsNav = document.getElementById("integrationsNav");
       if (integrationsNav) integrationsNav.classList.remove("active");
+
+      const billingPlanView = document.getElementById("billingPlanView");
+      if (billingPlanView) billingPlanView.classList.add("hidden");
+
+      const billingPlanNav = document.getElementById("billingPlanNav");
+      if (billingPlanNav) billingPlanNav.classList.remove("active");
 
       await loadCompanyOptions("settingsCompanyId", true);
       await loadCompanySettings();
@@ -2609,6 +2743,12 @@
 
       const integrationsNav = document.getElementById("integrationsNav");
       if (integrationsNav) integrationsNav.classList.remove("active");
+
+      const billingPlanView = document.getElementById("billingPlanView");
+      if (billingPlanView) billingPlanView.classList.add("hidden");
+
+      const billingPlanNav = document.getElementById("billingPlanNav");
+      if (billingPlanNav) billingPlanNav.classList.remove("active");
 
       await loadExecutiveDashboard();
     }
@@ -5630,6 +5770,112 @@
       }
 
       return true;
+    }
+    async function showBillingPlan() {
+      setActiveNav("billingPlanNav");
+
+      const viewsToHide = [
+        "dashboardView",
+        "historyView",
+        "executiveView",
+        "socView",
+        "cisView",
+        "casesView",
+        "threatHuntingView",
+        "auditLogsView",
+        "companySettingsView",
+        "alertRulesView",
+        "integrationsView"
+      ];
+
+      viewsToHide.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add("hidden");
+      });
+
+      const billingView = document.getElementById("billingPlanView");
+      if (billingView) billingView.classList.remove("hidden");
+
+      await loadBillingPlanView();
+    }
+
+    async function loadBillingPlanView() {
+      try {
+        const res = await fetch("/billing/plan", {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          document.getElementById("billingFeaturesList").innerHTML =
+            `<div class="empty">No se pudo cargar el plan: ${escapeHtml(errorText)}</div>`;
+          return;
+        }
+
+        const data = await res.json();
+
+        document.getElementById("billingPlanName").innerText = data.plan_label || data.plan || "-";
+        document.getElementById("billingPlanStatus").innerText = data.subscription_status || "-";
+        document.getElementById("billingUsersUsage").innerText =
+          `${data.usage?.users ?? 0}/${data.limits?.max_users ?? 0}`;
+        document.getElementById("billingIntegrationsUsage").innerText =
+          `${data.usage?.integrations ?? 0}/${data.limits?.max_integrations ?? 0}`;
+
+        document.getElementById("billingCompanyName").innerText = data.company_name || "-";
+        document.getElementById("billingEmail").innerText = data.billing_email || "-";
+        document.getElementById("billingPlanStartedAt").innerText = formatDate(data.plan_started_at);
+        document.getElementById("billingPlanExpiresAt").innerText = formatDate(data.plan_expires_at);
+
+        if (data.license_required === false) {
+          document.getElementById("billingLicenseMessage").innerText =
+            "Licencia no requerida para esta empresa.";
+        } else {
+          document.getElementById("billingLicenseMessage").innerText =
+            `Licencia activa hasta: ${formatDate(data.plan_expires_at)}`;
+        }
+
+        renderBillingFeatures(data.features || {});
+
+      } catch (err) {
+        document.getElementById("billingFeaturesList").innerHTML =
+          `<div class="empty">Billing error: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderBillingFeatures(features) {
+      const labels = {
+        manual_analysis: "Análisis manual",
+        pdf_reports: "Reportes PDF",
+        cis8_basic: "CIS 8 básico",
+        threat_hunting: "Threat Hunting",
+        aws_integration: "Integración AWS",
+        azure_integration: "Integración Azure",
+        gcp_integration: "Integración GCP",
+        soc_cases: "SOC Cases",
+        alert_rules: "Alert Rules",
+        executive_dashboard: "Executive Dashboard",
+        audit_logs: "Audit Logs",
+        auto_sync: "Sync automático",
+        custom_retention: "Retención personalizada"
+      };
+
+      const container = document.getElementById("billingFeaturesList");
+
+      container.innerHTML = Object.entries(features).map(([key, enabled]) => `
+    <div class="detection-row" style="grid-template-columns: 1fr 120px;">
+      <div>
+        <div class="detection-title">${escapeHtml(labels[key] || key)}</div>
+        <div class="detection-sub">${escapeHtml(key)}</div>
+      </div>
+      <div>
+        <span class="pill ${enabled ? "pill-low" : "pill-critical"}">
+          ${enabled ? "Enabled" : "Locked"}
+        </span>
+      </div>
+    </div>
+  `).join("");
     }
 
     loadSession();

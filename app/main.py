@@ -287,10 +287,13 @@ def enforce_user_limit(db: Session, company_id: int):
         return
 
     users_count = (
-        db.query(User)
-        .filter(User.company_id == company_id)
-        .count()
-    )
+            db.query(User)
+            .filter(
+                User.company_id == company_id,
+                User.is_active == True
+            )
+            .count()
+        )
 
     if users_count >= plan["max_users"]:
         raise HTTPException(
@@ -572,10 +575,13 @@ def get_billing_plan(
     plan = PLAN_LIMITS.get(plan_name, PLAN_LIMITS["starter"])
 
     users_count = (
-        db.query(User)
-        .filter(User.company_id == company.id)
-        .count()
-    )
+            db.query(User)
+            .filter(
+                User.company_id == company.id,
+                User.is_active == True
+            )
+            .count()
+        )
 
     integrations_count = (
         db.query(CloudIntegration)
@@ -749,7 +755,8 @@ def admin_billing_overview(
 
         users_count = (
             db.query(User)
-            .filter(User.company_id == company.id)
+            .filter(User.company_id == company.id,
+                    User.is_active == True)
             .count()
         )
 
@@ -821,7 +828,7 @@ def admin_list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    query = db.query(User)
+    query = db.query(User).filter(User.is_active == True)
 
     if current_user.role != "super_admin":
         query = query.filter(User.company_id == current_user.company_id)

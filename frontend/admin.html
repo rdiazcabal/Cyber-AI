@@ -771,7 +771,7 @@
           </button>
         ` : ""}
         <button class="danger" onclick="deleteUser(${u.id})">
-          Eliminar
+          Quitar usuario
         </button>
       </td>
     </tr>
@@ -931,7 +931,7 @@
     }
 
     async function deleteUser(id) {
-      if (!confirm("¿Seguro que deseas eliminar este usuario?")) {
+      if (!confirm("¿Seguro que deseas quitar este usuario? Ya no aparecerá en la GUI ni contará contra la licencia.")) {
         return;
       }
 
@@ -947,7 +947,7 @@
         return;
       }
 
-      document.getElementById("adminStatus").innerText = "Usuario desactivado correctamente.";
+      document.getElementById("adminStatus").innerText = "Usuario quitado correctamente. Ya no cuenta contra la licencia.";
       await loadUsers();
     }
 

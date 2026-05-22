@@ -1336,6 +1336,170 @@
         font-size: 24px;
       }
     }
+
+    /* ===== LOGIN VIEW FINAL FIX - CENTERED BLACK / RED / GOLD ===== */
+
+    #loginView.auth-shell {
+      min-height: 100vh !important;
+      width: 100vw !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 20px !important;
+
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+
+      background:
+        radial-gradient(circle at top left, rgba(212, 175, 55, .16), transparent 32%),
+        radial-gradient(circle at bottom right, rgba(220, 38, 38, .28), transparent 34%),
+        radial-gradient(circle at center right, rgba(127, 29, 29, .20), transparent 38%),
+        linear-gradient(180deg, #050505, #000000) !important;
+    }
+
+    #loginView .panel {
+      width: 100% !important;
+      max-width: 520px !important;
+      padding: 38px 36px !important;
+      border-radius: 28px !important;
+
+      background:
+        linear-gradient(145deg, rgba(220, 38, 38, .16), transparent 35%),
+        radial-gradient(circle at top right, rgba(212, 175, 55, .14), transparent 34%),
+        linear-gradient(180deg, rgba(16, 16, 16, .98), rgba(3, 3, 3, .98)) !important;
+
+      border: 1px solid rgba(212, 175, 55, .42) !important;
+      box-shadow:
+        0 28px 90px rgba(0, 0, 0, .82),
+        0 0 45px rgba(220, 38, 38, .16),
+        0 0 30px rgba(212, 175, 55, .12) !important;
+    }
+
+    #loginView .panel>div:first-child {
+      margin-bottom: 18px !important;
+    }
+
+    #loginView img {
+      width: 108px !important;
+      height: 108px !important;
+      object-fit: contain !important;
+      background:
+        radial-gradient(circle at top left, rgba(212, 175, 55, .22), transparent 45%),
+        #050505 !important;
+      padding: 8px !important;
+      border: 1px solid rgba(220, 38, 38, .55) !important;
+      box-shadow:
+        0 0 28px rgba(220, 38, 38, .22),
+        0 0 22px rgba(212, 175, 55, .16) !important;
+    }
+
+    #loginView h3 {
+      margin: 10px 0 8px !important;
+      text-align: center !important;
+      font-size: 28px !important;
+      color: #f8fafc !important;
+      letter-spacing: -.03em !important;
+    }
+
+    #loginView .panel-subtitle {
+      margin: 0 0 30px !important;
+      text-align: center !important;
+      font-size: 15px !important;
+      color: #b8b8b8 !important;
+    }
+
+    #loginView .input-row {
+      margin-bottom: 22px !important;
+    }
+
+    #loginView .input-row label {
+      display: block !important;
+      margin-bottom: 10px !important;
+      color: var(--gold-soft) !important;
+      font-size: 15px !important;
+      font-weight: 900 !important;
+    }
+
+    #loginView input {
+      width: 100% !important;
+      height: 56px !important;
+      padding: 0 17px !important;
+      border-radius: 16px !important;
+
+      background: #050505 !important;
+      color: #f8fafc !important;
+      border: 1px solid rgba(212, 175, 55, .38) !important;
+
+      font-size: 16px !important;
+      outline: none !important;
+    }
+
+    #loginView input:focus {
+      border-color: rgba(220, 38, 38, .80) !important;
+      box-shadow:
+        0 0 0 3px rgba(220, 38, 38, .18),
+        0 0 18px rgba(212, 175, 55, .10) !important;
+    }
+
+    #loginView input::placeholder {
+      color: #777 !important;
+    }
+
+    #loginView button {
+      width: 100% !important;
+      height: 58px !important;
+      margin-top: 10px !important;
+      border-radius: 16px !important;
+
+      background:
+        linear-gradient(135deg, var(--gold), var(--gold-dark)) !important;
+
+      color: #050505 !important;
+      font-size: 16px !important;
+      font-weight: 900 !important;
+      letter-spacing: .02em !important;
+      box-shadow:
+        0 12px 28px rgba(212, 175, 55, .20),
+        0 0 18px rgba(220, 38, 38, .10) !important;
+    }
+
+    #loginView button:hover {
+      transform: translateY(-1px) !important;
+      filter: brightness(1.08) !important;
+    }
+
+    #loginView .status-line {
+      min-height: 24px !important;
+      margin-top: 20px !important;
+      text-align: center !important;
+      color: #c9c9c9 !important;
+      font-size: 14px !important;
+      line-height: 1.5 !important;
+      word-break: break-word !important;
+    }
+
+    #loginView .status-line:not(:empty) {
+      color: #fca5a5 !important;
+    }
+
+    @media (max-width: 560px) {
+      #loginView.auth-shell {
+        padding: 0 16px !important;
+      }
+
+      #loginView .panel {
+        padding: 30px 22px !important;
+      }
+
+      #loginView h3 {
+        font-size: 24px !important;
+      }
+
+      #loginView img {
+        width: 94px !important;
+        height: 94px !important;
+      }
+    }
   </style>
 </head>
 

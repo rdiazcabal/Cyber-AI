@@ -1500,6 +1500,139 @@
         height: 94px !important;
       }
     }
+
+    /* ===== CLOUD INTEGRATIONS LAYOUT FIX - SecuRI ===== */
+
+    #integrationsView {
+      padding-bottom: 40px;
+    }
+
+    #integrationsView .header {
+      margin-bottom: 26px;
+    }
+
+    #integrationsView .cards {
+      grid-template-columns: repeat(3, minmax(220px, 1fr)) !important;
+      max-width: 980px;
+      gap: 18px !important;
+      margin-bottom: 26px !important;
+    }
+
+    #integrationsView .card {
+      min-height: 126px;
+      padding: 20px !important;
+      border-radius: 18px !important;
+      background:
+        radial-gradient(circle at top right, rgba(220, 38, 38, .12), transparent 38%),
+        linear-gradient(180deg, rgba(16, 16, 16, .98), rgba(5, 5, 5, .98)) !important;
+      border: 1px solid rgba(212, 175, 55, .28) !important;
+    }
+
+    #integrationsView .card-label {
+      color: var(--gold-soft) !important;
+      font-weight: 900 !important;
+    }
+
+    #integrationsView .panel {
+      padding: 26px !important;
+      border-radius: 22px !important;
+      margin-top: 22px !important;
+      background:
+        radial-gradient(circle at top right, rgba(220, 38, 38, .12), transparent 30%),
+        linear-gradient(180deg, rgba(16, 16, 16, .98), rgba(5, 5, 5, .98)) !important;
+      border: 1px solid rgba(212, 175, 55, .28) !important;
+    }
+
+    #integrationsView .panel h3 {
+      margin-bottom: 8px !important;
+      font-size: 18px !important;
+    }
+
+    #integrationsView .panel-subtitle {
+      margin-bottom: 22px !important;
+      line-height: 1.5 !important;
+    }
+
+    #integrationsView .grid {
+      grid-template-columns: minmax(380px, 1fr) minmax(380px, 1fr) !important;
+      gap: 26px !important;
+      align-items: start !important;
+    }
+
+    #integrationsView .input-row {
+      margin-bottom: 18px !important;
+    }
+
+    #integrationsView .input-row label {
+      display: block !important;
+      margin-bottom: 9px !important;
+      color: var(--gold-soft) !important;
+      font-size: 13px !important;
+      font-weight: 900 !important;
+    }
+
+    #integrationsView input,
+    #integrationsView select {
+      width: 100% !important;
+      min-height: 48px !important;
+      padding: 13px 14px !important;
+      border-radius: 14px !important;
+      border: 1px solid rgba(212, 175, 55, .38) !important;
+      background: #050505 !important;
+      color: var(--text) !important;
+      outline: none !important;
+    }
+
+    #integrationsView input:focus,
+    #integrationsView select:focus {
+      border-color: rgba(220, 38, 38, .78) !important;
+      box-shadow:
+        0 0 0 3px rgba(220, 38, 38, .16),
+        0 0 18px rgba(212, 175, 55, .10) !important;
+    }
+
+    #integrationsView input::placeholder {
+      color: #777 !important;
+    }
+
+    #integrationsView button {
+      min-height: 48px !important;
+      padding: 12px 18px !important;
+      border-radius: 14px !important;
+      font-weight: 900 !important;
+    }
+
+    #integrationsView button.secondary {
+      background: rgba(212, 175, 55, .08) !important;
+      color: var(--gold-soft) !important;
+      border: 1px solid rgba(212, 175, 55, .45) !important;
+    }
+
+    #integrationsView .status-line {
+      margin-top: 18px !important;
+      line-height: 1.5 !important;
+    }
+
+    #integrationsView .empty {
+      margin-top: 12px !important;
+      padding: 18px !important;
+      border-radius: 16px !important;
+      background:
+        linear-gradient(180deg, rgba(8, 8, 8, .96), rgba(4, 4, 4, .96)) !important;
+      border: 1px dashed rgba(212, 175, 55, .32) !important;
+      color: #c9c9c9 !important;
+    }
+
+    @media (max-width: 1100px) {
+      #integrationsView .grid {
+        grid-template-columns: 1fr !important;
+      }
+
+      #integrationsView .cards {
+        grid-template-columns: 1fr !important;
+        max-width: none;
+      }
+    }
   </style>
 </head>
 

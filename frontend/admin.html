@@ -1218,6 +1218,39 @@
         grid-template-columns: 1fr;
       }
     }
+
+    .admin-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .admin-menu a,
+    .admin-menu button,
+    .admin-menu .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      width: 100%;
+      min-height: 42px;
+      padding: 10px 14px;
+
+      border-radius: 10px;
+      background: transparent;
+      color: #ffffff;
+      text-decoration: none;
+
+      position: relative;
+      box-sizing: border-box;
+    }
+
+    .admin-menu a:hover,
+    .admin-menu button:hover,
+    .admin-menu .menu-item:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
   </style>
 </head>
 

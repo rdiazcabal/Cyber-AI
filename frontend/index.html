@@ -342,7 +342,7 @@
 
     textarea:focus {
       border-color: var(--gold);
-      box-shadow: 0 0 0 4px rgba(56, 189, 248, .12);
+      box-shadow: 0 0 0 4px rgba(212, 175, 55, .13);
     }
 
     .actions {
@@ -616,6 +616,14 @@
       box-shadow: 0 0 0 4px rgba(212, 175, 55, .13);
     }
 
+    .input-row label {
+      display: block;
+      margin-bottom: 9px;
+      color: var(--gold-soft);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
     input,
     select {
       width: 100%;
@@ -686,7 +694,10 @@
       }
 
       .grid {
-        grid-template-columns: 1fr;
+        display: grid;
+        grid-template-columns: minmax(380px, 520px) minmax(520px, 1fr);
+        gap: 28px;
+        align-items: start;
       }
 
       .mitre-grid {

@@ -1107,6 +1107,122 @@
     .confidence-fill {
       background: linear-gradient(90deg, var(--gold), var(--red));
     }
+
+    /* ===== ADMIN LAYOUT FIX FINAL ===== */
+
+    #companiesSection .admin-two-columns {
+      display: grid;
+      grid-template-columns: minmax(380px, 540px) minmax(560px, 1fr);
+      gap: 28px;
+      align-items: start;
+    }
+
+    #companiesSection .admin-inner-card {
+      background:
+        linear-gradient(180deg, rgba(10, 10, 10, .97), rgba(5, 5, 5, .97));
+      border: 1px solid rgba(212, 175, 55, .22);
+      border-radius: 18px;
+      padding: 22px;
+      box-shadow: 0 16px 38px rgba(0, 0, 0, .32);
+    }
+
+    #companiesSection .form-section-title {
+      margin: 22px 0 12px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(212, 175, 55, .14);
+      color: var(--gold-soft);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    #companiesSection .license-date-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    #companiesSection .button-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    #companiesSection .table-shell {
+      width: 100%;
+      overflow-x: auto;
+      border-radius: 14px;
+      border: 1px solid rgba(212, 175, 55, .18);
+    }
+
+    #companiesSection input,
+    #companiesSection select {
+      min-height: 46px;
+      padding: 13px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(212, 175, 55, .35);
+      background: #050505;
+      color: var(--text);
+    }
+
+    #companiesSection input:focus,
+    #companiesSection select:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(212, 175, 55, .16);
+      outline: none;
+    }
+
+    #companiesSection .input-row {
+      margin-bottom: 18px;
+    }
+
+    #companiesSection .input-row label {
+      display: block;
+      margin-bottom: 9px;
+      color: var(--gold-soft);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    #companiesSection .user-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-top: 0;
+      overflow: hidden;
+      border-radius: 14px;
+    }
+
+    #companiesSection .user-table th,
+    #companiesSection .user-table td {
+      border-bottom: 1px solid rgba(212, 175, 55, .18);
+      padding: 14px 12px;
+      text-align: left;
+      font-size: 13px;
+      vertical-align: top;
+    }
+
+    #companiesSection .user-table th {
+      color: var(--gold-soft);
+      font-weight: 900;
+      background: rgba(212, 175, 55, .08);
+    }
+
+    #companiesSection .user-table td {
+      background: rgba(8, 8, 8, .55);
+    }
+
+    @media (max-width: 1250px) {
+      #companiesSection .admin-two-columns {
+        grid-template-columns: 1fr;
+      }
+
+      #companiesSection .license-date-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 

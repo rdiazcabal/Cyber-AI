@@ -1217,6 +1217,125 @@
         grid-template-columns: 1fr;
       }
     }
+
+    /* ===== LOGIN VIEW FIX - SecuRI ===== */
+
+    #loginView.auth-shell {
+      min-height: 100vh;
+      max-width: none;
+      margin: 0;
+      padding: 32px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(circle at top left, rgba(212, 175, 55, .14), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(220, 38, 38, .12), transparent 34%),
+        linear-gradient(180deg, #050505, #000);
+    }
+
+    #loginView .panel {
+      width: 100%;
+      max-width: 520px;
+      padding: 34px;
+      border-radius: 26px;
+      background:
+        radial-gradient(circle at top right, rgba(220, 38, 38, .08), transparent 34%),
+        linear-gradient(180deg, rgba(16, 16, 16, .98), rgba(5, 5, 5, .98));
+      border: 1px solid rgba(212, 175, 55, .34);
+      box-shadow:
+        0 24px 80px rgba(0, 0, 0, .72),
+        0 0 36px rgba(212, 175, 55, .12);
+    }
+
+    #loginView img {
+      width: 104px !important;
+      height: 104px !important;
+      object-fit: contain;
+      background: #050505;
+      padding: 8px;
+    }
+
+    #loginView h3 {
+      margin: 8px 0 8px;
+      font-size: 28px;
+      color: var(--text);
+      letter-spacing: -.03em;
+    }
+
+    #loginView .panel-subtitle {
+      margin: 0 0 28px;
+      font-size: 15px;
+      color: var(--muted);
+    }
+
+    #loginView .input-row {
+      margin-bottom: 20px;
+    }
+
+    #loginView .input-row label {
+      display: block;
+      margin-bottom: 9px;
+      color: var(--gold-soft);
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    #loginView input {
+      width: 100%;
+      height: 54px;
+      padding: 0 16px;
+      border-radius: 16px;
+      border: 1px solid rgba(212, 175, 55, .38);
+      background: #050505;
+      color: #f8fafc;
+      font-size: 15px;
+      outline: none;
+    }
+
+    #loginView input::placeholder {
+      color: #777;
+    }
+
+    #loginView input:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 4px rgba(212, 175, 55, .16);
+    }
+
+    #loginView button {
+      width: 100%;
+      height: 56px;
+      margin-top: 8px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+      color: #050505;
+      font-size: 15px;
+      font-weight: 900;
+    }
+
+    #loginView .status-line {
+      min-height: 22px;
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+      text-align: center;
+      word-break: break-word;
+    }
+
+    @media (max-width: 560px) {
+      #loginView.auth-shell {
+        padding: 18px;
+      }
+
+      #loginView .panel {
+        padding: 26px 20px;
+      }
+
+      #loginView h3 {
+        font-size: 24px;
+      }
+    }
   </style>
 </head>
 

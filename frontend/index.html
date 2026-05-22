@@ -304,6 +304,14 @@
       gap: 18px;
     }
 
+    .inner-card {
+      background:
+        linear-gradient(180deg, rgba(10, 10, 10, .96), rgba(5, 5, 5, .96));
+      border: 1px solid rgba(212, 175, 55, .20);
+      border-radius: 18px;
+      padding: 20px;
+    }
+
     .panel {
       background: rgba(16, 16, 16, .92);
       margin-top: 18px;
@@ -947,6 +955,157 @@
       box-shadow:
         0 0 0 1px rgba(245, 215, 110, 0.35),
         0 0 18px rgba(212, 175, 55, 0.26) !important;
+    }
+
+    /* ===== SecuRI Main Dashboard Final Theme Fix: Black / Red / Gold ===== */
+
+    :root {
+      --bg: #030303;
+      --sidebar: #080808;
+      --panel: #101010;
+      --panel-2: #151515;
+      --border: rgba(212, 175, 55, .24);
+      --border-soft: rgba(212, 175, 55, .42);
+      --text: #f8fafc;
+      --muted: #b8b8b8;
+
+      --gold: #d4af37;
+      --gold-soft: #f5d76e;
+      --gold-dark: #8a6f12;
+
+      --blue: #d4af37;
+      --purple: #f5d76e;
+      --green: #22c55e;
+      --red: #dc2626;
+      --orange: #f97316;
+      --yellow: #eab308;
+
+      --shadow: 0 18px 50px rgba(0, 0, 0, .58);
+    }
+
+    body {
+      background:
+        radial-gradient(circle at top left, rgba(212, 175, 55, .10), transparent 30%),
+        radial-gradient(circle at top right, rgba(220, 38, 38, .10), transparent 32%),
+        linear-gradient(180deg, #050505, #000);
+    }
+
+    aside,
+    .sidebar {
+      background: linear-gradient(180deg, #080808, #010101);
+      border-right: 1px solid rgba(212, 175, 55, .24);
+    }
+
+    .nav-item {
+      background: rgba(16, 16, 16, .88);
+      color: #e5e7eb;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all .18s ease;
+    }
+
+    .nav-item:hover {
+      border-color: rgba(212, 175, 55, .45);
+      background: rgba(212, 175, 55, .08);
+      color: var(--gold-soft);
+    }
+
+    .nav-item.active {
+      border-color: rgba(212, 175, 55, .85);
+      background:
+        linear-gradient(90deg, rgba(212, 175, 55, .22), rgba(220, 38, 38, .10)),
+        rgba(16, 16, 16, .96);
+      color: var(--gold-soft);
+      box-shadow:
+        inset 4px 0 0 var(--gold),
+        0 0 22px rgba(212, 175, 55, .18);
+    }
+
+    .panel {
+      background:
+        radial-gradient(circle at top right, rgba(220, 38, 38, .08), transparent 28%),
+        rgba(16, 16, 16, .94);
+      border: 1px solid rgba(212, 175, 55, .24);
+      box-shadow: var(--shadow);
+    }
+
+    .card {
+      background:
+        radial-gradient(circle at top right, rgba(212, 175, 55, .10), transparent 36%),
+        linear-gradient(180deg, rgba(16, 16, 16, .98), rgba(5, 5, 5, .98));
+      border: 1px solid rgba(212, 175, 55, .22);
+      box-shadow: var(--shadow);
+    }
+
+    .card-patterns {
+      --accent: var(--gold-soft);
+    }
+
+    .card-patterns .card-value {
+      color: var(--gold-soft);
+    }
+
+    .card-total .card-value,
+    .card-risk .card-value {
+      color: var(--gold-soft);
+    }
+
+    input,
+    select,
+    textarea {
+      background: #050505;
+      color: var(--text);
+      border: 1px solid rgba(212, 175, 55, .35);
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(212, 175, 55, .16);
+      outline: none;
+    }
+
+    button {
+      background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+      color: #050505;
+      font-weight: 900;
+    }
+
+    button.secondary {
+      background: rgba(212, 175, 55, .08);
+      color: var(--gold-soft);
+      border: 1px solid rgba(212, 175, 55, .45);
+    }
+
+    button.danger {
+      background: rgba(220, 38, 38, .20);
+      color: #fecaca;
+      border: 1px solid rgba(220, 38, 38, .62);
+    }
+
+    .user-table th {
+      color: var(--gold-soft);
+      background: rgba(212, 175, 55, .08);
+    }
+
+    .user-table td {
+      background: rgba(8, 8, 8, .55);
+      border-bottom: 1px solid rgba(212, 175, 55, .18);
+    }
+
+    .timeline-item::before {
+      background: var(--gold);
+      box-shadow: 0 0 0 5px rgba(212, 175, 55, .13);
+    }
+
+    .pill-info {
+      background: rgba(212, 175, 55, .16);
+      color: var(--gold-soft);
+    }
+
+    .confidence-fill {
+      background: linear-gradient(90deg, var(--gold), var(--red));
     }
   </style>
 </head>

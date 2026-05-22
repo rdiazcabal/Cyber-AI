@@ -1633,6 +1633,30 @@
         max-width: none;
       }
     }
+
+    /* ===== CRITICAL VISIBILITY FIX ===== */
+
+    #loginView.hidden {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    #appView.hidden {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    #loginView:not(.hidden) {
+      display: flex !important;
+    }
+
+    #appView:not(.hidden) {
+      display: grid !important;
+    }
   </style>
 </head>
 

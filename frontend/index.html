@@ -2106,23 +2106,23 @@
 
           <div class="header">
             <div>
-              <h1>Analysis History</h1>
-              <p>Review previous investigations and download reports.</p>
+              <h1>Historial de Analisis</h1>
+              <p>Analisis anteriores y descarga de reportes.</p>
             </div>
 
             <div class="api-status">
-              <span class="pulse"></span> Reports Module
+              <span class="pulse"></span> Historial
             </div>
           </div>
 
           <div class="panel">
-            <h3>Saved Investigations</h3>
+            <h3>Historial de Analisis</h3>
             <div class="panel-subtitle">
               Historial de análisis guardados.
             </div>
 
             <div id="reportsPanel" class="empty">
-              No reports yet.
+              No hay analisis guardados.
             </div>
           </div>
 
@@ -2265,54 +2265,54 @@
 
           <div class="header">
             <div>
-              <h1>CIS Controls v8</h1>
-              <p>Compliance readiness mapping based on detected security findings.</p>
+              <h1>Controles CIS v8</h1>
+              <p>Mapeo de cumplimiento basado en hallazgos de seguridad detectados.</p>
             </div>
 
             <div class="api-status">
-              <span class="pulse"></span> CIS 8 Mapping
+              <span class="pulse"></span> Mapeo CIS 8
             </div>
           </div>
 
           <div class="cards">
 
             <div class="card card-total">
-              <div class="card-label">Total Reports</div>
+              <div class="card-label">Reportes totales</div>
               <h2 id="cisTotalReports" class="card-value">0</h2>
               <div class="card-foot">Reportes analizados</div>
             </div>
 
             <div class="card card-risk">
-              <div class="card-label">Mapped Reports</div>
+              <div class="card-label">Reportes Mapeados</div>
               <h2 id="cisMappedReports" class="card-value">0</h2>
               <div class="card-foot">Reportes con CIS</div>
             </div>
 
             <div class="card card-patterns">
-              <div class="card-label">Controls</div>
+              <div class="card-label">Controles</div>
               <h2 id="cisTotalControls" class="card-value">0</h2>
               <div class="card-foot">Controles detectados</div>
             </div>
 
           </div>
           <div class="panel">
-            <h3>CIS Evidence Export</h3>
+            <h3>Evidencia CIS</h3>
             <div class="panel-subtitle">
-              Exporta evidencia de cumplimiento CIS Controls v8 en PDF para auditoría o revisión ejecutiva.
+              Exporta evidencia de cumplimiento CIS v8 en PDF para auditoría o revisión ejecutiva.
             </div>
 
             <button onclick="downloadCIS8PDF()">
-              Download CIS 8 Evidence PDF
+              Descargar evidencia CIS v8 PDF
             </button>
           </div>
           <div class="panel">
-            <h3>CIS v8 Control Coverage</h3>
+            <h3>Cobertura de Controles CIS v8</h3>
             <div class="panel-subtitle">
               Controles CIS mapeados automáticamente a partir de los análisis guardados.
             </div>
 
             <div id="cisControlsPanel" class="empty">
-              No CIS controls detected yet.
+              No CIS controls detectados aún.
             </div>
           </div>
         </div>
@@ -2320,28 +2320,28 @@
         <div id="casesView" class="hidden">
           <div class="header">
             <div>
-              <h1>Case Management</h1>
+              <h1>Gestion de Casos</h1>
               <p>Investigación, asignación, notas y seguimiento de incidentes.</p>
             </div>
 
             <div class="api-status">
-              <span class="pulse"></span> Cases Active
+              <span class="pulse"></span> Casos Activos
             </div>
           </div>
 
           <div class="panel">
-            <h3>Security Cases</h3>
+            <h3>Casos de Seguridad</h3>
             <div class="panel-subtitle">
               Casos generados automáticamente por análisis High/Critical o Risk Score alto.
             </div>
 
             <div id="casesPanel" class="empty">
-              No cases loaded yet.
+              No hay casos cargados aún.
             </div>
           </div>
 
           <div class="panel">
-            <h3>Case Details</h3>
+            <h3>Detalles de Caso</h3>
             <div class="panel-subtitle">
               Selecciona un caso para revisar detalles, actualizar estado y agregar notas.
             </div>
@@ -2355,17 +2355,17 @@
         <div id="threatHuntingView" class="hidden">
           <div class="header">
             <div>
-              <h1>Threat Hunting</h1>
+              <h1>Cazador de Amenazas</h1>
               <p>Busca IOCs, usuarios, recursos, dominios, URLs o hashes en el histórico de análisis.</p>
             </div>
 
             <div class="api-status">
-              <span class="pulse"></span> Hunting Active
+              <span class="pulse"></span> Cazador Activo
             </div>
           </div>
 
           <div class="panel">
-            <h3>IOC Search</h3>
+            <h3>Búsqueda de IOC</h3>
             <div class="panel-subtitle">
               Ingresa una IP, dominio, URL, hash, usuario o recurso.
             </div>
@@ -2377,31 +2377,31 @@
 
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
               <button onclick="searchIOC()">
-                Search IOC
+                Buscar IOC
               </button>
               <button class="secondary" onclick="checkIpReputation()">
-                Check IP Reputation
+                Verificar Reputación de IP
               </button>
 
               <button class="secondary" onclick="clearThreatHunting()">
-                Clear
+                Limpiar
               </button>
             </div>
 
             <div id="iocSearchStatus" class="status-line">
-              Waiting for IOC search...
+              Buscando IOC...
             </div>
           </div>
 
           <div class="panel">
-            <h3>Search Results</h3>
+            <h3>Resultados de Búsqueda</h3>
             <div id="iocSearchResultsPanel" class="empty">
-              No IOC search results yet.
+              No hay resultados de búsqueda de IOC aún.
             </div>
           </div>
 
           <div class="panel">
-            <h3>IOC History</h3>
+            <h3>Historial de IOC</h3>
             <div id="iocHistoryPanel" class="empty">
               Select an IOC to view historical activity.
             </div>
@@ -2412,17 +2412,17 @@
 
           <div class="header">
             <div>
-              <h1>Audit Logs</h1>
+              <h1>Registro de Auditoría</h1>
               <p>Registro de acciones sensibles realizadas dentro de la plataforma.</p>
             </div>
 
             <div class="api-status">
-              <span class="pulse"></span> Audit Active
+              <span class="pulse"></span> Auditoría Activa
             </div>
           </div>
 
           <div class="panel">
-            <h3>Audit Events</h3>
+            <h3>Eventos de Auditoría</h3>
             <div class="panel-subtitle">
               Evidencia interna para SOC 2, ISO 27001 y CIS 8.
             </div>
@@ -2439,26 +2439,26 @@
             </div>
 
             <div id="auditLogsPanel" class="empty">
-              No audit logs loaded yet.
+              No hay logs de auditoría cargados aún.
             </div>
           </div>
         </div>
-        <!-- COMPANY SETTINGS VIEW -->
+        <!-- CONFIGURACIÓN DE EMPRESA VIEW -->
         <div id="companySettingsView" class="hidden">
 
           <div class="header">
             <div>
-              <h1>Company Settings</h1>
+              <h1>Configuración de Empresa</h1>
               <p>Configuración de retención, alertas y exportación por empresa.</p>
             </div>
 
             <div class="api-status">
-              <span class="pulse"></span> Settings Active
+              <span class="pulse"></span> Configuración Activa
             </div>
           </div>
 
           <div class="panel">
-            <h3>Retention & Export Settings</h3>
+            <h3>Configuración de Retención y Exportación</h3>
             <div class="panel-subtitle">
               Define cuánto tiempo se conservan los reportes y qué opciones están permitidas para la empresa.
             </div>
@@ -2466,51 +2466,51 @@
             <div class="grid">
               <div>
                 <div class="input-row">
-                  <label>Company</label>
+                  <label>Empresa</label>
                   <select id="settingsCompanyId">
-                    <option value="">Loading companies...</option>
+                    <option value="">Cargando empresas...</option>
                   </select>
                 </div>
 
                 <button class="secondary" onclick="loadCompanySettings()">
-                  Load Settings
+                  Cargar Configuración
                 </button>
               </div>
 
               <div>
                 <div class="input-row">
-                  <label>Retention Days</label>
+                  <label>Días de Retención</label>
                   <input id="settingsRetentionDays" type="number" min="1" max="3650" value="90">
                 </div>
 
                 <div class="input-row">
-                  <label>Alerting Enabled</label>
+                  <label>Alertas Habilitadas</label>
                   <select id="settingsAlertingEnabled">
-                    <option value="true">Enabled</option>
-                    <option value="false">Disabled</option>
+                    <option value="true">Habilitado</option>
+                    <option value="false">Deshabilitado</option>
                   </select>
                 </div>
 
                 <div class="input-row">
-                  <label>Allow PDF Export</label>
+                  <label>Permitir Exportación PDF</label>
                   <select id="settingsAllowPdfExport">
-                    <option value="true">Enabled</option>
-                    <option value="false">Disabled</option>
+                    <option value="true">Permitido</option>
+                    <option value="false">No Permitido</option>
                   </select>
                 </div>
 
                 <button onclick="saveCompanySettings()">
-                  Save Settings
+                  Guardar Configuración
                 </button>
 
                 <button class="secondary" onclick="applyRetentionPolicy()">
-                  Apply Retention Now
+                  Aplicar Política de Retención
                 </button>
               </div>
             </div>
 
             <div id="companySettingsStatus" class="status-line">
-              Waiting for settings...
+              Esperando configuración...
             </div>
           </div>
         </div>
@@ -2519,51 +2519,51 @@
 
           <div class="header">
             <div>
-              <h1>Executive Dashboard</h1>
+              <h1>Panel Ejecutivo</h1>
               <p>Resumen ejecutivo de riesgos, casos, cumplimiento e indicadores de seguridad.</p>
             </div>
             <div class="panel">
-              <h3>Executive Report Export</h3>
+              <h3>Exportación de Reporte Ejecutivo</h3>
               <div class="panel-subtitle">
                 Descarga un resumen ejecutivo en PDF para gerencia, auditoría o clientes.
               </div>
 
               <button onclick="downloadExecutivePDF()">
-                Download Executive PDF
+                Descargar Reporte Ejecutivo
               </button>
             </div>
             <div class="api-status">
-              <span class="pulse"></span> Executive View
+              <span class="pulse"></span> Vista Ejecutiva
             </div>
           </div>
 
           <div class="cards">
             <div class="card card-total">
-              <div class="card-label">Total Reports</div>
+              <div class="card-label">Total Reportes</div>
               <h2 id="execTotalReports" class="card-value">0</h2>
               <div class="card-foot">Reportes generados</div>
             </div>
 
             <div class="card card-patterns">
-              <div class="card-label">This Month</div>
+              <div class="card-label">Este Mes</div>
               <h2 id="execReportsThisMonth" class="card-value">0</h2>
               <div class="card-foot">Reportes del mes</div>
             </div>
 
             <div class="card card-risk">
-              <div class="card-label">Avg Risk</div>
+              <div class="card-label">Riesgo Promedio</div>
               <h2 id="execAvgRisk" class="card-value">0</h2>
               <div class="card-foot">Promedio de riesgo</div>
             </div>
 
             <div class="card card-high">
-              <div class="card-label">Open Cases</div>
+              <div class="card-label">Casos Abiertos</div>
               <h2 id="execOpenCases" class="card-value">0</h2>
-              <div class="card-foot">Casos abiertos</div>
+              <div class="card-foot">Casos activos</div>
             </div>
 
             <div class="card card-critical">
-              <div class="card-label">Critical Cases</div>
+              <div class="card-label">Casos Críticos</div>
               <h2 id="execCriticalCases" class="card-value">0</h2>
               <div class="card-foot">Casos críticos</div>
             </div>
@@ -2608,17 +2608,17 @@
 
           <div class="header">
             <div>
-              <h1>Alert Rules</h1>
+              <h1>Reglas de Alerta</h1>
               <p>Configura reglas de alerta por empresa basadas en riesgo, severidad o creación de casos.</p>
             </div>
 
             <div class="api-status">
-              <span class="pulse"></span> Alerts Active
+              <span class="pulse"></span> Alertas Activas
             </div>
           </div>
 
           <div class="panel">
-            <h3>Create / Update Alert Rule</h3>
+            <h3>Crear / Actualizar Regla de Alerta</h3>
             <div class="panel-subtitle">
               Las reglas se ejecutan automáticamente cuando se guarda un análisis o se crea un caso.
             </div>
@@ -2628,53 +2628,53 @@
             <div class="grid">
               <div>
                 <div class="input-row">
-                  <label>Company</label>
+                  <label>Empresa</label>
                   <select id="alertRuleCompanyId">
-                    <option value="">Loading companies...</option>
+                    <option value="">Cargando empresas...</option>
                   </select>
                 </div>
 
                 <div class="input-row">
-                  <label>Rule Name</label>
+                  <label>Nombre de la Regla</label>
                   <input id="alertRuleName" placeholder="Critical SOC Alert">
                 </div>
 
                 <div class="input-row">
-                  <label>Severity Minimum</label>
+                  <label>Severidad Mínima</label>
                   <select id="alertRuleSeverityMin">
-                    <option value="">Any</option>
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                    <option value="Critical">Critical</option>
+                    <option value="">Cualquiera</option>
+                    <option value="Low">Baja</option>
+                    <option value="Medium">Media</option>
+                    <option value="High">Alta</option>
+                    <option value="Critical">Crítica</option>
                   </select>
                 </div>
 
                 <div class="input-row">
-                  <label>Risk Score Minimum</label>
+                  <label>Puntaje de Riesgo Mínimo</label>
                   <input id="alertRuleRiskScoreMin" type="number" min="0" max="100" value="80">
                 </div>
               </div>
 
               <div>
                 <div class="input-row">
-                  <label>Alert on Case Created</label>
+                  <label>Notificar Creación de Caso</label>
                   <select id="alertRuleOnCaseCreated">
-                    <option value="true">Enabled</option>
-                    <option value="false">Disabled</option>
+                    <option value="true">Habilitado</option>
+                    <option value="false">Deshabilitado</option>
                   </select>
                 </div>
 
                 <div class="input-row">
-                  <label>Alert on Critical</label>
+                  <label>Notificar Casos Críticos</label>
                   <select id="alertRuleOnCritical">
-                    <option value="true">Enabled</option>
-                    <option value="false">Disabled</option>
+                    <option value="true">Habilitado</option>
+                    <option value="false">Deshabilitado</option>
                   </select>
                 </div>
 
                 <div class="input-row">
-                  <label>Channel</label>
+                  <label>Canal</label>
                   <select id="alertRuleChannel">
                     <option value="slack">Slack</option>
                     <option value="webhook">Webhook</option>
@@ -2682,27 +2682,27 @@
                 </div>
 
                 <div class="input-row">
-                  <label>Destination URL</label>
-                  <input id="alertRuleDestination" placeholder="Slack/Webhook URL. Empty = default Slack env">
+                  <label>URL de Destino</label>
+                  <input id="alertRuleDestination" placeholder="URL de Slack/Webhook. Vacío = Slack env por defecto">
                 </div>
 
                 <div class="input-row">
-                  <label>Enabled</label>
+                  <label>Habilitado</label>
                   <select id="alertRuleEnabled">
-                    <option value="true">Enabled</option>
-                    <option value="false">Disabled</option>
+                    <option value="true">Habilitado</option>
+                    <option value="false">Deshabilitado</option>
                   </select>
                 </div>
               </div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button onclick="saveAlertRule()">Save Rule</button>
-              <button class="secondary" onclick="resetAlertRuleForm()">Reset</button>
-              <button class="secondary" onclick="loadAlertRules()">Refresh</button>
+              <button onclick="saveAlertRule()">Guardar Regla</button>
+              <button class="secondary" onclick="resetAlertRuleForm()">Reiniciar</button>
+              <button class="secondary" onclick="loadAlertRules()">Actualizar</button>
             </div>
 
             <div id="alertRulesStatus" class="status-line">
-              Waiting for alert rules...
+              Esperando reglas de alerta...
             </div>
           </div>
 
@@ -2718,12 +2718,12 @@
 
           <div class="header">
             <div>
-              <h1>Cloud Integrations</h1>
+              <h1>Integraciones Cloud</h1>
               <p>Conecta AWS, Azure y GCP para traer eventos de seguridad al SOC.</p>
             </div>
 
             <div class="api-status">
-              <span class="pulse"></span> Multi-Cloud Ready
+              <span class="pulse"></span> Listo para Multi-Cloud
             </div>
           </div>
 
@@ -2748,7 +2748,7 @@
           </div>
 
           <div class="panel">
-            <h3>Create / Update Cloud Integration</h3>
+            <h3>Crear / Actualizar Integración Cloud</h3>
             <div class="panel-subtitle">
               Configura una integración por empresa. Para producción usa referencias a secretos, no secretos directos.
             </div>
@@ -2758,14 +2758,14 @@
             <div class="grid">
               <div>
                 <div class="input-row">
-                  <label>Company</label>
+                  <label>Empresa</label>
                   <select id="integrationCompanyId">
-                    <option value="">Loading companies...</option>
+                    <option value="">Cargando empresas...</option>
                   </select>
                 </div>
 
                 <div class="input-row">
-                  <label>Provider</label>
+                  <label>Proveedor</label>
                   <select id="integrationProvider" onchange="renderIntegrationProviderFields()">
                     <option value="aws">AWS</option>
                     <option value="azure">Azure</option>
@@ -2774,27 +2774,27 @@
                 </div>
 
                 <div class="input-row">
-                  <label>Name</label>
-                  <input id="integrationName" placeholder="Production AWS Account">
+                  <label>Nombre de la Integración</label>
+                  <input id="integrationName" placeholder="Producción AWS Account">
                 </div>
 
                 <div class="input-row">
-                  <label>Enabled</label>
+                  <label>Habilitado</label>
                   <select id="integrationEnabled">
                     <option value="true">Enabled</option>
-                    <option value="false">Disabled</option>
+                    <option value="false">Deshabilitado</option>
                   </select>
                 </div>
                 <div class="input-row">
-                  <label>Auto Sync</label>
+                  <label>Sincronización Automática</label>
                   <select id="integrationSyncEnabled">
-                    <option value="false">Manual only</option>
-                    <option value="true">Enabled</option>
+                    <option value="false">Solo Manual</option>
+                    <option value="true">Habilitado</option>
                   </select>
                 </div>
 
                 <div class="input-row">
-                  <label>Sync Interval Minutes</label>
+                  <label>Intervalo de Sincronización</label>
                   <input id="integrationSyncInterval" type="number" min="5" value="60">
                 </div>
               </div>
@@ -2805,29 +2805,29 @@
             </div>
 
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button onclick="saveIntegration()">Save Integration</button>
-              <button class="secondary" onclick="resetIntegrationForm()">Reset</button>
-              <button class="secondary" onclick="loadIntegrations()">Refresh</button>
+              <button onclick="saveIntegration()">Guardar Integración</button>
+              <button class="secondary" onclick="resetIntegrationForm()">Reiniciar</button>
+              <button class="secondary" onclick="loadIntegrations()">Actualizar</button>
             </div>
 
             <div id="integrationsStatus" class="status-line">
-              Waiting for integrations...
+              Esperando integraciones...
             </div>
           </div>
 
           <div class="panel">
-            <h3>Configured Integrations</h3>
+            <h3>Integraciones Configuradas</h3>
             <div id="integrationsPanel" class="empty">
               No integrations loaded yet.
             </div>
           </div>
           <div class="panel">
-            <h3>Sync History</h3>
+            <h3>Historial de Sincronización</h3>
             <div class="panel-subtitle">
               Historial de ejecuciones manuales y automáticas.
             </div>
             <div id="integrationSyncHistoryPanel" class="empty">
-              Select an integration to view sync history.
+              Selecciona una integración para ver el historial de sincronización.
             </div>
           </div>
         </div>

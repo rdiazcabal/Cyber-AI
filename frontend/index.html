@@ -6215,31 +6215,11 @@
     }
 
     async function showIntegrations() {
-      const viewsToHide = [
-        "dashboardView",
-        "historyView",
-        "executiveView",
-        "socView",
-        "cisView",
-        "casesView",
-        "threatHuntingView",
-        "auditLogsView",
-        "companySettingsView",
-        "alertRulesView"
-      ];
-
-      viewsToHide.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.add("hidden");
-      });
-
-      document.querySelectorAll(".nav-item").forEach(item => item.classList.remove("active"));
+      hideAllMainViews();
+      setActiveNav("integrationsNav");
 
       const integrationsView = document.getElementById("integrationsView");
       if (integrationsView) integrationsView.classList.remove("hidden");
-
-      const integrationsNav = document.getElementById("integrationsNav");
-      if (integrationsNav) integrationsNav.classList.add("active");
 
       await loadCompanyOptions("integrationCompanyId", true);
 

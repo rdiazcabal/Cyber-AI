@@ -3501,8 +3501,10 @@
 
     async function showCompanySettings() {
 
+      hideAllMainViews();
       setActiveNav("companySettingsNav");
 
+      document.getElementById("companySettingsView").classList.remove("hidden");
       document.getElementById("dashboardView").classList.add("hidden");
       document.getElementById("historyView").classList.add("hidden");
 
@@ -6798,7 +6800,7 @@
   `).join("");
     }
 
-    function hideAllMainViewsForMasterBilling() {
+    function hideAllMainViews() {
       [
         "dashboardView",
         "billingPlanView",
@@ -6835,7 +6837,7 @@
         return;
       }
 
-      hideAllMainViewsForMasterBilling();
+      hideAllMainViews();
       setActiveNav("masterBillingNav");
 
       const view = document.getElementById("masterBillingView");

@@ -1,3 +1,4 @@
+from app import database
 import os
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
@@ -133,7 +134,14 @@ def bootstrap_admin_user():
             user.is_active = True
             has_changes = True
 
-        if not verify_password(ADMIN_PASSWORD, user.password_hash):
+        # Do not overwrite admin password on every container restart.
+        # Password changes must be managed from the application UI.
+        force_admin_password_reset = os.getenv(
+            "BOOTSTRAP_ADMIN_FORCE_PASSWORD_RESET",
+            "false"
+        ).lower() == "true"
+
+        if force_admin_password_reset and not verify_password(ADMIN_PASSWORD, user.password_hash):
             user.password_hash = hash_password(ADMIN_PASSWORD)
             has_changes = True
 

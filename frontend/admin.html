@@ -1251,6 +1251,53 @@
     .admin-menu .menu-item:hover {
       background: rgba(255, 255, 255, 0.08);
     }
+
+    /* ===== PASSWORD MODAL ===== */
+
+    .password-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0, 0, 0, .74);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .password-modal-backdrop.hidden {
+      display: none !important;
+    }
+
+    .password-modal {
+      width: 100%;
+      max-width: 460px;
+      padding: 26px;
+      border-radius: 22px;
+      background:
+        radial-gradient(circle at top right, rgba(220, 38, 38, .14), transparent 34%),
+        linear-gradient(180deg, rgba(16, 16, 16, .98), rgba(5, 5, 5, .98));
+      border: 1px solid rgba(212, 175, 55, .42);
+      box-shadow:
+        0 24px 80px rgba(0, 0, 0, .72),
+        0 0 32px rgba(212, 175, 55, .12);
+    }
+
+    .password-modal h3 {
+      margin: 0 0 8px;
+      color: var(--text);
+      font-size: 22px;
+    }
+
+    .password-modal p {
+      margin: 0 0 20px;
+      color: var(--muted);
+    }
+
+    .password-modal input {
+      width: 100%;
+    }
   </style>
 </head>
 
@@ -1924,26 +1971,73 @@
       await loadUsers();
     }
 
-    async function changeUserPassword(id, username) {
-      const newPassword = prompt(
-        `Nueva contraseña para ${username}:\n\nDebe cumplir política fuerte, ejemplo: CyberPro2026!`,
-        ""
-      );
+    let passwordModalResolve = null;
+    let passwordModalUserId = null;
+    let passwordModalUsername = null;
 
-      if (!newPassword) return;
+    function openPasswordModal(userId, username) {
+      passwordModalUserId = userId;
+      passwordModalUsername = username;
 
-      const confirmPassword = prompt(
-        `Confirma la nueva contraseña para ${username}:`,
-        ""
-      );
+      document.getElementById("passwordModalSubtitle").innerText =
+        `Nueva contraseña para ${username}`;
 
-      if (!confirmPassword) return;
+      document.getElementById("passwordModalNew").value = "";
+      document.getElementById("passwordModalConfirm").value = "";
+      document.getElementById("passwordModalStatus").innerText =
+        "Debe cumplir política fuerte. Ejemplo: CyberPro2026!";
 
-      if (newPassword !== confirmPassword) {
-        document.getElementById("adminStatus").innerText =
-          "Las contraseñas no coinciden.";
+      document.getElementById("passwordModal").classList.remove("hidden");
+
+      setTimeout(() => {
+        document.getElementById("passwordModalNew").focus();
+      }, 100);
+
+      return new Promise(resolve => {
+        passwordModalResolve = resolve;
+      });
+    }
+
+    function closePasswordModal() {
+      document.getElementById("passwordModal").classList.add("hidden");
+
+      document.getElementById("passwordModalNew").value = "";
+      document.getElementById("passwordModalConfirm").value = "";
+      document.getElementById("passwordModalStatus").innerText = "";
+
+      if (passwordModalResolve) {
+        passwordModalResolve(null);
+        passwordModalResolve = null;
+      }
+    }
+
+    function confirmPasswordModal() {
+      const newPassword = document.getElementById("passwordModalNew").value;
+      const confirmPassword = document.getElementById("passwordModalConfirm").value;
+      const status = document.getElementById("passwordModalStatus");
+
+      if (!newPassword || !confirmPassword) {
+        status.innerText = "Debes escribir y confirmar la contraseña.";
         return;
       }
+
+      if (newPassword !== confirmPassword) {
+        status.innerText = "Las contraseñas no coinciden.";
+        return;
+      }
+
+      document.getElementById("passwordModal").classList.add("hidden");
+
+      if (passwordModalResolve) {
+        passwordModalResolve(newPassword);
+        passwordModalResolve = null;
+      }
+    }
+
+    async function changeUserPassword(id, username) {
+      const newPassword = await openPasswordModal(id, username);
+
+      if (!newPassword) return;
 
       const res = await fetch(`/admin/users/${id}`, {
         method: "PUT",
@@ -2278,6 +2372,31 @@
 
     initAdminPage();
   </script>
+  <!-- PASSWORD MODAL -->
+  <div id="passwordModal" class="password-modal-backdrop hidden">
+    <div class="password-modal">
+      <h3>Cambiar password</h3>
+      <p id="passwordModalSubtitle">Nueva contraseña</p>
+
+      <div class="input-row">
+        <label>Nueva contraseña</label>
+        <input id="passwordModalNew" type="password" autocomplete="new-password" placeholder="Ejemplo: CyberPro2026!">
+      </div>
+
+      <div class="input-row">
+        <label>Confirmar contraseña</label>
+        <input id="passwordModalConfirm" type="password" autocomplete="new-password"
+          placeholder="Confirma la contraseña">
+      </div>
+
+      <div id="passwordModalStatus" class="status-line"></div>
+
+      <div class="button-row">
+        <button onclick="confirmPasswordModal()">Guardar password</button>
+        <button class="secondary" onclick="closePasswordModal()">Cancelar</button>
+      </div>
+    </div>
+  </div>
 </body>
 
 </html>

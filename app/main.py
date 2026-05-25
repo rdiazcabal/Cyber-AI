@@ -930,10 +930,19 @@ def admin_billing_overview(
             max_users = None
             max_integrations = None
             plan_label = "Internal Unlimited"
+            pricing = {
+                "monthly_usd": 0,
+                "semiannual_usd": 0,
+                "annual_usd": 0,
+                "currency": "USD",
+                "billing_cycle": "internal",
+                "display": "Internal / No charge"
+            }
         else:
             max_users = plan["max_users"]
             max_integrations = plan["max_integrations"]
             plan_label = plan["label"]
+            pricing = get_plan_pricing(plan_name)
 
             if not company.license_required:
                 license_status = "license_not_required"
@@ -950,15 +959,6 @@ def admin_billing_overview(
                     license_status = "expiring_soon"
                 else:
                     license_status = "active"
-
-                pricing = {
-                    "monthly_usd": 0,
-                    "semiannual_usd": 0,
-                    "annual_usd": 0,
-                    "currency": "USD",
-                    "billing_cycle": "internal",
-                    "display": "Internal / No charge"
-                } if is_internal_unlimited else get_plan_pricing(plan_name)
 
         result.append({
             "company_id": company.id,

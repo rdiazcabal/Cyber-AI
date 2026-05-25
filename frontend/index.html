@@ -2919,6 +2919,8 @@
     }
 
     function showDashboard() {
+
+      hideAllMainViews();
       setActiveNav("dashboardNav");
 
       document.getElementById("dashboardView").classList.remove("hidden");
@@ -2990,6 +2992,7 @@
 
     async function showHistory() {
 
+      hideAllMainViews();
       setActiveNav("historyNav");
 
       document.getElementById("dashboardView").classList.add("hidden");
@@ -3063,6 +3066,7 @@
 
     async function showSOC() {
 
+      hideAllMainViews();
       setActiveNav("socNav");
 
       document.getElementById("dashboardView").classList.add("hidden");
@@ -3136,6 +3140,7 @@
 
     async function showCIS() {
 
+      hideAllMainViews();
       setActiveNav("cisNav");
 
       document.getElementById("dashboardView").classList.add("hidden");
@@ -3209,6 +3214,7 @@
 
     async function showCases() {
 
+      hideAllMainViews();
       setActiveNav("casesNav");
 
       document.getElementById("dashboardView").classList.add("hidden");
@@ -3357,6 +3363,7 @@
 
     async function showThreatHunting() {
 
+      hideAllMainViews();
       setActiveNav("threatHuntingNav");
 
       document.getElementById("dashboardView").classList.add("hidden");
@@ -3429,6 +3436,7 @@
 
     async function showAuditLogs() {
 
+      hideAllMainViews();
       setActiveNav("auditLogsNav");
 
       document.getElementById("dashboardView").classList.add("hidden");
@@ -3577,6 +3585,7 @@
 
     async function showExecutiveDashboard() {
 
+      hideAllMainViews();
       setActiveNav("executiveNav");
 
       document.getElementById("dashboardView").classList.add("hidden");
@@ -3650,6 +3659,7 @@
 
     async function showAlertRules() {
 
+      hideAllMainViews();
       setActiveNav("alertRulesNav");
 
       document.getElementById("dashboardView").classList.add("hidden");

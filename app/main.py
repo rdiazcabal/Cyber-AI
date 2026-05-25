@@ -210,6 +210,27 @@ def login(
                 status_code=402,
                 detail=f"Subscription is {company.subscription_status}"
             )
+        
+        if company.subscription_status == "trial":
+            if not company.trial_ends_at or company.trial_ends_at <= datetime.utcnow():
+                audit_login_event(
+                    db=db,
+                    request=request,
+                    action="LOGIN_BLOCKED",
+                    username=authenticated_user.username,
+                    user=authenticated_user,
+                    details={
+                        "reason": "Trial period has expired",
+                        "company_id": company.id,
+                        "company_name": company.name,
+                        "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,
+                    }
+                )
+
+                raise HTTPException(
+                    status_code=402,
+                    detail="Trial period has expired"
+                )
 
         if company.license_required:
             if not company.plan_expires_at:
@@ -392,19 +413,51 @@ def get_company_subscription(db: Session, company_id: int):
 
     duration_days = (company.plan_expires_at - company.plan_started_at).days
 
-    if duration_days < 180:
-        raise HTTPException(
-            status_code=400,
-            detail="Plan validity must be at least 6 months"
-        )
+    if company.subscription_status == "trial":
+        if not company.trial_ends_at:
+            raise HTTPException(
+                status_code=402,
+                detail="Trial expiration date is required"
+            )
 
-    if duration_days > 365:
-        raise HTTPException(
-            status_code=400,
-            detail="Plan validity cannot exceed 1 year"
-        )
+        if company.trial_ends_at <= datetime.utcnow():
+            raise HTTPException(
+                status_code=402,
+                detail="Trial period has expired"
+            )
+
+        if duration_days > 3:
+            raise HTTPException(
+                status_code=400,
+                detail="Trial period cannot exceed 3 days"
+            )
+
+    else:
+        if duration_days < 180:
+            raise HTTPException(
+                status_code=400,
+                detail="Plan validity must be at least 6 months"
+            )
+
+        if duration_days > 365:
+            raise HTTPException(
+                status_code=400,
+                detail="Plan validity cannot exceed 1 year"
+            )
 
     return company, plan_name, plan
+
+def is_company_trial_active(company: Company) -> bool:
+    if not company:
+        return False
+
+    if company.subscription_status != "trial":
+        return False
+
+    if not company.trial_ends_at:
+        return False
+
+    return company.trial_ends_at > datetime.utcnow()
 
 def require_plan_feature(db: Session, current_user: User, feature: str):
     company, plan_name, plan = get_company_subscription(

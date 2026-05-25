@@ -991,6 +991,260 @@ def admin_billing_overview(
 
     return result
 
+@app.get("/admin/operations/overview")
+def admin_operations_overview(
+    month: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    require_master_company(current_user)
+
+    now = datetime.utcnow()
+
+    if month:
+        try:
+            year, month_number = month.split("-")
+            period_start = datetime(int(year), int(month_number), 1)
+
+            if int(month_number) == 12:
+                period_end = datetime(int(year) + 1, 1, 1)
+            else:
+                period_end = datetime(int(year), int(month_number) + 1, 1)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid month format. Use YYYY-MM"
+            )
+    else:
+        period_start = datetime(now.year, now.month, 1)
+
+        if now.month == 12:
+            period_end = datetime(now.year + 1, 1, 1)
+        else:
+            period_end = datetime(now.year, now.month + 1, 1)
+
+    companies = db.query(Company).order_by(Company.name.asc()).all()
+
+    license_alerts = []
+    monthly_summaries = []
+    integration_alerts = []
+
+    total_reports_all = 0
+    total_high_risk_all = 0
+    total_open_cases_all = 0
+    total_failed_integrations = 0
+
+    for company in companies:
+        is_internal = company.id == 1
+        plan_name = company.plan or "starter"
+        plan = PLAN_LIMITS.get(plan_name, PLAN_LIMITS["starter"])
+
+        # -----------------------------
+        # 1. License alerts
+        # -----------------------------
+        license_status = "internal_unlimited" if is_internal else "active"
+        days_remaining = None
+        alert_level = "ok"
+        alert_reason = "License active"
+
+        if not is_internal:
+            if company.subscription_status in ["past_due", "suspended", "cancelled"]:
+                alert_level = "critical" if company.subscription_status in ["suspended", "cancelled"] else "warning"
+                alert_reason = f"Subscription is {company.subscription_status}"
+                license_status = company.subscription_status
+
+            elif not company.license_required:
+                alert_level = "warning"
+                alert_reason = "License not required but company is not internal"
+                license_status = "license_not_required"
+
+            elif not company.plan_expires_at:
+                alert_level = "critical"
+                alert_reason = "Missing license expiration date"
+                license_status = "missing_license_dates"
+
+            else:
+                days_remaining = (company.plan_expires_at - now).days
+
+                if days_remaining < 0:
+                    alert_level = "critical"
+                    alert_reason = "License expired"
+                    license_status = "expired"
+                elif days_remaining <= 15:
+                    alert_level = "critical"
+                    alert_reason = "License expires in 15 days or less"
+                    license_status = "expires_15"
+                elif days_remaining <= 30:
+                    alert_level = "warning"
+                    alert_reason = "License expires in 30 days or less"
+                    license_status = "expires_30"
+                else:
+                    alert_level = "ok"
+                    alert_reason = "License active"
+                    license_status = "active"
+
+            if alert_level != "ok":
+                license_alerts.append({
+                    "company_id": company.id,
+                    "company_name": company.name,
+                    "plan": plan_name,
+                    "plan_label": plan.get("label", plan_name),
+                    "subscription_status": company.subscription_status,
+                    "license_status": license_status,
+                    "alert_level": alert_level,
+                    "alert_reason": alert_reason,
+                    "billing_email": company.billing_email,
+                    "plan_expires_at": str(company.plan_expires_at) if company.plan_expires_at else None,
+                    "days_remaining": days_remaining,
+                })
+
+        # -----------------------------
+        # 2. Monthly summary
+        # -----------------------------
+        reports_query = db.query(AnalysisReport).filter(
+            AnalysisReport.company_id == company.id,
+            AnalysisReport.created_at >= period_start,
+            AnalysisReport.created_at < period_end,
+        )
+
+        reports = reports_query.all()
+        total_reports = len(reports)
+        high_risk_reports = len([r for r in reports if (r.risk_score or 0) >= 70])
+        critical_reports = len([r for r in reports if (r.risk_score or 0) >= 90])
+
+        cases_query = db.query(SecurityCase).filter(
+            SecurityCase.company_id == company.id,
+            SecurityCase.created_at >= period_start,
+            SecurityCase.created_at < period_end,
+        )
+
+        cases = cases_query.all()
+        open_cases = len([c for c in cases if c.status == "open"])
+        resolved_cases = len([c for c in cases if c.status in ["resolved", "false_positive"]])
+
+        users_count = (
+            db.query(User)
+            .filter(User.company_id == company.id, User.is_active == True)
+            .count()
+        )
+
+        integrations_count = (
+            db.query(CloudIntegration)
+            .filter(CloudIntegration.company_id == company.id)
+            .count()
+        )
+
+        enabled_integrations_count = (
+            db.query(CloudIntegration)
+            .filter(
+                CloudIntegration.company_id == company.id,
+                CloudIntegration.enabled == True,
+            )
+            .count()
+        )
+
+        total_reports_all += total_reports
+        total_high_risk_all += high_risk_reports
+        total_open_cases_all += open_cases
+
+        monthly_summaries.append({
+            "company_id": company.id,
+            "company_name": company.name,
+            "period_start": str(period_start.date()),
+            "period_end": str(period_end.date()),
+            "plan": "internal_unlimited" if is_internal else plan_name,
+            "plan_label": "Internal Unlimited" if is_internal else plan.get("label", plan_name),
+            "subscription_status": "active" if is_internal else company.subscription_status,
+            "reports": total_reports,
+            "high_risk_reports": high_risk_reports,
+            "critical_reports": critical_reports,
+            "cases": len(cases),
+            "open_cases": open_cases,
+            "resolved_cases": resolved_cases,
+            "active_users": users_count,
+            "integrations": integrations_count,
+            "enabled_integrations": enabled_integrations_count,
+        })
+
+        # -----------------------------
+        # 3. Integration health alerts
+        # -----------------------------
+        integrations = (
+            db.query(CloudIntegration)
+            .filter(CloudIntegration.company_id == company.id)
+            .order_by(CloudIntegration.created_at.desc())
+            .all()
+        )
+
+        for integration in integrations:
+            issues = []
+            alert_level = "ok"
+
+            if integration.enabled and integration.last_status == "failed":
+                issues.append("Last sync failed")
+                alert_level = "critical"
+
+            if integration.enabled and integration.last_error:
+                issues.append(integration.last_error)
+                alert_level = "critical"
+
+            if integration.enabled and integration.sync_enabled and not integration.last_sync_at:
+                issues.append("Auto sync enabled but integration has never synced")
+                alert_level = "warning"
+
+            if integration.enabled and integration.sync_enabled and integration.last_sync_at:
+                allowed_delay_minutes = max((integration.sync_interval_minutes or 60) * 3, 180)
+                stale_threshold = now - timedelta(minutes=allowed_delay_minutes)
+
+                if integration.last_sync_at < stale_threshold:
+                    issues.append(f"No sync in more than {allowed_delay_minutes} minutes")
+                    alert_level = "warning" if alert_level != "critical" else "critical"
+
+            if integration.enabled and integration.sync_enabled and integration.next_sync_at:
+                if integration.next_sync_at < now - timedelta(minutes=15):
+                    issues.append("Next sync is overdue")
+                    alert_level = "warning" if alert_level != "critical" else "critical"
+
+            if issues:
+                total_failed_integrations += 1
+
+                integration_alerts.append({
+                    "company_id": company.id,
+                    "company_name": company.name,
+                    "integration_id": integration.id,
+                    "provider": integration.provider,
+                    "name": integration.name,
+                    "enabled": integration.enabled,
+                    "sync_enabled": integration.sync_enabled,
+                    "sync_interval_minutes": integration.sync_interval_minutes,
+                    "last_status": integration.last_status,
+                    "last_error": integration.last_error,
+                    "last_sync_at": str(integration.last_sync_at) if integration.last_sync_at else None,
+                    "next_sync_at": str(integration.next_sync_at) if integration.next_sync_at else None,
+                    "alert_level": alert_level,
+                    "issues": issues,
+                })
+
+    return {
+        "period": {
+            "month": period_start.strftime("%Y-%m"),
+            "period_start": str(period_start.date()),
+            "period_end": str(period_end.date()),
+        },
+        "summary": {
+            "companies": len([c for c in companies if c.id != 1]),
+            "license_alerts": len(license_alerts),
+            "integration_alerts": len(integration_alerts),
+            "total_reports": total_reports_all,
+            "high_risk_reports": total_high_risk_all,
+            "open_cases": total_open_cases_all,
+            "failed_integrations": total_failed_integrations,
+        },
+        "license_alerts": license_alerts,
+        "monthly_summaries": monthly_summaries,
+        "integration_alerts": integration_alerts,
+    }
+
 @app.get("/admin/users")
 def admin_list_users(
     db: Session = Depends(get_db),

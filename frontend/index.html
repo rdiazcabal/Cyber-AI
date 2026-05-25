@@ -2176,6 +2176,43 @@
               Cargando facturación master...
             </div>
           </div>
+          <div class="panel">
+            <h3>Alertas de licencias</h3>
+            <div class="panel-subtitle">
+              Clientes con licencias vencidas, próximas a vencer, suspendidas o con problemas comerciales.
+            </div>
+
+            <div id="licenseAlertsPanel" class="empty">
+              Cargando alertas de licencias...
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Resumen mensual por cliente</h3>
+            <div class="panel-subtitle">
+              Reporte operativo mensual: análisis, casos, usuarios, integraciones y riesgo.
+            </div>
+
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+              <input id="operationsMonthInput" type="month" style="max-width:220px;">
+              <button class="secondary" onclick="loadOperationsOverview()">Actualizar resumen</button>
+            </div>
+
+            <div id="monthlySummaryPanel" class="empty">
+              Cargando resumen mensual...
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Alertas de integraciones</h3>
+            <div class="panel-subtitle">
+              Integraciones cloud fallidas, sin sincronización reciente o con errores pendientes.
+            </div>
+
+            <div id="integrationAlertsPanel" class="empty">
+              Cargando alertas de integraciones...
+            </div>
+          </div>
         </div>
         <!-- SOC VIEW -->
         <div id="socView" class="hidden">
@@ -6805,6 +6842,7 @@
       if (view) view.classList.remove("hidden");
 
       await loadMasterBilling();
+      await loadOperationsOverview();
     }
 
     async function loadMasterBilling() {
@@ -6916,6 +6954,231 @@
         panel.className = "empty";
         panel.innerText = `Error cargando facturación: ${err.message}`;
       }
+    }
+
+    async function loadOperationsOverview() {
+      const licensePanel = document.getElementById("licenseAlertsPanel");
+      const monthlyPanel = document.getElementById("monthlySummaryPanel");
+      const integrationPanel = document.getElementById("integrationAlertsPanel");
+
+      if (!licensePanel || !monthlyPanel || !integrationPanel) return;
+
+      licensePanel.className = "empty";
+      licensePanel.innerText = "Cargando alertas de licencias...";
+
+      monthlyPanel.className = "empty";
+      monthlyPanel.innerText = "Cargando resumen mensual...";
+
+      integrationPanel.className = "empty";
+      integrationPanel.innerText = "Cargando alertas de integraciones...";
+
+      try {
+        let url = "/admin/operations/overview";
+
+        const monthInput = document.getElementById("operationsMonthInput");
+        const selectedMonth = monthInput?.value;
+
+        if (selectedMonth) {
+          url += `?month=${encodeURIComponent(selectedMonth)}`;
+        }
+
+        const res = await fetch(url, {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+
+          licensePanel.innerText = `No se pudo cargar operación: ${errorText}`;
+          monthlyPanel.innerText = `No se pudo cargar operación: ${errorText}`;
+          integrationPanel.innerText = `No se pudo cargar operación: ${errorText}`;
+
+          return;
+        }
+
+        const data = await res.json();
+
+        renderLicenseAlerts(data.license_alerts || []);
+        renderMonthlySummary(data.monthly_summaries || [], data.period || {});
+        renderIntegrationAlerts(data.integration_alerts || []);
+
+      } catch (err) {
+        licensePanel.innerText = `Error operativo: ${err.message}`;
+        monthlyPanel.innerText = `Error operativo: ${err.message}`;
+        integrationPanel.innerText = `Error operativo: ${err.message}`;
+      }
+    }
+
+    function operationAlertPill(level) {
+      const value = String(level || "").toLowerCase();
+
+      if (value === "critical") return "pill-critical";
+      if (value === "warning") return "pill-high";
+      return "pill-low";
+    }
+
+    function renderLicenseAlerts(alerts) {
+      const panel = document.getElementById("licenseAlertsPanel");
+
+      if (!alerts.length) {
+        panel.className = "empty";
+        panel.innerText = "No hay alertas de licencia.";
+        return;
+      }
+
+      panel.className = "";
+      panel.innerHTML = `
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th>Empresa</th>
+          <th>Plan</th>
+          <th>Estado</th>
+          <th>Alerta</th>
+          <th>Expira</th>
+          <th>Días</th>
+          <th>Billing Email</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${alerts.map(a => `
+          <tr>
+            <td>
+              <strong>${escapeHtml(a.company_name || "-")}</strong>
+              <div class="pattern-meta">ID: ${escapeHtml(a.company_id)}</div>
+            </td>
+            <td>${escapeHtml(a.plan_label || a.plan || "-")}</td>
+            <td>${escapeHtml(a.subscription_status || "-")}</td>
+            <td>
+              <span class="pill ${operationAlertPill(a.alert_level)}">
+                ${escapeHtml(a.alert_reason || "-")}
+              </span>
+            </td>
+            <td>${escapeHtml(a.plan_expires_at || "-")}</td>
+            <td>${a.days_remaining ?? "-"}</td>
+            <td>${escapeHtml(a.billing_email || "-")}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+    }
+
+    function renderMonthlySummary(rows, period) {
+      const panel = document.getElementById("monthlySummaryPanel");
+
+      if (!rows.length) {
+        panel.className = "empty";
+        panel.innerText = "No hay datos mensuales.";
+        return;
+      }
+
+      panel.className = "";
+      panel.innerHTML = `
+    <div class="pattern-card">
+      <div class="pattern-header">
+        <span class="pill pill-info">Periodo ${escapeHtml(period.month || "-")}</span>
+        <span class="pattern-title">Resumen operativo mensual por cliente</span>
+      </div>
+    </div>
+
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th>Empresa</th>
+          <th>Plan</th>
+          <th>Reportes</th>
+          <th>Alto riesgo</th>
+          <th>Críticos</th>
+          <th>Casos</th>
+          <th>Usuarios</th>
+          <th>Integraciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr>
+            <td>
+              <strong>${escapeHtml(r.company_name || "-")}</strong>
+              <div class="pattern-meta">ID: ${escapeHtml(r.company_id)}</div>
+            </td>
+            <td>${escapeHtml(r.plan_label || r.plan || "-")}</td>
+            <td>${r.reports ?? 0}</td>
+            <td>${r.high_risk_reports ?? 0}</td>
+            <td>${r.critical_reports ?? 0}</td>
+            <td>
+              Total: ${r.cases ?? 0}<br>
+              Open: ${r.open_cases ?? 0}<br>
+              Resolved: ${r.resolved_cases ?? 0}
+            </td>
+            <td>${r.active_users ?? 0}</td>
+            <td>
+              Total: ${r.integrations ?? 0}<br>
+              Enabled: ${r.enabled_integrations ?? 0}
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+    }
+
+    function renderIntegrationAlerts(alerts) {
+      const panel = document.getElementById("integrationAlertsPanel");
+
+      if (!alerts.length) {
+        panel.className = "empty";
+        panel.innerText = "No hay alertas de integraciones.";
+        return;
+      }
+
+      panel.className = "";
+      panel.innerHTML = `
+    <table class="user-table">
+      <thead>
+        <tr>
+          <th>Empresa</th>
+          <th>Proveedor</th>
+          <th>Integración</th>
+          <th>Estado</th>
+          <th>Último Sync</th>
+          <th>Próximo Sync</th>
+          <th>Problemas</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${alerts.map(a => `
+          <tr>
+            <td>
+              <strong>${escapeHtml(a.company_name || "-")}</strong>
+              <div class="pattern-meta">ID: ${escapeHtml(a.company_id)}</div>
+            </td>
+            <td>
+              <span class="pill pill-info">${escapeHtml(String(a.provider || "-").toUpperCase())}</span>
+            </td>
+            <td>
+              <strong>${escapeHtml(a.name || "-")}</strong>
+              <div class="pattern-meta">Integration ID: ${escapeHtml(a.integration_id)}</div>
+            </td>
+            <td>
+              <span class="pill ${operationAlertPill(a.alert_level)}">
+                ${escapeHtml(a.last_status || a.alert_level || "-")}
+              </span>
+            </td>
+            <td>${escapeHtml(a.last_sync_at || "-")}</td>
+            <td>${escapeHtml(a.next_sync_at || "-")}</td>
+            <td>
+              ${(a.issues || []).map(issue => `
+                <div class="pattern-meta">• ${escapeHtml(issue)}</div>
+              `).join("")}
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
     }
 
     loadSession();

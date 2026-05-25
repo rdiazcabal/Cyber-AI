@@ -311,6 +311,49 @@ def require_master_company(current_user: User):
             detail="Only master company super admin can access this resource"
         )
 
+PLAN_PRICES = {
+    "starter": {
+        "monthly_usd": 149,
+        "semiannual_usd": 149 * 6,
+        "annual_usd": 149 * 12,
+        "currency": "USD",
+        "billing_cycle": "monthly",
+        "display": "$149 / month"
+    },
+    "professional": {
+        "monthly_usd": 499,
+        "semiannual_usd": 499 * 6,
+        "annual_usd": 499 * 12,
+        "currency": "USD",
+        "billing_cycle": "monthly",
+        "display": "$499 / month"
+    },
+    "business": {
+        "monthly_usd": 1200,
+        "semiannual_usd": 1200 * 6,
+        "annual_usd": 1200 * 12,
+        "currency": "USD",
+        "billing_cycle": "monthly",
+        "display": "$1,200 / month"
+    },
+    "enterprise": {
+        "monthly_usd": None,
+        "semiannual_usd": None,
+        "annual_usd": None,
+        "currency": "USD",
+        "billing_cycle": "custom",
+        "display": "Custom quote"
+    },
+}
+
+def get_plan_pricing(plan_name: str):
+    plan_key = (plan_name or "starter").lower()
+
+    return PLAN_PRICES.get(
+        plan_key,
+        PLAN_PRICES["starter"]
+    )
+
 def get_company_subscription(db: Session, company_id: int):
     company = db.query(Company).filter(Company.id == company_id).first()
 
@@ -706,6 +749,14 @@ def get_billing_plan(
         "company_name": company.name,
         "plan": "internal_unlimited" if is_internal_unlimited else plan_name,
         "plan_label": "Internal Unlimited" if is_internal_unlimited else plan["label"],
+        "pricing": {
+            "monthly_usd": 0,
+            "semiannual_usd": 0,
+            "annual_usd": 0,
+            "currency": "USD",
+            "billing_cycle": "internal",
+            "display": "Internal / No charge"
+        } if is_internal_unlimited else get_plan_pricing(plan_name),
         "subscription_status": "active" if is_internal_unlimited else company.subscription_status,
         "billing_email": company.billing_email,
         "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,
@@ -900,6 +951,15 @@ def admin_billing_overview(
                 else:
                     license_status = "active"
 
+                pricing = {
+                    "monthly_usd": 0,
+                    "semiannual_usd": 0,
+                    "annual_usd": 0,
+                    "currency": "USD",
+                    "billing_cycle": "internal",
+                    "display": "Internal / No charge"
+                } if is_internal_unlimited else get_plan_pricing(plan_name)
+
         result.append({
             "company_id": company.id,
             "company_name": company.name,
@@ -907,6 +967,9 @@ def admin_billing_overview(
 
             "plan": "internal_unlimited" if is_internal_unlimited else plan_name,
             "plan_label": plan_label,
+            "pricing": pricing,
+            "estimated_monthly_value_usd": pricing.get("monthly_usd") or 0,
+            "estimated_annual_value_usd": pricing.get("annual_usd") or 0,
             "subscription_status": "active" if is_internal_unlimited else company.subscription_status,
             "billing_email": company.billing_email,
 

@@ -1657,6 +1657,21 @@
     #appView:not(.hidden) {
       display: grid !important;
     }
+
+    .company-context-badge {
+      display: inline-flex;
+      align-items: center;
+      margin-top: 8px;
+      margin-bottom: 6px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background:
+        linear-gradient(90deg, rgba(212, 175, 55, .16), rgba(220, 38, 38, .12));
+      border: 1px solid rgba(212, 175, 55, .42);
+      color: var(--gold-soft);
+      font-size: 13px;
+      font-weight: 900;
+    }
   </style>
 </head>
 
@@ -1670,7 +1685,7 @@
       </div>
       <h3 style="text-align:center;">Ingreso a SecuRi</h3>
       <div class="panel-subtitle" style="text-align:center;">
-        AI-powered security investigation platform.
+        Plataforma de investigación de seguridad con Inteligencia Artificial.
       </div>
       <div class="input-row">
         <label>Usuario</label>
@@ -1694,7 +1709,7 @@
         </div>
         <div class="brand-text">
           <h2>SecuRi</h2>
-          <small>AI Security Operations</small>
+          <small>Operaciones de Seguridad con Inteligencia Artificial</small>
         </div>
       </div>
       <button id="sidebarToggleBtn" class="sidebar-toggle-inline" type="button" onclick="toggleSidebar()"
@@ -1713,7 +1728,7 @@
           <rect x="14" y="14" width="7" height="7"></rect>
           <rect x="3" y="14" width="7" height="7"></rect>
         </svg>
-        <span>Dashboard</span>
+        <span>Vista General</span>
       </a>
 
       <a class="nav-item" id="executiveNav" href="javascript:void(0)" onclick="showExecutiveDashboard()">
@@ -1722,7 +1737,7 @@
           <path d="M7 14l3-3 3 2 4-5"></path>
           <path d="M7 17h10"></path>
         </svg>
-        <span>Executive Dashboard</span>
+        <span>Vista Ejecutiva</span>
       </a>
 
       <a class="nav-item" id="historyNav" href="javascript:void(0)" onclick="showHistory()">
@@ -1731,7 +1746,7 @@
           <path d="M3.05 13A9 9 0 1 0 6 6.3L3 8"></path>
           <path d="M12 7v5l3 2"></path>
         </svg>
-        <span>Analysis History</span>
+        <span>Historial de Análisis</span>
       </a>
 
       <a class="nav-item" id="socNav" href="javascript:void(0)" onclick="showSOC()">
@@ -1739,7 +1754,7 @@
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
           <path d="M9 12l2 2 4-5"></path>
         </svg>
-        <span>SOC Overview</span>
+        <span>Vista SOC</span>
       </a>
 
       <a class="nav-item" id="casesNav" href="javascript:void(0)" onclick="showCases()">
@@ -1748,7 +1763,7 @@
           <path d="M8 4V2h8v2"></path>
           <path d="M3 10h18"></path>
         </svg>
-        <span>Case Management</span>
+        <span>Gestión de Casos</span>
       </a>
 
       <a class="nav-item" id="threatHuntingNav" href="javascript:void(0)" onclick="showThreatHunting()">
@@ -1760,7 +1775,7 @@
           <path d="M2 12h3"></path>
           <path d="M19 12h3"></path>
         </svg>
-        <span>Threat Hunting</span>
+        <span>Caza de Amenazas</span>
       </a>
 
       <a class="nav-item" id="cisNav" href="javascript:void(0)" onclick="showCIS()">
@@ -1781,7 +1796,18 @@
           <path d="M3 10h18"></path>
           <path d="M7 15h4"></path>
         </svg>
-        <span>Plan/ Facturación</span>
+        <span>Plan / Facturación</span>
+      </a>
+
+      <a class="nav-item hidden" id="masterBillingNav" href="javascript:void(0)" onclick="showMasterBilling()">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+          <path d="M3 10h18"></path>
+          <path d="M7 15h4"></path>
+          <path d="M16 14v4"></path>
+          <path d="M14 16h4"></path>
+        </svg>
+        <span>Facturación Master</span>
       </a>
 
       <a class="nav-item hidden" id="companySettingsNav" href="javascript:void(0)" onclick="showCompanySettings()">
@@ -1855,6 +1881,7 @@
         <div class="header">
           <div>
             <h1>SecuRi Panel de Monitoreo</h1>
+            <div id="dashboardCompanyBadge" class="company-context-badge">Empresa: -</div>
             <p>Correlación SOC multi-nube · Inteligencia de amenazas · Detección de anomalías mediante aprendizaje
               automático · MITRE ATT&CK</p>
           </div>
@@ -2099,6 +2126,56 @@
             </div>
           </div>
 
+        </div>
+        <!-- MASTER BILLING VIEW -->
+        <div id="masterBillingView" class="hidden">
+          <div class="header">
+            <div>
+              <h1>Facturación Master</h1>
+              <p>Vista exclusiva para SecuRI. Control comercial de clientes, planes, licencias e ingresos
+                estimados.</p>
+            </div>
+            <div class="api-status">
+              <span class="pulse"></span> Master Billing
+            </div>
+          </div>
+
+          <div class="cards">
+            <div class="card card-total">
+              <div class="card-label">Clientes</div>
+              <h2 id="masterBillingCustomers" class="card-value">0</h2>
+              <div class="card-foot">Empresas facturables</div>
+            </div>
+
+            <div class="card card-risk">
+              <div class="card-label">MRR Estimado</div>
+              <h2 id="masterBillingMRR" class="card-value">$0</h2>
+              <div class="card-foot">Ingreso mensual</div>
+            </div>
+
+            <div class="card card-patterns">
+              <div class="card-label">ARR Estimado</div>
+              <h2 id="masterBillingARR" class="card-value">$0</h2>
+              <div class="card-foot">Ingreso anual</div>
+            </div>
+
+            <div class="card card-high">
+              <div class="card-label">Por vencer</div>
+              <h2 id="masterBillingExpiring" class="card-value">0</h2>
+              <div class="card-foot">Licencias ≤ 30 días</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Clientes y facturación</h3>
+            <div class="panel-subtitle">
+              Resumen de empresas, planes, precios, vigencia y estado comercial.
+            </div>
+
+            <div id="masterBillingTable" class="empty">
+              Cargando facturación master...
+            </div>
+          </div>
         </div>
         <!-- SOC VIEW -->
         <div id="socView" class="hidden">
@@ -4708,6 +4785,12 @@
 
       currentUser = await res.json();
 
+      const dashboardCompanyBadge = document.getElementById("dashboardCompanyBadge");
+      if (dashboardCompanyBadge) {
+        dashboardCompanyBadge.innerText =
+          `Empresa: ${currentUser.company_name || currentUser.company_id || "-"}`;
+      }
+
       const roleLabel =
         currentUser.role === "super_admin"
           ? "Super Admin"
@@ -4716,12 +4799,12 @@
             : "Analyst";
 
       document.getElementById("sessionUser").innerHTML = `
-  <svg class="nav-icon" viewBox="0 0 24 24">
-    <rect x="3" y="11" width="18" height="10" rx="2"></rect>
-    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-  </svg>
-  <span>${escapeHtml(currentUser.username)} (${escapeHtml(currentUser.role)})</span>
-`;
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <span>${escapeHtml(currentUser.username)} (${escapeHtml(currentUser.role)})</span>
+        `;
 
       const navUsuarios = document.getElementById("navUsuarios");
       if (navUsuarios) {
@@ -4759,6 +4842,13 @@
         integrationsNav.classList.toggle(
           "hidden",
           !["super_admin", "company_admin"].includes(currentUser.role)
+        );
+      }
+      const masterBillingNav = document.getElementById("masterBillingNav");
+      if (masterBillingNav) {
+        masterBillingNav.classList.toggle(
+          "hidden",
+          !(currentUser.role === "super_admin" && Number(currentUser.company_id) === 1)
         );
       }
 
@@ -6671,7 +6761,162 @@
   `).join("");
     }
 
+    function hideAllMainViewsForMasterBilling() {
+      [
+        "dashboardView",
+        "billingPlanView",
+        "masterBillingView",
+        "historyView",
+        "executiveView",
+        "socView",
+        "cisView",
+        "casesView",
+        "threatHuntingView",
+        "auditLogsView",
+        "companySettingsView",
+        "alertRulesView",
+        "integrationsView"
+      ].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add("hidden");
+      });
+    }
 
+    function formatUsd(value) {
+      const amount = Number(value || 0);
+
+      return amount.toLocaleString("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 0
+      });
+    }
+
+    async function showMasterBilling() {
+      if (!currentUser || currentUser.role !== "super_admin" || Number(currentUser.company_id) !== 1) {
+        alert("Solo la empresa master puede ver Facturación Master.");
+        return;
+      }
+
+      hideAllMainViewsForMasterBilling();
+      setActiveNav("masterBillingNav");
+
+      const view = document.getElementById("masterBillingView");
+      if (view) view.classList.remove("hidden");
+
+      await loadMasterBilling();
+    }
+
+    async function loadMasterBilling() {
+      const panel = document.getElementById("masterBillingTable");
+
+      if (!panel) return;
+
+      panel.className = "empty";
+      panel.innerText = "Cargando facturación master...";
+
+      try {
+        const res = await fetch("/admin/billing/overview", {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          panel.innerText = `No se pudo cargar facturación: ${await res.text()}`;
+          return;
+        }
+
+        const rows = await res.json();
+
+        const billableRows = rows.filter(r => Number(r.company_id) !== 1);
+        const activeRows = billableRows.filter(r =>
+          ["active", "trial"].includes(String(r.subscription_status || "").toLowerCase())
+        );
+
+        const mrr = activeRows.reduce(
+          (sum, r) => sum + Number(r.estimated_monthly_value_usd || 0),
+          0
+        );
+
+        const arr = activeRows.reduce(
+          (sum, r) => sum + Number(r.estimated_annual_value_usd || 0),
+          0
+        );
+
+        const expiring = billableRows.filter(r =>
+          r.license_status === "expiring_soon"
+        ).length;
+
+        document.getElementById("masterBillingCustomers").innerText = billableRows.length;
+        document.getElementById("masterBillingMRR").innerText = formatUsd(mrr);
+        document.getElementById("masterBillingARR").innerText = formatUsd(arr);
+        document.getElementById("masterBillingExpiring").innerText = expiring;
+
+        if (!rows.length) {
+          panel.className = "empty";
+          panel.innerText = "No hay empresas registradas.";
+          return;
+        }
+
+        panel.className = "";
+        panel.innerHTML = `
+      <table class="user-table">
+        <thead>
+          <tr>
+            <th>Empresa</th>
+            <th>Plan</th>
+            <th>Valor</th>
+            <th>Estado</th>
+            <th>Licencia</th>
+            <th>Expira</th>
+            <th>Días</th>
+            <th>Uso</th>
+            <th>Billing Email</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => {
+          const pricing = r.pricing || {};
+          const priceText = pricing.display || formatUsd(r.estimated_monthly_value_usd || 0);
+
+          const users = r.usage?.users ?? 0;
+          const maxUsers = r.limits?.max_users ?? "∞";
+
+          const integrations = r.usage?.integrations ?? 0;
+          const maxIntegrations = r.limits?.max_integrations ?? "∞";
+
+          return `
+              <tr>
+                <td>
+                  <strong>${escapeHtml(r.company_name || "-")}</strong>
+                  <div class="pattern-meta">ID: ${escapeHtml(r.company_id)}</div>
+                </td>
+                <td>
+                  <span class="pill pill-info">${escapeHtml(r.plan_label || r.plan || "-")}</span>
+                </td>
+                <td>${escapeHtml(priceText)}</td>
+                <td>${escapeHtml(r.subscription_status || "-")}</td>
+                <td>${escapeHtml(r.license_status || "-")}</td>
+                <td>${escapeHtml(r.plan_expires_at || "-")}</td>
+                <td>${r.days_remaining ?? "-"}</td>
+                <td>
+                  Users: ${users}/${maxUsers}<br>
+                  Integrations: ${integrations}/${maxIntegrations}
+                </td>
+                <td>${escapeHtml(r.billing_email || "-")}</td>
+              </tr>
+            `;
+        }).join("")}
+        </tbody>
+      </table>
+    `;
+
+      } catch (err) {
+        panel.className = "empty";
+        panel.innerText = `Error cargando facturación: ${err.message}`;
+      }
+    }
 
     loadSession();
 

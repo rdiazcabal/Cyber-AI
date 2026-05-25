@@ -313,25 +313,25 @@ def require_master_company(current_user: User):
 
 PLAN_PRICES = {
     "starter": {
-        "monthly_usd": 149,
-        "semiannual_usd": 149 * 6,
-        "annual_usd": 149 * 12,
+        "monthly_usd": 50,
+        "semiannual_usd": 50 * 6,
+        "annual_usd": 50 * 12,
         "currency": "USD",
         "billing_cycle": "monthly",
         "display": "$149 / month"
     },
     "professional": {
-        "monthly_usd": 499,
-        "semiannual_usd": 499 * 6,
+        "monthly_usd": 250,
+        "semiannual_usd": 250 * 6,
         "annual_usd": 499 * 12,
         "currency": "USD",
         "billing_cycle": "monthly",
         "display": "$499 / month"
     },
     "business": {
-        "monthly_usd": 1200,
-        "semiannual_usd": 1200 * 6,
-        "annual_usd": 1200 * 12,
+        "monthly_usd": 500,
+        "semiannual_usd": 500 * 6,
+        "annual_usd": 500 * 12,
         "currency": "USD",
         "billing_cycle": "monthly",
         "display": "$1,200 / month"

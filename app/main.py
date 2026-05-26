@@ -1593,12 +1593,12 @@ def admin_update_user(
 
         user.is_active = bool(payload.get("is_active"))
 
-        if payload.get("password"):
-            validate_password_policy(payload["password"])
-            user.password_hash = hash_password(payload["password"])
-            user.failed_login_attempts = 0
-            user.locked_until = None
-            user.session_version = int(user.session_version or 0) + 1
+    if payload.get("password"):
+        validate_password_policy(payload["password"])
+        user.password_hash = hash_password(payload["password"])
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        user.session_version = int(user.session_version or 0) + 1
 
     audit_details = {
         "target_user_id": user.id,

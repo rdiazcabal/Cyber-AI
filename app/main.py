@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 import os
 import requests
 import ipaddress
+import hmac
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
@@ -70,6 +71,35 @@ else:
         redoc_url="/redoc",
         openapi_url="/openapi.json",
     )
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+    if ENVIRONMENT == "production":
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self';"
+    )
+
+    return response
+
 Base.metadata.create_all(bind=engine)
 bootstrap_admin_user()
 
@@ -325,11 +355,38 @@ def auth_me(
         "is_active": current_user.is_active,
     }
 
-def require_master_company(current_user: User):
-    if current_user.role != "super_admin" or current_user.company_id != 1:
+def is_master_super_admin(user: User) -> bool:
+    return (
+        user is not None
+        and user.role == "super_admin"
+        and int(user.company_id or 0) == 1
+    )
+
+def apply_company_scope(query, model, current_user: User):
+    """
+    Master company super admin can see all companies.
+    Any other user, including client super_admin, only sees own company.
+    """
+    if not is_master_super_admin(current_user):
+        return query.filter(model.company_id == current_user.company_id)
+
+    return query
+
+def require_webhook_secret(request: Request):
+    expected_secret = os.getenv("SECURI_WEBHOOK_SECRET")
+
+    if not expected_secret:
         raise HTTPException(
-            status_code=403,
-            detail="Only master company super admin can access this resource"
+            status_code=503,
+            detail="Webhook secret is not configured"
+        )
+
+    provided_secret = request.headers.get("X-SecuRI-Webhook-Secret", "")
+
+    if not hmac.compare_digest(provided_secret, expected_secret):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid webhook secret"
         )
 
 PLAN_PRICES = {
@@ -1305,7 +1362,7 @@ def admin_list_users(
 ):
     query = db.query(User).filter(User.is_active == True)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(User.company_id == current_user.company_id)
 
     users = query.order_by(User.created_at.desc()).all()
@@ -1349,7 +1406,7 @@ def admin_create_user(
         raise HTTPException(status_code=400, detail="Invalid role")
 
     # Only master company can create super_admin users
-    if role == "super_admin" and current_user.company_id != 1:
+    if role == "super_admin" and not is_master_super_admin(current_user):
         raise HTTPException(
             status_code=403,
             detail="Only master company can create super admin users"
@@ -1358,7 +1415,7 @@ def admin_create_user(
     if current_user.role != "super_admin" and role == "super_admin":
         raise HTTPException(status_code=403, detail="Company admin cannot create super admin")
 
-    if current_user.role == "super_admin":
+    if is_master_super_admin(current_user):
         company_id = payload.get("company_id")
         if not company_id:
             raise HTTPException(status_code=400, detail="Company is required")
@@ -1430,7 +1487,7 @@ def admin_update_user(
 ):
     query = db.query(User).filter(User.id == user_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(User.company_id == current_user.company_id)
 
     user = query.first()
@@ -1448,7 +1505,7 @@ def admin_update_user(
             raise HTTPException(status_code=400, detail="Invalid role")
 
         # Only master company can assign super_admin role
-        if new_role == "super_admin" and current_user.company_id != 1:
+        if new_role == "super_admin" and not is_master_super_admin(current_user):
             raise HTTPException(
                 status_code=403,
                 detail="Only master company can assign super admin role"
@@ -1463,12 +1520,18 @@ def admin_update_user(
         user.role = new_role
         #user.is_admin = new_role in ["super_admin", "company_admin"]
 
-    if "company_id" in payload and current_user.role == "super_admin":
+    if "company_id" in payload and is_master_super_admin(current_user):
         company = (
             db.query(Company)
             .filter(Company.id == int(payload.get("company_id")), Company.is_active == True)
             .first()
         )
+    elif "company_id" in payload and not is_master_super_admin(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="Only master company super admin can move users between companies"
+        )
+        
         if not company:
             raise HTTPException(status_code=404, detail="Company not found")
         user.company_id = company.id
@@ -1522,7 +1585,7 @@ def admin_delete_user(
 ):
     query = db.query(User).filter(User.id == user_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(User.company_id == current_user.company_id)
 
     user = query.first()
@@ -2302,12 +2365,22 @@ def calculate_ip_reputation_score(otx_result: dict) -> dict:
     }
 
 @app.post("/analyze")
-def analyze(event: dict):
+def analyze(
+    event: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_plan_feature(db, current_user, "manual_analysis")
+
     result = analyze_security_event(event)
     return {"analysis": result}
 
 @app.get("/aws/guardduty/findings")
-def aws_guardduty_findings():
+def aws_guardduty_findings(
+    current_user: User = Depends(require_super_admin),
+):
+    require_master_company(current_user)
+
     findings = get_guardduty_findings(max_results=5)
     return {
         "count": len(findings),
@@ -2315,7 +2388,11 @@ def aws_guardduty_findings():
     }
 
 @app.get("/aws/guardduty/analyze")
-def analyze_guardduty_findings():
+def analyze_guardduty_findings(
+    current_user: User = Depends(require_super_admin),
+):
+    require_master_company(current_user)
+
     findings = get_guardduty_findings(max_results=3)
 
     results = []
@@ -2335,7 +2412,12 @@ def analyze_guardduty_findings():
     }
 
 @app.post("/webhook/aws")
-async def aws_webhook(request: Request):
+async def aws_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    require_webhook_secret(request)
+
     body = await request.json()
     detail = body.get("detail", body)
 
@@ -2345,7 +2427,13 @@ async def aws_webhook(request: Request):
     return {"status": "processed"}
 
 @app.post("/analyze-any")
-async def analyze_any(request: Request):
+async def analyze_any(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_plan_feature(db, current_user, "manual_analysis")
+
     body = await request.body()
     raw_text = body.decode("utf-8")
 
@@ -2365,7 +2453,13 @@ async def analyze_any(request: Request):
     }
 
 @app.post("/correlate")
-def correlate(data: dict):
+def correlate(
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_plan_feature(db, current_user, "manual_analysis")
+
     events = data.get("events", [])
 
     if not events:
@@ -2487,7 +2581,7 @@ def list_reports(
     ):
         query = db.query(AnalysisReport)
 
-        if current_user.role != "super_admin":
+        if not is_master_super_admin(current_user):
             query = query.filter(AnalysisReport.company_id == current_user.company_id)
 
         reports = query.order_by(AnalysisReport.created_at.desc()).all()
@@ -2561,7 +2655,7 @@ def search_threat(
 
     reports_query = db.query(AnalysisReport)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         reports_query = reports_query.filter(
             AnalysisReport.company_id == current_user.company_id
         )
@@ -2602,7 +2696,7 @@ def get_report(
 ):
     query = db.query(AnalysisReport).filter(AnalysisReport.id == report_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(AnalysisReport.company_id == current_user.company_id)
 
     report = query.first()
@@ -2640,7 +2734,7 @@ def delete_report(
 ):
     query = db.query(AnalysisReport).filter(AnalysisReport.id == report_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(AnalysisReport.company_id == current_user.company_id)
 
     report = query.first()
@@ -2692,7 +2786,7 @@ def export_report_pdf(
 ):
     query = db.query(AnalysisReport).filter(AnalysisReport.id == report_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(AnalysisReport.company_id == current_user.company_id)
 
     report = query.first()
@@ -2871,7 +2965,7 @@ def soc_overview(
 ):
     cases_query = db.query(SecurityCase)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         cases_query = cases_query.filter(
             SecurityCase.company_id == current_user.company_id
         )
@@ -2898,7 +2992,7 @@ def list_audit_logs(
 
     query = db.query(AuditLog)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(AuditLog.company_id == current_user.company_id)
 
     logs = (
@@ -2951,7 +3045,7 @@ def list_cases(
 ):
     query = db.query(SecurityCase)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(SecurityCase.company_id == current_user.company_id)
 
     cases = query.order_by(SecurityCase.created_at.desc()).all()
@@ -2990,7 +3084,7 @@ def get_case(
 ):
     query = db.query(SecurityCase).filter(SecurityCase.id == case_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(SecurityCase.company_id == current_user.company_id)
 
     case = query.first()
@@ -3048,7 +3142,7 @@ def update_case_status(
 
     query = db.query(SecurityCase).filter(SecurityCase.id == case_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(SecurityCase.company_id == current_user.company_id)
 
     case = query.first()
@@ -3094,7 +3188,7 @@ def assign_case(
 
     query = db.query(SecurityCase).filter(SecurityCase.id == case_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(SecurityCase.company_id == current_user.company_id)
 
     case = query.first()
@@ -3150,7 +3244,7 @@ def add_case_note(
 
     query = db.query(SecurityCase).filter(SecurityCase.id == case_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(SecurityCase.company_id == current_user.company_id)
 
     case = query.first()
@@ -3195,7 +3289,7 @@ def list_case_notes(
 ):
     query = db.query(SecurityCase).filter(SecurityCase.id == case_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(SecurityCase.company_id == current_user.company_id)
 
     case = query.first()
@@ -3235,7 +3329,7 @@ def cis8_overview(
 ):
     query = db.query(AnalysisReport)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(AnalysisReport.company_id == current_user.company_id)
 
     reports = query.order_by(AnalysisReport.created_at.desc()).all()
@@ -3308,7 +3402,7 @@ def search_iocs(
 
     ioc_query = db.query(IOCObservation)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         ioc_query = ioc_query.filter(IOCObservation.company_id == current_user.company_id)
 
     observations = (
@@ -3394,7 +3488,7 @@ def ioc_history(
 
     obs_query = db.query(IOCObservation).filter(IOCObservation.ioc == clean_ioc)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         obs_query = obs_query.filter(IOCObservation.company_id == current_user.company_id)
 
     observations = obs_query.order_by(IOCObservation.created_at.desc()).all()
@@ -3472,7 +3566,7 @@ def get_company_settings(
 ):
     target_company_id = company_id
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         target_company_id = current_user.company_id
 
     if not target_company_id:
@@ -3523,7 +3617,7 @@ def update_company_settings(
 ):
     company_id = payload.get("company_id")
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         company_id = current_user.company_id
 
     if not company_id:
@@ -3602,7 +3696,7 @@ def list_alert_rules(
 
     query = db.query(AlertRule)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(AlertRule.company_id == current_user.company_id)
     elif company_id:
         query = query.filter(AlertRule.company_id == int(company_id))
@@ -3649,7 +3743,7 @@ def create_alert_rule(
 
     company_id = payload.get("company_id")
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         company_id = current_user.company_id
 
     if not company_id:
@@ -3740,7 +3834,7 @@ def update_alert_rule(
 
     query = db.query(AlertRule).filter(AlertRule.id == rule_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(AlertRule.company_id == current_user.company_id)
 
     rule = query.first()
@@ -3831,7 +3925,7 @@ def delete_alert_rule(
 
     query = db.query(AlertRule).filter(AlertRule.id == rule_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(AlertRule.company_id == current_user.company_id)
 
     rule = query.first()
@@ -3871,7 +3965,7 @@ def apply_company_retention(
 ):
     company_id = payload.get("company_id")
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         company_id = current_user.company_id
 
     if not company_id:
@@ -3956,7 +4050,7 @@ def export_cis8_pdf(
 ):
     target_company_id = company_id
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         target_company_id = current_user.company_id
 
     if target_company_id:
@@ -4076,7 +4170,7 @@ def executive_overview(
     cases_query = db.query(SecurityCase)
     iocs_query = db.query(IOCObservation)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         reports_query = reports_query.filter(
             AnalysisReport.company_id == current_user.company_id
         )
@@ -4215,7 +4309,7 @@ def export_executive_pdf(
 
     target_company_id = company_id
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         target_company_id = current_user.company_id
 
     company = None
@@ -4712,7 +4806,7 @@ def list_integrations(
 ):
     query = db.query(CloudIntegration)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(CloudIntegration.company_id == current_user.company_id)
     elif company_id:
         query = query.filter(CloudIntegration.company_id == int(company_id))
@@ -4751,7 +4845,7 @@ def create_integration(
 
         company_id = payload.get("company_id")
 
-        if current_user.role != "super_admin":
+        if not is_master_super_admin(current_user):
             company_id = current_user.company_id
 
         if not company_id:
@@ -4872,7 +4966,7 @@ def update_integration(
     ):
         query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
 
-        if current_user.role != "super_admin":
+        if not is_master_super_admin(current_user):
             query = query.filter(CloudIntegration.company_id == current_user.company_id)
 
         integration = query.first()
@@ -5017,7 +5111,7 @@ def delete_integration(
 ):
     query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(CloudIntegration.company_id == current_user.company_id)
 
     integration = query.first()
@@ -5056,7 +5150,7 @@ def test_integration(
 
     query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(CloudIntegration.company_id == current_user.company_id)
 
     integration = query.first()
@@ -5276,7 +5370,7 @@ def sync_integration(
 ):
     query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(CloudIntegration.company_id == current_user.company_id)
 
     integration = query.first()
@@ -5353,7 +5447,7 @@ def get_integration_sync_runs(
 ):
     query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(CloudIntegration.company_id == current_user.company_id)
 
     integration = query.first()
@@ -5398,7 +5492,7 @@ def update_integration_schedule(
 ):
     query = db.query(CloudIntegration).filter(CloudIntegration.id == integration_id)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         query = query.filter(CloudIntegration.company_id == current_user.company_id)
 
     integration = query.first()

@@ -98,23 +98,33 @@ def bootstrap_admin_user():
 
     db = SessionLocal()
     try:
-        company = db.query(Company).filter(Company.name == ADMIN_COMPANY).first()
-
-        if not company:
-            company = Company(
-                name=ADMIN_COMPANY,
-                is_active=True,
-                plan="enterprise",
-                subscription_status="active",
-                max_users=999999,
-                max_integrations=999999,
-                license_required=False,
-            )
-            db.add(company)
-            db.commit()
-            db.refresh(company)
-
         user = db.query(User).filter(User.username == ADMIN_USER).first()
+
+        company = None
+
+        # If admin user already exists and already has a company,
+        # keep that company. This prevents recreating the old ADMIN_COMPANY
+        # after the company was renamed from the UI.
+        if user and user.company_id:
+            company = db.query(Company).filter(Company.id == user.company_id).first()
+
+        # If no company is linked yet, get or create ADMIN_COMPANY.
+        if not company:
+            company = db.query(Company).filter(Company.name == ADMIN_COMPANY).first()
+
+            if not company:
+                company = Company(
+                    name=ADMIN_COMPANY,
+                    is_active=True,
+                    plan="enterprise",
+                    subscription_status="active",
+                    max_users=999999,
+                    max_integrations=999999,
+                    license_required=False,
+                )
+                db.add(company)
+                db.commit()
+                db.refresh(company)
 
         if not user:
             db.add(
@@ -125,6 +135,7 @@ def bootstrap_admin_user():
                     role="super_admin",
                     company_id=company.id,
                     is_active=True,
+                    session_version=0,
                 )
             )
             db.commit()
@@ -144,8 +155,6 @@ def bootstrap_admin_user():
             user.is_active = True
             has_changes = True
 
-        # Do not overwrite admin password on every container restart.
-        # Password changes must be managed from the application UI.
         force_admin_password_reset = os.getenv(
             "BOOTSTRAP_ADMIN_FORCE_PASSWORD_RESET",
             "false"
@@ -153,6 +162,7 @@ def bootstrap_admin_user():
 
         if force_admin_password_reset and not verify_password(ADMIN_PASSWORD, user.password_hash):
             user.password_hash = hash_password(ADMIN_PASSWORD)
+            user.session_version = int(user.session_version or 0) + 1
             has_changes = True
 
         if has_changes:

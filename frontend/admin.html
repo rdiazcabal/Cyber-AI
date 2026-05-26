@@ -1625,6 +1625,24 @@
       return `<span class="badge badge-inactive">Inactivo</span>`;
     }
 
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function escapeJsString(value) {
+      return String(value ?? "")
+        .replaceAll("\\", "\\\\")
+        .replaceAll("'", "\\'")
+        .replaceAll('"', '\\"')
+        .replaceAll("\n", "\\n")
+        .replaceAll("\r", "\\r");
+    }
+
     function isAdminRole(role) {
       return ["super_admin", "company_admin"].includes(role);
     }
@@ -2158,7 +2176,7 @@
               ${Number(c.id) === 1 ? `
                 <span class="pill pill-info">Master</span>
               ` : `
-                <button class="danger" onclick="deleteCompanyAdmin(${c.id}, '${escapeHtml(c.name)}')">
+                <button class="danger" onclick="deleteCompanyAdmin(${c.id}, '${escapeJsString(c.name)}')">
                   Eliminar
                 </button>
               `}

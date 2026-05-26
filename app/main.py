@@ -815,50 +815,56 @@ def update_company_plan(
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-        old_company_name = company.name
+    old_company_name = company.name
 
-        if "name" in payload:
-            new_name = (payload.get("name") or "").strip()
+    # -----------------------------
+    # Basic company information
+    # -----------------------------
+    if "name" in payload:
+        new_name = (payload.get("name") or "").strip()
 
-            if len(new_name) < 2:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Company name must have at least 2 characters"
-                )
-
-            existing_company = (
-                db.query(Company)
-                .filter(
-                    Company.name == new_name,
-                    Company.id != company.id
-                )
-                .first()
+        if len(new_name) < 2:
+            raise HTTPException(
+                status_code=400,
+                detail="Company name must have at least 2 characters"
             )
 
-            if existing_company:
-                raise HTTPException(
-                    status_code=409,
-                    detail="Another company with this name already exists"
-                )
+        existing_company = (
+            db.query(Company)
+            .filter(
+                Company.name == new_name,
+                Company.id != company.id
+            )
+            .first()
+        )
 
-            company.name = new_name
+        if existing_company:
+            raise HTTPException(
+                status_code=409,
+                detail="Another company with this name already exists"
+            )
 
-        if "rtn" in payload:
-            company.rtn = (payload.get("rtn") or "").strip() or None
+        company.name = new_name
 
-        if "phone" in payload:
-            company.phone = (payload.get("phone") or "").strip() or None
+    if "rtn" in payload:
+        company.rtn = (payload.get("rtn") or "").strip() or None
 
-        if "address" in payload:
-            company.address = (payload.get("address") or "").strip() or None
+    if "phone" in payload:
+        company.phone = (payload.get("phone") or "").strip() or None
 
-        if "contact_phone" in payload:
-            company.contact_phone = (payload.get("contact_phone") or "").strip() or None
+    if "address" in payload:
+        company.address = (payload.get("address") or "").strip() or None
 
-        plan_name = (payload.get("plan") or "").strip().lower()
-        subscription_status = (
-            payload.get("subscription_status") or company.subscription_status or "active"
-        ).strip().lower()
+    if "contact_phone" in payload:
+        company.contact_phone = (payload.get("contact_phone") or "").strip() or None
+
+    # -----------------------------
+    # Plan / subscription
+    # -----------------------------
+    plan_name = (payload.get("plan") or company.plan or "starter").strip().lower()
+    subscription_status = (
+        payload.get("subscription_status") or company.subscription_status or "active"
+    ).strip().lower()
 
     if plan_name not in PLAN_LIMITS:
         raise HTTPException(status_code=400, detail="Invalid plan")
@@ -874,13 +880,17 @@ def update_company_plan(
     company.max_integrations = plan["max_integrations"]
 
     if "billing_email" in payload:
-        company.billing_email = payload.get("billing_email")
+        company.billing_email = (payload.get("billing_email") or "").strip() or None
 
-    # Company 1 is internal and does not require license
+    # -----------------------------
+    # Company 1: internal unlimited
+    # -----------------------------
     if company.id == 1:
         company.license_required = False
         company.plan_started_at = None
         company.plan_expires_at = None
+        company.trial_ends_at = None
+
     else:
         company.license_required = True
 
@@ -894,8 +904,14 @@ def update_company_plan(
             )
 
         try:
-            plan_started_at = datetime.fromisoformat(started_raw.replace("Z", "+00:00")).replace(tzinfo=None)
-            plan_expires_at = datetime.fromisoformat(expires_raw.replace("Z", "+00:00")).replace(tzinfo=None)
+            plan_started_at = datetime.fromisoformat(
+                str(started_raw).replace("Z", "+00:00")
+            ).replace(tzinfo=None)
+
+            plan_expires_at = datetime.fromisoformat(
+                str(expires_raw).replace("Z", "+00:00")
+            ).replace(tzinfo=None)
+
         except Exception:
             raise HTTPException(
                 status_code=400,
@@ -910,23 +926,32 @@ def update_company_plan(
 
         duration_days = (plan_expires_at - plan_started_at).days
 
-        if duration_days < 180:
-            raise HTTPException(
-                status_code=400,
-                detail="Plan validity must be at least 6 months"
-            )
+        if subscription_status == "trial":
+            if duration_days > 3:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Trial period cannot exceed 3 days"
+                )
 
-        if duration_days > 365:
-            raise HTTPException(
-                status_code=400,
-                detail="Plan validity cannot exceed 1 year"
-            )
+            company.trial_ends_at = plan_expires_at
+
+        else:
+            if duration_days < 180:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Plan validity must be at least 6 months"
+                )
+
+            if duration_days > 365:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Plan validity cannot exceed 1 year"
+                )
+
+            company.trial_ends_at = None
 
         company.plan_started_at = plan_started_at
         company.plan_expires_at = plan_expires_at
-
-    db.commit()
-    db.refresh(company)
 
     audit_action(
         db=db,
@@ -936,7 +961,6 @@ def update_company_plan(
         resource_id=company.id,
         details={
             "company_id": company.id,
-            "company_name": company.name,
             "old_company_name": old_company_name,
             "new_company_name": company.name,
             "plan": company.plan,
@@ -944,27 +968,37 @@ def update_company_plan(
             "max_users": company.max_users,
             "max_integrations": company.max_integrations,
             "billing_email": company.billing_email,
+            "rtn": company.rtn,
+            "phone": company.phone,
+            "address": company.address,
+            "contact_phone": company.contact_phone,
             "license_required": company.license_required,
             "plan_started_at": str(company.plan_started_at) if company.plan_started_at else None,
             "plan_expires_at": str(company.plan_expires_at) if company.plan_expires_at else None,
+            "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,
         },
     )
+
+    db.commit()
+    db.refresh(company)
 
     return {
         "id": company.id,
         "name": company.name,
+        "is_active": company.is_active,
         "plan": company.plan,
         "subscription_status": company.subscription_status,
         "max_users": company.max_users,
         "max_integrations": company.max_integrations,
         "billing_email": company.billing_email,
-        "license_required": company.license_required,
-        "plan_started_at": company.plan_started_at,
-        "plan_expires_at": company.plan_expires_at,
         "rtn": company.rtn,
         "phone": company.phone,
         "address": company.address,
         "contact_phone": company.contact_phone,
+        "license_required": company.license_required,
+        "plan_started_at": str(company.plan_started_at) if company.plan_started_at else None,
+        "plan_expires_at": str(company.plan_expires_at) if company.plan_expires_at else None,
+        "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,
     }
 
 @app.post("/admin/customers/onboard")

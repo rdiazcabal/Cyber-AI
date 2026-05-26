@@ -306,7 +306,10 @@ def login(
     authenticated_user.locked_until = None
     db.commit()
 
-    token = create_access_token({"sub": authenticated_user.username})
+    token = create_access_token({
+        "sub": authenticated_user.username,
+        "session_version": authenticated_user.session_version or 0,
+    })
 
     audit_login_event(
         db=db,
@@ -353,6 +356,40 @@ def auth_me(
         "company_id": current_user.company_id,
         "company_name": company.name if company else None,
         "is_active": current_user.is_active,
+    }
+
+@app.post("/auth/logout")
+def logout(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user = db.query(User).filter(User.id == current_user.id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.session_version = int(user.session_version or 0) + 1
+    user.failed_login_attempts = 0
+    user.locked_until = None
+
+    db.commit()
+    db.refresh(user)
+
+    audit_login_event(
+        db=db,
+        request=request,
+        action="LOGOUT",
+        username=user.username,
+        user=user,
+        details={
+            "reason": "User logout",
+            "session_version": user.session_version,
+        }
+    )
+
+    return {
+        "message": "Logged out successfully"
     }
 
 def is_master_super_admin(user: User) -> bool:
@@ -1556,11 +1593,12 @@ def admin_update_user(
 
         user.is_active = bool(payload.get("is_active"))
 
-    if payload.get("password"):
-        validate_password_policy(payload["password"])
-        user.password_hash = hash_password(payload["password"])
-        user.failed_login_attempts = 0
-        user.locked_until = None
+        if payload.get("password"):
+            validate_password_policy(payload["password"])
+            user.password_hash = hash_password(payload["password"])
+            user.failed_login_attempts = 0
+            user.locked_until = None
+            user.session_version = int(user.session_version or 0) + 1
 
     audit_details = {
         "target_user_id": user.id,

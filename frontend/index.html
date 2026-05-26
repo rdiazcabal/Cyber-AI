@@ -1871,7 +1871,15 @@
         <span>No autenticado</span>
       </div>
 
-      <button class="secondary" onclick="logout()">Cerrar sesión</button>
+      <a class="nav-item" id="logoutNav" href="javascript:void(0)" onclick="handleLogout()">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <path d="M16 17l5-5-5-5"></path>
+          <path d="M21 12H9"></path>
+        </svg>
+        <span>Cerrar sesión</span>
+      </a>
+
     </aside>
 
     <main class="main">
@@ -3505,6 +3513,36 @@
       const billingPlanNav = document.getElementById("billingPlanNav");
       if (billingPlanNav) billingPlanNav.classList.remove("active");
       await loadAuditLogs();
+    }
+
+    async function handleLogout() {
+      try {
+        if (authToken) {
+          await fetch("/auth/logout", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${authToken}`
+            }
+          });
+        }
+      } catch (err) {
+        console.warn("Logout error:", err);
+      }
+
+      authToken = null;
+      currentUser = null;
+
+      localStorage.removeItem("cyberToken");
+      localStorage.removeItem("cyberTokenExpiresAt");
+      sessionStorage.clear();
+
+      document.getElementById("appView").classList.add("hidden");
+      document.getElementById("loginView").classList.remove("hidden");
+
+      const loginStatus = document.getElementById("loginStatus");
+      if (loginStatus) {
+        loginStatus.innerText = "Sesión cerrada correctamente.";
+      }
     }
 
     async function showCompanySettings() {

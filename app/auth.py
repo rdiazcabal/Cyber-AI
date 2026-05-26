@@ -54,16 +54,26 @@ def create_access_token(data: dict):
 def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
         username = payload.get("sub")
+        token_session_version = payload.get("session_version")
 
         if username is None:
             raise HTTPException(status_code=401, detail="Invalid token")
 
+        if token_session_version is None:
+            raise HTTPException(status_code=401, detail="Session expired")
+
         db = SessionLocal()
         try:
             user = db.query(User).filter(User.username == username).first()
+
             if not user or not user.is_active:
                 raise HTTPException(status_code=401, detail="User is inactive or not found")
+
+            if int(token_session_version) != int(user.session_version or 0):
+                raise HTTPException(status_code=401, detail="Session expired")
+
             return user
         finally:
             db.close()

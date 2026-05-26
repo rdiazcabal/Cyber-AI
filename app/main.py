@@ -626,13 +626,21 @@ def admin_list_companies(
 ):
     # Master Super Admin: company_id 1 can see all companies
     if current_user.role == "super_admin" and current_user.company_id == 1:
-        companies = db.query(Company).order_by(Company.name.asc()).all()
+        companies = (
+            db.query(Company)
+            .filter(Company.is_active == True)
+            .order_by(Company.name.asc())
+            .all()
+        )
 
     # Client Super Admin / Company Admin: only own company
     else:
         companies = (
             db.query(Company)
-            .filter(Company.id == current_user.company_id)
+            .filter(
+                Company.id == current_user.company_id,
+                Company.is_active == True
+            )
             .order_by(Company.name.asc())
             .all()
         )
@@ -700,6 +708,248 @@ def admin_create_company(
         "id": company.id,
         "name": company.name,
         "is_active": company.is_active,
+    }
+
+@app.delete("/admin/companies/{company_id}")
+def admin_delete_company(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    require_master_company(current_user)
+
+    if company_id == 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Master company cannot be deleted"
+        )
+
+    company = db.query(Company).filter(Company.id == company_id).first()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    old_name = company.name
+    timestamp = int(datetime.utcnow().timestamp())
+
+    users_disabled = (
+        db.query(User)
+        .filter(User.company_id == company.id, User.is_active == True)
+        .count()
+    )
+
+    integrations_disabled = (
+        db.query(CloudIntegration)
+        .filter(CloudIntegration.company_id == company.id)
+        .count()
+    )
+
+    company.is_active = False
+    company.subscription_status = "cancelled"
+    company.license_required = True
+    company.plan_expires_at = datetime.utcnow()
+    company.trial_ends_at = None
+    company.name = f"deleted_company_{company.id}_{timestamp}"
+
+    db.query(User).filter(User.company_id == company.id).update(
+        {
+            User.is_active: False,
+            User.failed_login_attempts: 0,
+            User.locked_until: None,
+            User.session_version: User.session_version + 1,
+        },
+        synchronize_session=False,
+    )
+
+    db.query(CloudIntegration).filter(
+        CloudIntegration.company_id == company.id
+    ).update(
+        {
+            CloudIntegration.enabled: False,
+            CloudIntegration.sync_enabled: False,
+            CloudIntegration.last_status: "disabled_company_deleted",
+            CloudIntegration.last_error: "Company was disabled from admin panel",
+        },
+        synchronize_session=False,
+    )
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="DELETE_COMPANY",
+        resource_type="company",
+        resource_id=company.id,
+        details={
+            "company_id": company.id,
+            "old_company_name": old_name,
+            "new_company_name": company.name,
+            "soft_delete": True,
+            "users_disabled": users_disabled,
+            "integrations_disabled": integrations_disabled,
+        },
+    )
+
+    db.commit()
+    db.refresh(company)
+
+    return {
+        "message": "Company disabled successfully",
+        "id": company.id,
+        "old_name": old_name,
+        "name": company.name,
+        "is_active": company.is_active,
+        "users_disabled": users_disabled,
+        "integrations_disabled": integrations_disabled,
+    }
+
+@app.put("/admin/companies/{company_id}/plan")
+def update_company_plan(
+    company_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    require_master_company(current_user)
+
+    company = db.query(Company).filter(Company.id == company_id).first()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    old_company_name = company.name
+
+    if "name" in payload:
+        new_name = (payload.get("name") or "").strip()
+
+        if len(new_name) < 2:
+            raise HTTPException(
+                status_code=400,
+                detail="Company name must have at least 2 characters"
+        )
+
+    existing_company = (
+        db.query(Company)
+        .filter(
+            Company.name == new_name,
+            Company.id != company.id
+        )
+        .first()
+    )
+
+    if existing_company:
+        raise HTTPException(
+            status_code=409,
+            detail="Another company with this name already exists"
+        )
+
+    company.name = new_name
+
+    plan_name = (payload.get("plan") or "").strip().lower()
+    subscription_status = (
+        payload.get("subscription_status") or company.subscription_status or "active"
+    ).strip().lower()
+
+    if plan_name not in PLAN_LIMITS:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+
+    if subscription_status not in ["active", "trial", "past_due", "suspended", "cancelled"]:
+        raise HTTPException(status_code=400, detail="Invalid subscription status")
+
+    plan = PLAN_LIMITS[plan_name]
+
+    company.plan = plan_name
+    company.subscription_status = subscription_status
+    company.max_users = plan["max_users"]
+    company.max_integrations = plan["max_integrations"]
+
+    if "billing_email" in payload:
+        company.billing_email = payload.get("billing_email")
+
+    # Company 1 is internal and does not require license
+    if company.id == 1:
+        company.license_required = False
+        company.plan_started_at = None
+        company.plan_expires_at = None
+    else:
+        company.license_required = True
+
+        started_raw = payload.get("plan_started_at")
+        expires_raw = payload.get("plan_expires_at")
+
+        if not started_raw or not expires_raw:
+            raise HTTPException(
+                status_code=400,
+                detail="plan_started_at and plan_expires_at are required for licensed companies"
+            )
+
+        try:
+            plan_started_at = datetime.fromisoformat(started_raw.replace("Z", "+00:00")).replace(tzinfo=None)
+            plan_expires_at = datetime.fromisoformat(expires_raw.replace("Z", "+00:00")).replace(tzinfo=None)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid date format. Use ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS"
+            )
+
+        if plan_expires_at <= plan_started_at:
+            raise HTTPException(
+                status_code=400,
+                detail="plan_expires_at must be after plan_started_at"
+            )
+
+        duration_days = (plan_expires_at - plan_started_at).days
+
+        if duration_days < 180:
+            raise HTTPException(
+                status_code=400,
+                detail="Plan validity must be at least 6 months"
+            )
+
+        if duration_days > 365:
+            raise HTTPException(
+                status_code=400,
+                detail="Plan validity cannot exceed 1 year"
+            )
+
+        company.plan_started_at = plan_started_at
+        company.plan_expires_at = plan_expires_at
+
+    db.commit()
+    db.refresh(company)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="UPDATE_COMPANY_PLAN",
+        resource_type="company",
+        resource_id=company.id,
+        details={
+            "company_id": company.id,
+            "company_name": company.name,
+            "old_company_name": old_company_name,
+            "new_company_name": company.name,
+            "plan": company.plan,
+            "subscription_status": company.subscription_status,
+            "max_users": company.max_users,
+            "max_integrations": company.max_integrations,
+            "billing_email": company.billing_email,
+            "license_required": company.license_required,
+            "plan_started_at": str(company.plan_started_at) if company.plan_started_at else None,
+            "plan_expires_at": str(company.plan_expires_at) if company.plan_expires_at else None,
+        },
+    )
+
+    return {
+        "id": company.id,
+        "name": company.name,
+        "plan": company.plan,
+        "subscription_status": company.subscription_status,
+        "max_users": company.max_users,
+        "max_integrations": company.max_integrations,
+        "billing_email": company.billing_email,
+        "license_required": company.license_required,
+        "plan_started_at": company.plan_started_at,
+        "plan_expires_at": company.plan_expires_at,
     }
 
 @app.post("/admin/customers/onboard")
@@ -926,156 +1176,6 @@ def get_billing_plan(
             "max_integrations": None if is_internal_unlimited else plan["max_integrations"],
         },
         "features": features,
-    }
-
-@app.put("/admin/companies/{company_id}/plan")
-def update_company_plan(
-    company_id: int,
-    payload: dict,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_super_admin),
-):
-    require_master_company(current_user)
-
-    company = db.query(Company).filter(Company.id == company_id).first()
-
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
-    
-    old_company_name = company.name
-
-    if "name" in payload:
-        new_name = (payload.get("name") or "").strip()
-
-        if len(new_name) < 2:
-            raise HTTPException(
-                status_code=400,
-                detail="Company name must have at least 2 characters"
-        )
-
-    existing_company = (
-        db.query(Company)
-        .filter(
-            Company.name == new_name,
-            Company.id != company.id
-        )
-        .first()
-    )
-
-    if existing_company:
-        raise HTTPException(
-            status_code=409,
-            detail="Another company with this name already exists"
-        )
-
-    company.name = new_name
-
-    plan_name = (payload.get("plan") or "").strip().lower()
-    subscription_status = (
-        payload.get("subscription_status") or company.subscription_status or "active"
-    ).strip().lower()
-
-    if plan_name not in PLAN_LIMITS:
-        raise HTTPException(status_code=400, detail="Invalid plan")
-
-    if subscription_status not in ["active", "trial", "past_due", "suspended", "cancelled"]:
-        raise HTTPException(status_code=400, detail="Invalid subscription status")
-
-    plan = PLAN_LIMITS[plan_name]
-
-    company.plan = plan_name
-    company.subscription_status = subscription_status
-    company.max_users = plan["max_users"]
-    company.max_integrations = plan["max_integrations"]
-
-    if "billing_email" in payload:
-        company.billing_email = payload.get("billing_email")
-
-    # Company 1 is internal and does not require license
-    if company.id == 1:
-        company.license_required = False
-        company.plan_started_at = None
-        company.plan_expires_at = None
-    else:
-        company.license_required = True
-
-        started_raw = payload.get("plan_started_at")
-        expires_raw = payload.get("plan_expires_at")
-
-        if not started_raw or not expires_raw:
-            raise HTTPException(
-                status_code=400,
-                detail="plan_started_at and plan_expires_at are required for licensed companies"
-            )
-
-        try:
-            plan_started_at = datetime.fromisoformat(started_raw.replace("Z", "+00:00")).replace(tzinfo=None)
-            plan_expires_at = datetime.fromisoformat(expires_raw.replace("Z", "+00:00")).replace(tzinfo=None)
-        except Exception:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid date format. Use ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS"
-            )
-
-        if plan_expires_at <= plan_started_at:
-            raise HTTPException(
-                status_code=400,
-                detail="plan_expires_at must be after plan_started_at"
-            )
-
-        duration_days = (plan_expires_at - plan_started_at).days
-
-        if duration_days < 180:
-            raise HTTPException(
-                status_code=400,
-                detail="Plan validity must be at least 6 months"
-            )
-
-        if duration_days > 365:
-            raise HTTPException(
-                status_code=400,
-                detail="Plan validity cannot exceed 1 year"
-            )
-
-        company.plan_started_at = plan_started_at
-        company.plan_expires_at = plan_expires_at
-
-    db.commit()
-    db.refresh(company)
-
-    audit_action(
-        db=db,
-        current_user=current_user,
-        action="UPDATE_COMPANY_PLAN",
-        resource_type="company",
-        resource_id=company.id,
-        details={
-            "company_id": company.id,
-            "company_name": company.name,
-            "old_company_name": old_company_name,
-            "new_company_name": company.name,
-            "plan": company.plan,
-            "subscription_status": company.subscription_status,
-            "max_users": company.max_users,
-            "max_integrations": company.max_integrations,
-            "billing_email": company.billing_email,
-            "license_required": company.license_required,
-            "plan_started_at": str(company.plan_started_at) if company.plan_started_at else None,
-            "plan_expires_at": str(company.plan_expires_at) if company.plan_expires_at else None,
-        },
-    )
-
-    return {
-        "id": company.id,
-        "name": company.name,
-        "plan": company.plan,
-        "subscription_status": company.subscription_status,
-        "max_users": company.max_users,
-        "max_integrations": company.max_integrations,
-        "billing_email": company.billing_email,
-        "license_required": company.license_required,
-        "plan_started_at": company.plan_started_at,
-        "plan_expires_at": company.plan_expires_at,
     }
 
 @app.get("/admin/billing/overview")

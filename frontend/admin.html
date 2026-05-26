@@ -1510,6 +1510,7 @@
                       <th>Estado</th>
                       <th>Licencia</th>
                       <th>Expira</th>
+                      <th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody id="companiesTable">
@@ -2116,7 +2117,7 @@
 
       if (!companies.length) {
         select.innerHTML = `<option value="">Sin empresas</option>`;
-        tbody.innerHTML = `<tr><td colspan="6" class="empty">Sin empresas disponibles.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="empty">Sin empresas disponibles.</td></tr>`;
         return;
       }
 
@@ -2126,15 +2127,24 @@
   `;
 
       tbody.innerHTML = companies.map(c => `
-    <tr>
-      <td>${c.id}</td>
-      <td>${c.name}</td>
-      <td>${c.plan || "-"}</td>
-      <td>${c.subscription_status || "-"}</td>
-      <td>${c.id === 1 || c.license_required === false ? "No requerida" : "Requerida"}</td>
-      <td>${c.plan_expires_at || "-"}</td>
-    </tr>
-  `).join("");
+          <tr>
+            <td>${c.id}</td>
+            <td>${escapeHtml(c.name)}</td>
+            <td>${c.plan || "-"}</td>
+            <td>${c.subscription_status || "-"}</td>
+            <td>${c.id === 1 || c.license_required === false ? "No requerida" : "Requerida"}</td>
+            <td>${c.plan_expires_at || "-"}</td>
+            <td>
+              ${Number(c.id) === 1 ? `
+                <span class="pill pill-info">Master</span>
+              ` : `
+                <button class="danger" onclick="deleteCompanyAdmin(${c.id}, '${escapeHtml(c.name)}')">
+                  Eliminar
+                </button>
+              `}
+            </td>
+          </tr>
+          `).join("");
     }
 
     function selectCompanyForEdit() {
@@ -2377,6 +2387,54 @@
       return labels[status] || status || "-";
     }
 
+    async function deleteCompanyAdmin(companyId, companyName) {
+      if (Number(companyId) === 1) {
+        alert("La empresa Master no se puede eliminar.");
+        return;
+      }
+
+      const confirmDelete = confirm(
+        `¿Seguro que deseas eliminar la empresa "${companyName}"?\n\n` +
+        "Esto desactivará la empresa, sus usuarios e integraciones. No borra reportes ni auditoría."
+      );
+
+      if (!confirmDelete) return;
+
+      const secondConfirm = confirm(
+        `Confirmación final:\n\nEliminar empresa ID ${companyId} - ${companyName}?`
+      );
+
+      if (!secondConfirm) return;
+
+      const status = document.getElementById("companyAdminStatus");
+      status.innerText = `Eliminando empresa ${companyName}...`;
+
+      try {
+        const res = await fetch(`/admin/companies/${companyId}`, {
+          method: "DELETE",
+          headers: authHeaders(),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          status.innerText = `No se pudo eliminar empresa: ${data.detail || res.status}`;
+          return;
+        }
+
+        status.innerText =
+          `Empresa "${data.old_name || companyName}" eliminada. ` +
+          `Usuarios desactivados: ${data.users_disabled ?? 0}. ` +
+          `Integraciones desactivadas: ${data.integrations_disabled ?? 0}.`;
+
+        await loadCompanies();
+        renderCompaniesAdmin();
+        await loadUsers();
+
+      } catch (err) {
+        status.innerText = `Error eliminando empresa: ${err.message}`;
+      }
+    }
 
     initAdminPage();
   </script>

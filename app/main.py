@@ -403,15 +403,15 @@ PLAN_PRICES = {
         "annual_usd": 50 * 12,
         "currency": "USD",
         "billing_cycle": "monthly",
-        "display": "$149 / month"
+        "display": "$50 / month"
     },
     "professional": {
         "monthly_usd": 250,
         "semiannual_usd": 250 * 6,
-        "annual_usd": 499 * 12,
+        "annual_usd": 250 * 12,
         "currency": "USD",
         "billing_cycle": "monthly",
-        "display": "$499 / month"
+        "display": "$250 / month"
     },
     "business": {
         "monthly_usd": 500,
@@ -419,7 +419,7 @@ PLAN_PRICES = {
         "annual_usd": 500 * 12,
         "currency": "USD",
         "billing_cycle": "monthly",
-        "display": "$1,200 / month"
+        "display": "$500 / month"
     },
     "enterprise": {
         "monthly_usd": None,
@@ -3218,7 +3218,7 @@ def assign_case(
 
     user_query = db.query(User).filter(User.id == int(user_id), User.is_active == True)
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         user_query = user_query.filter(User.company_id == current_user.company_id)
 
     assigned_user = user_query.first()
@@ -3457,7 +3457,7 @@ def search_iocs(
         if obs.report_id:
             report_query = db.query(AnalysisReport).filter(AnalysisReport.id == obs.report_id)
 
-            if current_user.role != "super_admin":
+            if not is_master_super_admin(current_user):
                 report_query = report_query.filter(AnalysisReport.company_id == current_user.company_id)
 
             report = report_query.first()
@@ -3526,7 +3526,7 @@ def ioc_history(
         if obs.report_id:
             report_query = db.query(AnalysisReport).filter(AnalysisReport.id == obs.report_id)
 
-            if current_user.role != "super_admin":
+            if not is_master_super_admin(current_user):
                 report_query = report_query.filter(AnalysisReport.company_id == current_user.company_id)
 
             report = report_query.first()

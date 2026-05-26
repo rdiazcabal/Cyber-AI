@@ -1548,7 +1548,6 @@ def admin_update_user(
         if new_role not in ["analyst", "company_admin", "super_admin"]:
             raise HTTPException(status_code=400, detail="Invalid role")
 
-        # Only master company can assign super_admin role
         if new_role == "super_admin" and not is_master_super_admin(current_user):
             raise HTTPException(
                 status_code=403,

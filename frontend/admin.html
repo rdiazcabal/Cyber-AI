@@ -1425,7 +1425,7 @@
             <div class="admin-inner-card">
               <h3>Empresas / Licencias</h3>
               <div class="panel-subtitle">
-                Crea empresas y administra planes SaaS con vigencia de licencia.
+                Crea empresas y administra planes con vigencia de licencia.
               </div>
 
               <div class="form-section-title">Información de empresa</div>
@@ -1438,6 +1438,26 @@
               <div class="input-row">
                 <label>Nombre de empresa</label>
                 <input id="companyNameAdmin" placeholder="Nombre de la empresa">
+              </div>
+
+              <div class="input-row">
+                <label>RTN</label>
+                <input id="companyRtnAdmin" placeholder="08011999123456">
+              </div>
+
+              <div class="input-row">
+                <label>Teléfono</label>
+                <input id="companyPhoneAdmin" placeholder="+504 9999-9999">
+              </div>
+
+              <div class="input-row">
+                <label>Dirección</label>
+                <input id="companyAddressAdmin" placeholder="Dirección fiscal o comercial">
+              </div>
+
+              <div class="input-row">
+                <label>Teléfono de contacto</label>
+                <input id="companyContactPhoneAdmin" placeholder="+504 9999-9999">
               </div>
 
               <div class="form-section-title">Plan y suscripción</div>
@@ -2152,6 +2172,10 @@
       const company = companies.find(c => c.id === companyId);
 
       document.getElementById("companyNameAdmin").value = company ? company.name : "";
+      document.getElementById("companyRtnAdmin").value = company?.rtn || "";
+      document.getElementById("companyPhoneAdmin").value = company?.phone || "";
+      document.getElementById("companyAddressAdmin").value = company?.address || "";
+      document.getElementById("companyContactPhoneAdmin").value = company?.contact_phone || "";
       document.getElementById("companyPlan").value = company?.plan || "starter";
       document.getElementById("companySubscriptionStatus").value = company?.subscription_status || "active";
       document.getElementById("companyBillingEmail").value = company?.billing_email || "";
@@ -2262,6 +2286,10 @@
       }
 
       const companyName = document.getElementById("companyNameAdmin").value.trim();
+      const rtn = document.getElementById("companyRtnAdmin").value.trim();
+      const phone = document.getElementById("companyPhoneAdmin").value.trim();
+      const address = document.getElementById("companyAddressAdmin").value.trim();
+      const contactPhone = document.getElementById("companyContactPhoneAdmin").value.trim();
       const plan = document.getElementById("companyPlan").value;
       const subscriptionStatus = document.getElementById("companySubscriptionStatus").value;
       const billingEmail = document.getElementById("companyBillingEmail").value.trim();
@@ -2280,6 +2308,10 @@
 
       const payload = {
         name: companyName,
+        rtn: rtn || null,
+        phone: phone || null,
+        address: address || null,
+        contact_phone: contactPhone || null,
         plan: plan,
         subscription_status: subscriptionStatus,
         billing_email: billingEmail || null

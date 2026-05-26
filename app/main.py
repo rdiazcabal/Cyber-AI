@@ -624,16 +624,13 @@ def admin_list_companies(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    # Master Super Admin: company_id 1 can see all companies
-    if current_user.role == "super_admin" and current_user.company_id == 1:
+    if is_master_super_admin(current_user):
         companies = (
             db.query(Company)
             .filter(Company.is_active == True)
             .order_by(Company.name.asc())
             .all()
         )
-
-    # Client Super Admin / Company Admin: only own company
     else:
         companies = (
             db.query(Company)
@@ -651,17 +648,19 @@ def admin_list_companies(
             "name": company.name,
             "is_active": company.is_active,
             "created_at": company.created_at,
-
             "plan": company.plan,
             "subscription_status": company.subscription_status,
             "max_users": company.max_users,
             "max_integrations": company.max_integrations,
             "billing_email": company.billing_email,
-
             "license_required": company.license_required,
             "plan_started_at": str(company.plan_started_at) if company.plan_started_at else None,
             "plan_expires_at": str(company.plan_expires_at) if company.plan_expires_at else None,
             "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,
+            "rtn": company.rtn,
+            "phone": company.phone,
+            "address": company.address,
+            "contact_phone": company.contact_phone,
         }
         for company in companies
     ]
@@ -815,39 +814,51 @@ def update_company_plan(
 
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
-    
-    old_company_name = company.name
 
-    if "name" in payload:
-        new_name = (payload.get("name") or "").strip()
+        old_company_name = company.name
 
-        if len(new_name) < 2:
-            raise HTTPException(
-                status_code=400,
-                detail="Company name must have at least 2 characters"
-        )
+        if "name" in payload:
+            new_name = (payload.get("name") or "").strip()
 
-    existing_company = (
-        db.query(Company)
-        .filter(
-            Company.name == new_name,
-            Company.id != company.id
-        )
-        .first()
-    )
+            if len(new_name) < 2:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Company name must have at least 2 characters"
+                )
 
-    if existing_company:
-        raise HTTPException(
-            status_code=409,
-            detail="Another company with this name already exists"
-        )
+            existing_company = (
+                db.query(Company)
+                .filter(
+                    Company.name == new_name,
+                    Company.id != company.id
+                )
+                .first()
+            )
 
-    company.name = new_name
+            if existing_company:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Another company with this name already exists"
+                )
 
-    plan_name = (payload.get("plan") or "").strip().lower()
-    subscription_status = (
-        payload.get("subscription_status") or company.subscription_status or "active"
-    ).strip().lower()
+            company.name = new_name
+
+        if "rtn" in payload:
+            company.rtn = (payload.get("rtn") or "").strip() or None
+
+        if "phone" in payload:
+            company.phone = (payload.get("phone") or "").strip() or None
+
+        if "address" in payload:
+            company.address = (payload.get("address") or "").strip() or None
+
+        if "contact_phone" in payload:
+            company.contact_phone = (payload.get("contact_phone") or "").strip() or None
+
+        plan_name = (payload.get("plan") or "").strip().lower()
+        subscription_status = (
+            payload.get("subscription_status") or company.subscription_status or "active"
+        ).strip().lower()
 
     if plan_name not in PLAN_LIMITS:
         raise HTTPException(status_code=400, detail="Invalid plan")
@@ -950,6 +961,10 @@ def update_company_plan(
         "license_required": company.license_required,
         "plan_started_at": company.plan_started_at,
         "plan_expires_at": company.plan_expires_at,
+        "rtn": company.rtn,
+        "phone": company.phone,
+        "address": company.address,
+        "contact_phone": company.contact_phone,
     }
 
 @app.post("/admin/customers/onboard")

@@ -2251,9 +2251,16 @@
         return;
       }
 
+      const companyName = document.getElementById("companyNameAdmin").value.trim();
       const plan = document.getElementById("companyPlan").value;
       const subscriptionStatus = document.getElementById("companySubscriptionStatus").value;
       const billingEmail = document.getElementById("companyBillingEmail").value.trim();
+
+      if (companyName.length < 2) {
+        document.getElementById("companyAdminStatus").innerText =
+          "El nombre de la empresa debe tener al menos 2 caracteres.";
+        return;
+      }
       const planStartedAt = document.getElementById("companyPlanStartedAt").value;
       const planExpiresAt = document.getElementById("companyPlanExpiresAt").value;
 
@@ -2262,6 +2269,7 @@
       }
 
       const payload = {
+        name: companyName,
         plan: plan,
         subscription_status: subscriptionStatus,
         billing_email: billingEmail || null

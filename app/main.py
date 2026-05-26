@@ -941,6 +941,34 @@ def update_company_plan(
 
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
+    
+    old_company_name = company.name
+
+    if "name" in payload:
+        new_name = (payload.get("name") or "").strip()
+
+        if len(new_name) < 2:
+            raise HTTPException(
+                status_code=400,
+                detail="Company name must have at least 2 characters"
+        )
+
+    existing_company = (
+        db.query(Company)
+        .filter(
+            Company.name == new_name,
+            Company.id != company.id
+        )
+        .first()
+    )
+
+    if existing_company:
+        raise HTTPException(
+            status_code=409,
+            detail="Another company with this name already exists"
+        )
+
+    company.name = new_name
 
     plan_name = (payload.get("plan") or "").strip().lower()
     subscription_status = (
@@ -1024,6 +1052,8 @@ def update_company_plan(
         details={
             "company_id": company.id,
             "company_name": company.name,
+            "old_company_name": old_company_name,
+            "new_company_name": company.name,
             "plan": company.plan,
             "subscription_status": company.subscription_status,
             "max_users": company.max_users,

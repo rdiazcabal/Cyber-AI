@@ -65,6 +65,10 @@
                 {
                     "name": "OTX_API_KEY",
                     "valueFrom": "arn:aws:secretsmanager:us-east-1:269531437168:secret:CyberAI-2incpro-oyhh54:OTX_API_KEY::"
+                },
+                {
+                    "name": "SECURI_WEBHOOK_SECRET",
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:269531437168:secret:CyberAI-2incpro-oyhh54:SECURI_WEBHOOK_SECRET::"
                 }
             ],
             "healthCheck": {

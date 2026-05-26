@@ -362,6 +362,13 @@ def is_master_super_admin(user: User) -> bool:
         and int(user.company_id or 0) == 1
     )
 
+def require_master_company(current_user: User):
+    if not is_master_super_admin(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="Only master company super admin can access this resource"
+        )
+
 def apply_company_scope(query, model, current_user: User):
     """
     Master company super admin can see all companies.
@@ -1511,69 +1518,82 @@ def admin_update_user(
                 detail="Only master company can assign super admin role"
             )
 
-        if current_user.role != "super_admin" and new_role == "super_admin":
-            raise HTTPException(status_code=403, detail="Company admin cannot assign super admin")
-
         if user.id == current_user.id and new_role != current_user.role:
-            raise HTTPException(status_code=400, detail="You cannot change your own role")
+            raise HTTPException(
+                status_code=400,
+                detail="You cannot change your own role"
+            )
 
         user.role = new_role
-        #user.is_admin = new_role in ["super_admin", "company_admin"]
 
-    if "company_id" in payload and is_master_super_admin(current_user):
+    if "company_id" in payload:
+        if not is_master_super_admin(current_user):
+            raise HTTPException(
+                status_code=403,
+                detail="Only master company super admin can move users between companies"
+            )
+
         company = (
             db.query(Company)
-            .filter(Company.id == int(payload.get("company_id")), Company.is_active == True)
+            .filter(
+                Company.id == int(payload.get("company_id")),
+                Company.is_active == True
+            )
             .first()
         )
-    elif "company_id" in payload and not is_master_super_admin(current_user):
-        raise HTTPException(
-            status_code=403,
-            detail="Only master company super admin can move users between companies"
-        )
-        
+
         if not company:
             raise HTTPException(status_code=404, detail="Company not found")
+
         user.company_id = company.id
 
     if "is_active" in payload:
         if user.id == current_user.id and not bool(payload.get("is_active")):
-            raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
+            raise HTTPException(
+                status_code=400,
+                detail="You cannot deactivate your own account"
+            )
 
         user.is_active = bool(payload.get("is_active"))
 
     if payload.get("password"):
-       validate_password_policy(payload["password"])
-       user.password_hash = hash_password(payload["password"])
-       user.failed_login_attempts = 0
-       user.locked_until = None
+        validate_password_policy(payload["password"])
+        user.password_hash = hash_password(payload["password"])
+        user.failed_login_attempts = 0
+        user.locked_until = None
 
     audit_details = {
-    "target_user_id": user.id,
-    "username": user.username,
-    "role": user.role,
-    "company_id": user.company_id,
-    "is_active": user.is_active,
-    "updated_fields": list(payload.keys()),
+        "target_user_id": user.id,
+        "username": user.username,
+        "role": user.role,
+        "company_id": user.company_id,
+        "is_active": user.is_active,
+        "updated_fields": list(payload.keys()),
     }
 
     db.commit()
     db.refresh(user)
 
     audit_action(
-    db=db,
-    current_user=current_user,
-    action="UPDATE_USER",
-    resource_type="user",
-    resource_id=user.id,
-    details=audit_details,
-)
+        db=db,
+        current_user=current_user,
+        action="UPDATE_USER",
+        resource_type="user",
+        resource_id=user.id,
+        details=audit_details,
+    )
+
+    company = None
+    if user.company_id:
+        company = db.query(Company).filter(Company.id == user.company_id).first()
 
     return {
         "id": user.id,
         "username": user.username,
+        "full_name": user.full_name,
         "role": user.role,
         "company_id": user.company_id,
+        "company_name": company.name if company else None,
         "is_active": user.is_active,
     }
 

@@ -3895,9 +3895,9 @@ def get_company_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
-    target_company_id = company_id
-
-    if not is_master_super_admin(current_user):
+    if is_master_super_admin(current_user):
+        target_company_id = company_id or current_user.company_id or 1
+    else:
         target_company_id = current_user.company_id
 
     if not target_company_id:

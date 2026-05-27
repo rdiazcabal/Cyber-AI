@@ -1944,7 +1944,7 @@ def persist_ioc_observations(
 
             db.add(
                 IOCObservation(
-                    company_id=current_user.company_id,
+                    company_id=report.company_id,
                     report_id=report.id,
                     type=ioc_type,
                     ioc=str(value),
@@ -2466,7 +2466,7 @@ def create_security_case_if_needed(
         return existing_case
 
     case = SecurityCase(
-        company_id=current_user.company_id,
+        company_id=report.company_id,
         report_id=report.id,
         title=f"{severity} Security Incident - Report #{report.id}",
         severity=severity,
@@ -2479,8 +2479,8 @@ def create_security_case_if_needed(
 
     if severity == "Critical":
         send_slack_alert(
-            f"🚨 CRITICAL SOC CASE\n"
-            f"Company ID: {current_user.company_id}\n"
+            f" CRITICAL SOC CASE\n"
+            f"Company ID: {report.company_id}\n"
             f"Report ID: {report.id}\n"
             f"Risk Score: {risk_score}\n"
             f"Summary: {summary}"
@@ -4057,7 +4057,7 @@ def list_alert_rules(
 
     return result
 
-@app.post("/admin/alert-rules")
+@app.post("/admin/alert-rules") 
 def create_alert_rule(
     payload: dict,
     db: Session = Depends(get_db),
@@ -4065,7 +4065,6 @@ def create_alert_rule(
 ):
     from datetime import datetime
 
-    # SaaS plan: Alert Rules lock
     require_plan_feature(db, current_user, "alert_rules")
 
     name = (payload.get("name") or "").strip()
@@ -4096,11 +4095,11 @@ def create_alert_rule(
     channel = payload.get("channel") or "slack"
     if channel not in ["slack", "webhook"]:
         raise HTTPException(status_code=400, detail="Invalid channel")
-    
-    destination=destination,
+
+    destination = (payload.get("destination") or "").strip() or None
 
     if destination:
-        validate_alert_destination_url(destination)
+        destination = validate_alert_destination_url(destination)
 
     risk_score_min = int(payload.get("risk_score_min", 80))
     if risk_score_min < 0 or risk_score_min > 100:
@@ -4114,7 +4113,7 @@ def create_alert_rule(
         alert_on_case_created=bool(payload.get("alert_on_case_created", True)),
         alert_on_critical=bool(payload.get("alert_on_critical", True)),
         channel=channel,
-        destination=(payload.get("destination") or "").strip() or None,
+        destination=destination,
         enabled=bool(payload.get("enabled", True)),
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
@@ -4165,7 +4164,6 @@ def update_alert_rule(
 ):
     from datetime import datetime
 
-    # SaaS plan: Alert Rules lock
     require_plan_feature(db, current_user, "alert_rules")
 
     query = db.query(AlertRule).filter(AlertRule.id == rule_id)
@@ -4211,10 +4209,10 @@ def update_alert_rule(
     if "destination" in payload:
         destination = (payload.get("destination") or "").strip() or None
 
-    if destination:
-        validate_alert_destination_url(destination)
+        if destination:
+            destination = validate_alert_destination_url(destination)
 
-    rule.destination = destination
+        rule.destination = destination
 
     if "enabled" in payload:
         rule.enabled = bool(payload.get("enabled"))

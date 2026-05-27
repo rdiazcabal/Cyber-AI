@@ -5016,38 +5016,6 @@ def aws_get_sources(config: dict) -> set[str]:
         if str(source).strip()
     }
 
-def aws_assume_role_session(config: dict):
-    import boto3
-
-    role_arn = (config.get("role_arn") or "").strip()
-    external_id = (config.get("external_id") or "").strip()
-    region = (config.get("region") or "us-east-1").strip()
-
-    if not role_arn:
-        raise Exception("AWS role_arn is required")
-
-    if not external_id:
-        raise Exception("AWS external_id is required")
-
-    sts = boto3.client("sts", region_name=region)
-
-    assumed = sts.assume_role(
-        RoleArn=role_arn,
-        RoleSessionName="SecuRIIntegrationSync",
-        ExternalId=external_id,
-    )
-
-    credentials = assumed["Credentials"]
-
-    session = boto3.Session(
-        aws_access_key_id=credentials["AccessKeyId"],
-        aws_secret_access_key=credentials["SecretAccessKey"],
-        aws_session_token=credentials["SessionToken"],
-        region_name=region,
-    )
-
-    return session, region
-
 def deep_get(data: dict, path: list[str], default=None):
     current = data
 
@@ -5170,7 +5138,7 @@ def aws_securityhub_events(session, region: str, max_results: int = 50) -> list[
 
     return events
 
- def aws_cloudtrail_events(
+def aws_cloudtrail_events(
     session,
     region: str,
     max_results: int = 50,
@@ -5283,7 +5251,6 @@ def aws_get_sources(config: dict) -> set[str]:
         for source in sources
         if str(source).strip()
     }
-
 
 def aws_assume_role_session(config: dict):
     import boto3
@@ -5499,45 +5466,6 @@ def aws_cloudtrail_events(
 
     except Exception as e:
         print(f"AWS CloudTrail sync skipped/failed: {e}")
-
-    return events
-
-def fetch_real_aws_events(config: dict) -> list[dict]:
-    session, region = aws_assume_role_session(config)
-
-    sources = aws_get_sources(config)
-    max_results = min(int(config.get("max_results", 50) or 50), 100)
-    lookback_hours = int(config.get("lookback_hours", 24) or 24)
-
-    events = []
-
-    if "guardduty" in sources:
-        events.extend(
-            aws_guardduty_events(
-                session=session,
-                region=region,
-                max_results=max_results,
-            )
-        )
-
-    if "securityhub" in sources or "security_hub" in sources:
-        events.extend(
-            aws_securityhub_events(
-                session=session,
-                region=region,
-                max_results=max_results,
-            )
-        )
-
-    if "cloudtrail" in sources:
-        events.extend(
-            aws_cloudtrail_events(
-                session=session,
-                region=region,
-                max_results=max_results,
-                lookback_hours=lookback_hours,
-            )
-        )
 
     return events
 

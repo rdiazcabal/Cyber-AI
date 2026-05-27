@@ -4936,6 +4936,7 @@ def validate_integration_payload(provider: str, auth_type: str, config: dict):
     if provider == "aws":
         required = ["role_arn", "external_id", "region"]
         missing = [k for k in required if not config.get(k)]
+
         if missing:
             raise HTTPException(
                 status_code=400,
@@ -4943,11 +4944,15 @@ def validate_integration_payload(provider: str, auth_type: str, config: dict):
             )
 
         if auth_type not in ["role_arn"]:
-            raise HTTPException(status_code=400, detail="AWS auth_type must be role_arn")
+            raise HTTPException(
+                status_code=400,
+                detail="AWS auth_type must be role_arn"
+            )
 
-    if provider == "azure":
+    elif provider == "azure":
         required = ["tenant_id", "client_id", "client_secret_ref", "subscription_id"]
         missing = [k for k in required if not config.get(k)]
+
         if missing:
             raise HTTPException(
                 status_code=400,
@@ -4955,9 +4960,12 @@ def validate_integration_payload(provider: str, auth_type: str, config: dict):
             )
 
         if auth_type not in ["app_registration"]:
-            raise HTTPException(status_code=400, detail="Azure auth_type must be app_registration")
+            raise HTTPException(
+                status_code=400,
+                detail="Azure auth_type must be app_registration"
+            )
 
-    if provider == "gcp":
+    elif provider == "gcp":
         required = ["project_id", "service_account_secret_ref"]
         missing = [k for k in required if not config.get(k)]
 
@@ -4980,14 +4988,14 @@ def validate_integration_payload(provider: str, auth_type: str, config: dict):
         else:
             sources = [str(s).strip().lower() for s in sources if str(s).strip()]
 
-        if ("scc" in sources or "security_command_center" in sources) and not config.get("organization_id"):
+        if (
+            "scc" in sources
+            or "security_command_center" in sources
+        ) and not config.get("organization_id"):
             raise HTTPException(
                 status_code=400,
                 detail="GCP organization_id is required when using Security Command Center source"
             )
-
-    if auth_type not in ["service_account"]:
-        raise HTTPException(status_code=400, detail="GCP auth_type must be service_account")
 
 def integration_to_dict(integration: CloudIntegration, company_name: str | None = None) -> dict:
     config = parse_integration_config(integration.config_json)

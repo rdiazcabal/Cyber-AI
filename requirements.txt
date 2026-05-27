@@ -22,4 +22,4 @@ pyodbc
 azure-identity
 azure-mgmt-subscription
 azure-mgmt-security
-azure-identity
+

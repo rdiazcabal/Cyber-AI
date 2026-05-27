@@ -4960,6 +4960,7 @@ def validate_integration_payload(provider: str, auth_type: str, config: dict):
     if provider == "gcp":
         required = ["project_id", "service_account_secret_ref"]
         missing = [k for k in required if not config.get(k)]
+
         if missing:
             raise HTTPException(
                 status_code=400,
@@ -4967,7 +4968,26 @@ def validate_integration_payload(provider: str, auth_type: str, config: dict):
             )
 
         if auth_type not in ["service_account"]:
-            raise HTTPException(status_code=400, detail="GCP auth_type must be service_account")
+            raise HTTPException(
+                status_code=400,
+                detail="GCP auth_type must be service_account"
+            )
+
+        sources = config.get("sources", ["audit_logs", "scc"])
+
+        if isinstance(sources, str):
+            sources = [s.strip().lower() for s in sources.split(",") if s.strip()]
+        else:
+            sources = [str(s).strip().lower() for s in sources if str(s).strip()]
+
+        if ("scc" in sources or "security_command_center" in sources) and not config.get("organization_id"):
+            raise HTTPException(
+                status_code=400,
+                detail="GCP organization_id is required when using Security Command Center source"
+            )
+
+    if auth_type not in ["service_account"]:
+        raise HTTPException(status_code=400, detail="GCP auth_type must be service_account")
 
 def integration_to_dict(integration: CloudIntegration, company_name: str | None = None) -> dict:
     config = parse_integration_config(integration.config_json)
@@ -5272,6 +5292,643 @@ def aws_cloudtrail_events(
 
     return events
 
+def gcp_get_sources(config: dict) -> set[str]:
+    sources = config.get("sources", ["audit_logs", "scc"])
+
+    if isinstance(sources, str):
+        sources = sources.split(",")
+
+    return {
+        str(source).strip().lower()
+        for source in sources
+        if str(source).strip()
+    }
+
+def gcp_get_authorized_session(config: dict):
+    service_account_secret_ref = (config.get("service_account_secret_ref") or "").strip()
+
+    if not service_account_secret_ref:
+        raise Exception("GCP service_account_secret_ref is required")
+
+    secret_value = resolve_secret_ref(service_account_secret_ref)
+
+    if not secret_value:
+        raise Exception("GCP service account secret could not be resolved")
+
+    try:
+        service_account_info = json.loads(secret_value)
+    except Exception:
+        raise Exception("GCP service account secret must be valid JSON")
+
+    try:
+        from google.oauth2 import service_account
+        from google.auth.transport.requests import AuthorizedSession
+    except Exception as e:
+        raise Exception(
+            "google-auth is required. Add 'google-auth' to requirements.txt. "
+            f"Original error: {str(e)}"
+        )
+
+    credentials = service_account.Credentials.from_service_account_info(
+        service_account_info,
+        scopes=["https://www.googleapis.com/auth/cloud-platform"],
+    )
+
+    return AuthorizedSession(credentials)
+
+def gcp_severity_to_score(value) -> int:
+    clean = str(value or "").lower()
+
+    if clean == "critical":
+        return 9
+    if clean in ["high", "error", "alert"]:
+        return 8
+    if clean in ["medium", "warning", "warn"]:
+        return 6
+    if clean in ["low", "notice"]:
+        return 4
+    if clean in ["informational", "info", "debug", "default"]:
+        return 3
+
+    try:
+        return int(value)
+    except Exception:
+        return 3
+
+def gcp_find_nested_value(data, keys: list[str]):
+    if isinstance(data, dict):
+        for key in keys:
+            if key in data and data[key]:
+                return data[key]
+
+        for value in data.values():
+            found = gcp_find_nested_value(value, keys)
+            if found:
+                return found
+
+    if isinstance(data, list):
+        for item in data:
+            found = gcp_find_nested_value(item, keys)
+            if found:
+                return found
+
+    return None
+
+def gcp_cloud_audit_log_events(config: dict, session) -> list[dict]:
+    project_id = (config.get("project_id") or "").strip()
+    lookback_hours = int(config.get("lookback_hours", 24) or 24)
+    max_results = min(int(config.get("max_results", 50) or 50), 100)
+
+    if not project_id:
+        raise Exception("GCP project_id is required")
+
+    start_time = datetime.utcnow() - timedelta(hours=lookback_hours)
+    start_iso = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    url = "https://logging.googleapis.com/v2/entries:list"
+
+    body = {
+        "resourceNames": [f"projects/{project_id}"],
+        "filter": (
+            f'timestamp >= "{start_iso}" AND '
+            '('
+            'protoPayload.@type="type.googleapis.com/google.cloud.audit.AuditLog" '
+            'OR logName:"cloudaudit.googleapis.com"'
+            ')'
+        ),
+        "orderBy": "timestamp desc",
+        "pageSize": max_results,
+    }
+
+    events = []
+    page_token = None
+
+    while len(events) < max_results:
+        if page_token:
+            body["pageToken"] = page_token
+
+        response = session.post(url, json=body, timeout=20)
+
+        if response.status_code >= 400:
+            raise Exception(
+                f"GCP Cloud Logging entries.list failed: {response.status_code} - {response.text}"
+            )
+
+        data = response.json()
+
+        for entry in data.get("entries", []) or []:
+            if len(events) >= max_results:
+                break
+
+            proto = entry.get("protoPayload", {}) or {}
+            auth_info = proto.get("authenticationInfo", {}) or {}
+            request_metadata = proto.get("requestMetadata", {}) or {}
+            resource = entry.get("resource", {}) or {}
+            resource_labels = resource.get("labels", {}) or {}
+            status = proto.get("status", {}) or {}
+
+            event_name = (
+                proto.get("methodName")
+                or proto.get("serviceName")
+                or entry.get("logName")
+                or "GCPAuditLog"
+            )
+
+            events.append({
+                "provider": "GCP",
+                "service": "CloudAuditLogs",
+                "eventName": event_name,
+                "severity": gcp_severity_to_score(entry.get("severity")),
+                "sourceIPAddress": request_metadata.get("callerIp"),
+                "user": auth_info.get("principalEmail"),
+                "resource": proto.get("resourceName") or resource_labels.get("project_id") or project_id,
+                "region": resource_labels.get("location") or "global",
+                "project_id": project_id,
+                "title": event_name,
+                "description": status.get("message") or proto.get("serviceName") or "GCP Cloud Audit Log event",
+                "created_at": entry.get("timestamp"),
+                "raw": entry,
+            })
+
+        page_token = data.get("nextPageToken")
+        if not page_token:
+            break
+
+    return events
+
+def gcp_security_command_center_events(config: dict, session) -> list[dict]:
+    organization_id = (config.get("organization_id") or "").strip()
+    project_id = (config.get("project_id") or "").strip()
+    max_results = min(int(config.get("max_results", 50) or 50), 100)
+
+    if not organization_id:
+        raise Exception("GCP organization_id is required for Security Command Center")
+
+    url = (
+        f"https://securitycenter.googleapis.com/v1/"
+        f"organizations/{organization_id}/sources/-/findings"
+    )
+
+    params = {
+        "pageSize": str(max_results),
+        "filter": 'state="ACTIVE"',
+    }
+
+    events = []
+    page_token = None
+
+    while len(events) < max_results:
+        if page_token:
+            params["pageToken"] = page_token
+
+        response = session.get(url, params=params, timeout=20)
+
+        if response.status_code >= 400:
+            raise Exception(
+                f"GCP Security Command Center findings request failed: {response.status_code} - {response.text}"
+            )
+
+        data = response.json()
+
+        for result in data.get("listFindingsResults", []) or []:
+            if len(events) >= max_results:
+                break
+
+            finding = result.get("finding", {}) or {}
+            resource = result.get("resource", {}) or {}
+            source_properties = finding.get("sourceProperties", {}) or {}
+
+            category = finding.get("category") or "GCPSecurityFinding"
+            severity = finding.get("severity") or source_properties.get("severity")
+
+            events.append({
+                "provider": "GCP",
+                "service": "SecurityCommandCenter",
+                "eventName": category,
+                "severity": gcp_severity_to_score(severity),
+                "sourceIPAddress": gcp_find_nested_value(finding, ["sourceIp", "sourceIPAddress", "ipAddress", "callerIp", "remoteIp"]),
+                "user": gcp_find_nested_value(finding, ["principalEmail", "userEmail", "user", "account", "actor"]),
+                "resource": finding.get("resourceName") or resource.get("name") or resource.get("displayName") or project_id,
+                "region": finding.get("location") or "global",
+                "project_id": project_id,
+                "organization_id": organization_id,
+                "title": category,
+                "description": finding.get("description") or finding.get("externalUri") or category,
+                "created_at": finding.get("eventTime") or finding.get("createTime"),
+                "raw": result,
+            })
+
+        page_token = data.get("nextPageToken")
+        if not page_token:
+            break
+
+    return events
+
+def fetch_real_gcp_events(config: dict) -> list[dict]:
+    sources = gcp_get_sources(config)
+    session = gcp_get_authorized_session(config)
+
+    events = []
+
+    if "audit_logs" in sources or "auditlogs" in sources or "cloud_audit_logs" in sources:
+        events.extend(
+            gcp_cloud_audit_log_events(
+                config=config,
+                session=session,
+            )
+        )
+
+    if "scc" in sources or "security_command_center" in sources:
+        events.extend(
+            gcp_security_command_center_events(
+                config=config,
+                session=session,
+            )
+        )
+
+    return events
+
+def azure_get_sources(config: dict) -> set[str]:
+    sources = config.get("sources", ["activity_logs", "defender", "signin_logs"])
+
+    if isinstance(sources, str):
+        sources = sources.split(",")
+
+    return {
+        str(source).strip().lower()
+        for source in sources
+        if str(source).strip()
+    }
+
+def azure_get_token(config: dict, scope: str) -> str:
+    tenant_id = (config.get("tenant_id") or "").strip()
+    client_id = (config.get("client_id") or "").strip()
+    client_secret_ref = (config.get("client_secret_ref") or "").strip()
+
+    if not tenant_id:
+        raise Exception("Azure tenant_id is required")
+
+    if not client_id:
+        raise Exception("Azure client_id is required")
+
+    if not client_secret_ref:
+        raise Exception("Azure client_secret_ref is required")
+
+    client_secret = resolve_secret_ref(client_secret_ref)
+
+    if not client_secret:
+        raise Exception("Azure client secret could not be resolved")
+
+    token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+
+    response = requests.post(
+        token_url,
+        data={
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "scope": scope,
+        },
+        timeout=15,
+    )
+
+    if response.status_code >= 400:
+        raise Exception(f"Azure token request failed: {response.status_code} - {response.text}")
+
+    data = response.json()
+    access_token = data.get("access_token")
+
+    if not access_token:
+        raise Exception("Azure token response did not include access_token")
+
+    return access_token
+
+def azure_get_nested_value(value):
+    if isinstance(value, dict):
+        return value.get("value") or value.get("localizedValue")
+    return value
+
+def azure_severity_to_score(value) -> int:
+    clean = str(value or "").lower()
+
+    if clean in ["critical", "high", "error", "failed", "failure"]:
+        return 8
+
+    if clean in ["medium", "warning", "warn"]:
+        return 6
+
+    if clean in ["low", "informational", "info", "succeeded", "success"]:
+        return 3
+
+    try:
+        return int(value)
+    except Exception:
+        return 3
+
+def azure_activity_log_events(config: dict, arm_token: str) -> list[dict]:
+    subscription_id = (config.get("subscription_id") or "").strip()
+    lookback_hours = int(config.get("lookback_hours", 24) or 24)
+    max_results = min(int(config.get("max_results", 50) or 50), 100)
+
+    if not subscription_id:
+        raise Exception("Azure subscription_id is required")
+
+    end_time = datetime.utcnow()
+    start_time = end_time - timedelta(hours=lookback_hours)
+
+    start_iso = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+    end_iso = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    url = (
+        f"https://management.azure.com/subscriptions/{subscription_id}"
+        f"/providers/Microsoft.Insights/eventtypes/management/values"
+    )
+
+    params = {
+        "api-version": "2015-04-01",
+        "$filter": f"eventTimestamp ge '{start_iso}' and eventTimestamp le '{end_iso}'",
+    }
+
+    headers = {
+        "Authorization": f"Bearer {arm_token}",
+        "Accept": "application/json",
+    }
+
+    events = []
+
+    while url and len(events) < max_results:
+        response = requests.get(
+            url,
+            headers=headers,
+            params=params if "api-version" not in url else None,
+            timeout=20,
+        )
+
+        if response.status_code >= 400:
+            raise Exception(f"Azure Activity Logs request failed: {response.status_code} - {response.text}")
+
+        data = response.json()
+
+        for item in data.get("value", []) or []:
+            if len(events) >= max_results:
+                break
+
+            http_request = item.get("httpRequest", {}) or {}
+            status = azure_get_nested_value(item.get("status"))
+            level = item.get("level")
+
+            operation_name = (
+                azure_get_nested_value(item.get("operationName"))
+                or azure_get_nested_value(item.get("eventName"))
+                or "AzureActivityLog"
+            )
+
+            events.append({
+                "provider": "Azure",
+                "service": "ActivityLogs",
+                "eventName": operation_name,
+                "severity": azure_severity_to_score(status or level),
+                "sourceIPAddress": http_request.get("clientIpAddress"),
+                "user": item.get("caller"),
+                "resource": item.get("resourceId"),
+                "region": "global",
+                "subscription_id": subscription_id,
+                "title": operation_name,
+                "description": item.get("description") or status or "Azure Activity Log event",
+                "created_at": item.get("eventTimestamp"),
+                "raw": item,
+            })
+
+        url = data.get("nextLink")
+        params = None
+
+    return events
+
+def azure_defender_alert_events(config: dict, arm_token: str) -> list[dict]:
+    subscription_id = (config.get("subscription_id") or "").strip()
+    max_results = min(int(config.get("max_results", 50) or 50), 100)
+
+    if not subscription_id:
+        raise Exception("Azure subscription_id is required")
+
+    url = (
+        f"https://management.azure.com/subscriptions/{subscription_id}"
+        f"/providers/Microsoft.Security/alerts"
+    )
+
+    params = {
+        "api-version": "2022-01-01",
+    }
+
+    headers = {
+        "Authorization": f"Bearer {arm_token}",
+        "Accept": "application/json",
+    }
+
+    events = []
+
+    while url and len(events) < max_results:
+        response = requests.get(
+            url,
+            headers=headers,
+            params=params if "api-version" not in url else None,
+            timeout=20,
+        )
+
+        if response.status_code >= 400:
+            raise Exception(f"Azure Defender alerts request failed: {response.status_code} - {response.text}")
+
+        data = response.json()
+
+        for item in data.get("value", []) or []:
+            if len(events) >= max_results:
+                break
+
+            props = item.get("properties", {}) or {}
+
+            severity = (
+                props.get("severity")
+                or props.get("alertSeverity")
+                or props.get("level")
+            )
+
+            title = (
+                props.get("alertDisplayName")
+                or props.get("displayName")
+                or props.get("alertType")
+                or item.get("name")
+                or "AzureDefenderAlert"
+            )
+
+            entities = props.get("entities", []) or []
+            first_entity = entities[0] if entities else {}
+
+            source_ip = (
+                first_entity.get("address")
+                or first_entity.get("ipAddress")
+                or props.get("sourceAddress")
+            )
+
+            user = (
+                props.get("compromisedEntity")
+                or first_entity.get("userPrincipalName")
+                or first_entity.get("name")
+            )
+
+            events.append({
+                "provider": "Azure",
+                "service": "DefenderForCloud",
+                "eventName": props.get("alertType") or "AzureDefenderAlert",
+                "severity": azure_severity_to_score(severity),
+                "sourceIPAddress": source_ip,
+                "user": user,
+                "resource": item.get("id") or props.get("resourceIdentifiers"),
+                "region": props.get("region") or "global",
+                "subscription_id": subscription_id,
+                "title": title,
+                "description": props.get("description") or title,
+                "created_at": props.get("timeGeneratedUtc") or props.get("startTimeUtc"),
+                "raw": item,
+            })
+
+        url = data.get("nextLink")
+        params = None
+
+    return events
+
+def azure_signin_log_events(config: dict, graph_token: str) -> list[dict]:
+    lookback_hours = int(config.get("lookback_hours", 24) or 24)
+    max_results = min(int(config.get("max_results", 50) or 50), 100)
+
+    end_time = datetime.utcnow()
+    start_time = end_time - timedelta(hours=lookback_hours)
+    start_iso = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    url = "https://graph.microsoft.com/v1.0/auditLogs/signIns"
+
+    params = {
+        "$top": str(max_results),
+        "$filter": f"createdDateTime ge {start_iso}",
+    }
+
+    headers = {
+        "Authorization": f"Bearer {graph_token}",
+        "Accept": "application/json",
+    }
+
+    events = []
+
+    while url and len(events) < max_results:
+        response = requests.get(
+            url,
+            headers=headers,
+            params=params if "$top" not in url else None,
+            timeout=20,
+        )
+
+        if response.status_code >= 400:
+            raise Exception(f"Azure Entra sign-in logs request failed: {response.status_code} - {response.text}")
+
+        data = response.json()
+
+        for item in data.get("value", []) or []:
+            if len(events) >= max_results:
+                break
+
+            status = item.get("status", {}) or {}
+            risk_level = item.get("riskLevelAggregated") or item.get("riskLevelDuringSignIn")
+            error_code = status.get("errorCode", 0)
+
+            failed = bool(error_code and int(error_code) != 0)
+
+            severity = 7 if failed or str(risk_level or "").lower() in ["medium", "high"] else 3
+
+            events.append({
+                "provider": "Azure",
+                "service": "EntraID",
+                "eventName": "SignInFailure" if failed else "SignIn",
+                "severity": severity,
+                "sourceIPAddress": item.get("ipAddress"),
+                "user": item.get("userPrincipalName") or item.get("userDisplayName"),
+                "resource": item.get("resourceDisplayName") or item.get("appDisplayName"),
+                "region": item.get("location", {}).get("countryOrRegion") if isinstance(item.get("location"), dict) else "global",
+                "title": "Azure Entra ID Sign-in",
+                "description": status.get("failureReason") or item.get("appDisplayName") or "Azure sign-in event",
+                "created_at": item.get("createdDateTime"),
+                "risk_level": risk_level,
+                "raw": item,
+            })
+
+        url = data.get("@odata.nextLink")
+        params = None
+
+    return events
+
+def fetch_real_azure_events(config: dict) -> list[dict]:
+    sources = azure_get_sources(config)
+    events = []
+
+    arm_sources = {
+        "activity",
+        "activity_logs",
+        "activitylogs",
+        "defender",
+        "defender_for_cloud",
+        "security_alerts",
+        "securityalerts",
+    }
+
+    graph_sources = {
+        "signin",
+        "signins",
+        "signin_logs",
+        "signinlogs",
+        "entra",
+        "entra_signins",
+    }
+
+    if sources.intersection(arm_sources):
+        arm_token = azure_get_token(
+            config=config,
+            scope="https://management.azure.com/.default",
+        )
+
+        if "activity" in sources or "activity_logs" in sources or "activitylogs" in sources:
+            events.extend(
+                azure_activity_log_events(
+                    config=config,
+                    arm_token=arm_token,
+                )
+            )
+
+        if (
+            "defender" in sources
+            or "defender_for_cloud" in sources
+            or "security_alerts" in sources
+            or "securityalerts" in sources
+        ):
+            events.extend(
+                azure_defender_alert_events(
+                    config=config,
+                    arm_token=arm_token,
+                )
+            )
+
+    if sources.intersection(graph_sources):
+        graph_token = azure_get_token(
+            config=config,
+            scope="https://graph.microsoft.com/.default",
+        )
+
+        events.extend(
+            azure_signin_log_events(
+                config=config,
+                graph_token=graph_token,
+            )
+        )
+
+    return events
+
 def generate_sample_events_for_integration(integration: CloudIntegration) -> list[dict]:
     """
     Real cloud sync.
@@ -5292,44 +5949,24 @@ def generate_sample_events_for_integration(integration: CloudIntegration) -> lis
         return events
 
     if provider == "azure":
-        return [
-            {
-                "provider": "Azure",
-                "service": "Entra ID",
-                "eventName": "RiskySignIn",
-                "severity": 7,
-                "sourceIPAddress": "8.8.4.4",
-                "user": "azure.integration@test.local",
-                "resource": config.get("subscription_id"),
-                "region": "global",
-                "description": "Azure integration sync scaffold event. Replace with real Entra ID/Activity/Defender alerts.",
-                "raw": {
-                    "integration_id": integration.id,
-                    "integration_name": integration.name,
-                    "sources": config.get("sources", ["activity_logs", "entra_signins", "defender"]),
-                },
-            }
-        ]
+        events = fetch_real_azure_events(config)
+
+        if not events:
+            raise Exception(
+                "Azure sync returned no events. Validate Activity Logs, Defender for Cloud, Entra sign-in logs, API permissions, RBAC, subscription_id and lookback_hours."
+            )
+
+        return events
 
     if provider == "gcp":
-        return [
-            {
-                "provider": "GCP",
-                "service": "Security Command Center",
-                "eventName": "IAMAnomalousGrant",
-                "severity": 7,
-                "sourceIPAddress": "1.1.1.1",
-                "user": "gcp-integration@test.local",
-                "resource": config.get("project_id"),
-                "region": "global",
-                "description": "GCP integration sync scaffold event. Replace with real Cloud Audit Logs/SCC findings.",
-                "raw": {
-                    "integration_id": integration.id,
-                    "integration_name": integration.name,
-                    "sources": config.get("sources", ["audit_logs", "security_command_center"]),
-                },
-            }
-        ]
+        events = fetch_real_gcp_events(config)
+
+        if not events:
+            raise Exception(
+                "GCP sync returned no events. Validate Cloud Audit Logs, Security Command Center, project_id, organization_id, IAM permissions and lookback_hours."
+            )
+
+        return events
 
     return []
 

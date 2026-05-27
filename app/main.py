@@ -1991,25 +1991,120 @@ def severity_rank(severity: str | None) -> int:
     }
     return ranks.get((severity or "").lower(), 0)
 
+def validate_alert_destination_url(destination: str) -> str:
+    """
+    Prevent SSRF in alert rule destinations.
+    Only public HTTPS URLs are allowed.
+    Blocks localhost, metadata IPs, private IPs, link-local, loopback, multicast, reserved and unspecified IPs.
+    """
+    import socket
+    from urllib.parse import urlparse
+
+    destination = (destination or "").strip()
+
+    if not destination:
+        raise HTTPException(status_code=400, detail="Destination URL is required")
+
+    parsed = urlparse(destination)
+
+    if parsed.scheme != "https":
+        raise HTTPException(
+            status_code=400,
+            detail="Alert destination must use HTTPS"
+        )
+
+    if not parsed.hostname:
+        raise HTTPException(
+            status_code=400,
+            detail="Alert destination hostname is required"
+        )
+
+    hostname = parsed.hostname.lower()
+
+    blocked_hostnames = {
+        "localhost",
+        "localhost.localdomain",
+        "metadata.google.internal",
+    }
+
+    if hostname in blocked_hostnames or hostname.endswith(".local"):
+        raise HTTPException(
+            status_code=400,
+            detail="Alert destination hostname is not allowed"
+        )
+
+    try:
+        resolved_ips = socket.getaddrinfo(
+            hostname,
+            parsed.port or 443,
+            proto=socket.IPPROTO_TCP
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Alert destination hostname could not be resolved"
+        )
+
+    blocked_ips = {
+        "169.254.169.254",  # AWS/GCP metadata style
+        "100.100.100.200",  # Alibaba metadata style
+    }
+
+    for item in resolved_ips:
+        ip_raw = item[4][0]
+
+        if ip_raw in blocked_ips:
+            raise HTTPException(
+                status_code=400,
+                detail="Alert destination IP is not allowed"
+            )
+
+        try:
+            ip_obj = ipaddress.ip_address(ip_raw)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="Alert destination resolved to invalid IP"
+            )
+
+        if (
+            ip_obj.is_private
+            or ip_obj.is_loopback
+            or ip_obj.is_link_local
+            or ip_obj.is_multicast
+            or ip_obj.is_reserved
+            or ip_obj.is_unspecified
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Alert destination must resolve to a public IP"
+            )
+
+    return destination
+
 def send_alert_rule_notification(rule: AlertRule, message: str):
     """
     Sends a notification for an alert rule.
     Supports:
-    - slack/webhook with custom destination URL
+    - slack/webhook with validated public HTTPS destination URL
     - fallback to existing send_slack_alert if destination is empty
     """
-    import requests
-
     try:
         if rule.channel in ["slack", "webhook"]:
             if rule.destination:
+                safe_destination = validate_alert_destination_url(rule.destination)
+
                 requests.post(
-                    rule.destination,
+                    safe_destination,
                     json={"text": message},
-                    timeout=5
+                    timeout=5,
+                    allow_redirects=False
                 )
             else:
                 send_slack_alert(message)
+
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Alert rule notification failed: {e}")
 
@@ -2160,7 +2255,7 @@ def build_cis8_evidence_payload(
 ):
     target_company_id = company_id
 
-    if current_user.role != "super_admin":
+    if not is_master_super_admin(current_user):
         target_company_id = current_user.company_id
 
     query = db.query(AnalysisReport)
@@ -4001,6 +4096,11 @@ def create_alert_rule(
     channel = payload.get("channel") or "slack"
     if channel not in ["slack", "webhook"]:
         raise HTTPException(status_code=400, detail="Invalid channel")
+    
+    destination = (payload.get("destination") or "").strip() or None
+
+    if destination:
+        validate_alert_destination_url(destination)
 
     risk_score_min = int(payload.get("risk_score_min", 80))
     if risk_score_min < 0 or risk_score_min > 100:
@@ -4109,7 +4209,12 @@ def update_alert_rule(
         rule.channel = channel
 
     if "destination" in payload:
-        rule.destination = (payload.get("destination") or "").strip() or None
+    destination = (payload.get("destination") or "").strip() or None
+
+    if destination:
+        validate_alert_destination_url(destination)
+
+    rule.destination = destination
 
     if "enabled" in payload:
         rule.enabled = bool(payload.get("enabled"))

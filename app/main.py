@@ -3790,6 +3790,109 @@ def cis8_overview(
         "controls": controls
     }
 
+@app.get("/threat/ip-reputation")
+def threat_ip_reputation(
+    ip: str,
+    current_user: User = Depends(get_current_user),
+):
+    clean_ip = (ip or "").strip()
+
+    if not clean_ip:
+        raise HTTPException(status_code=400, detail="IP is required")
+
+    if not is_public_ip(clean_ip):
+        return {
+            "ip": clean_ip,
+            "risk_level": "Low",
+            "risk_score": 0,
+            "summary": {
+                "source": "Local validation",
+                "pulse_count": 0,
+                "country": "N/A",
+                "asn": "N/A",
+                "tags": [],
+                "malware_families": [],
+                "reasons": [
+                    "IP privada, local, reservada o no pública. Se omitió reputación externa."
+                ]
+            },
+            "recommendations": [
+                "Validar si la IP pertenece a una red interna esperada.",
+                "Revisar eventos internos relacionados con esta IP."
+            ]
+        }
+
+    reputation = check_ip_abuse(clean_ip)
+
+    if not reputation or not reputation.get("available"):
+        return {
+            "ip": clean_ip,
+            "risk_level": "Low",
+            "risk_score": 0,
+            "summary": {
+                "source": "AbuseIPDB",
+                "pulse_count": 0,
+                "country": "N/A",
+                "asn": "N/A",
+                "tags": [],
+                "malware_families": [],
+                "reasons": [
+                    reputation.get("error") if reputation else "AbuseIPDB no disponible o API key no configurada."
+                ]
+            },
+            "recommendations": [
+                "Configurar ABUSEIPDB_API_KEY si deseas reputación externa real.",
+                "Usar Análisis Unificado de IOC para correlación interna y AI."
+            ]
+        }
+
+    score = int(reputation.get("abuse_confidence_score") or 0)
+
+    if score >= 90:
+        risk_level = "Critical"
+    elif score >= 70:
+        risk_level = "High"
+    elif score >= 40:
+        risk_level = "Medium"
+    else:
+        risk_level = "Low"
+
+    reasons = []
+
+    if score > 0:
+        reasons.append(f"Abuse confidence score: {score}")
+
+    if reputation.get("total_reports"):
+        reasons.append(f"Total reports: {reputation.get('total_reports')}")
+
+    if reputation.get("last_reported_at"):
+        reasons.append(f"Last reported at: {reputation.get('last_reported_at')}")
+
+    if not reasons:
+        reasons.append("No suspicious reputation signals found.")
+
+    return {
+        "ip": clean_ip,
+        "risk_level": risk_level,
+        "risk_score": score,
+        "summary": {
+            "source": reputation.get("source", "AbuseIPDB"),
+            "pulse_count": reputation.get("total_reports", 0),
+            "country": reputation.get("country_code") or "N/A",
+            "asn": reputation.get("isp") or "N/A",
+            "tags": [
+                reputation.get("usage_type")
+            ] if reputation.get("usage_type") else [],
+            "malware_families": [],
+            "reasons": reasons
+        },
+        "recommendations": [
+            "Revisar si la IP aparece en reportes internos.",
+            "Correlacionar con logs de autenticación, firewall, CloudTrail, Entra ID o GCP Audit Logs.",
+            "Si el score es alto, bloquear temporalmente la IP y abrir un caso SOC."
+        ]
+    }
+
 @app.get("/iocs/search")
 def search_iocs(
     query: str,

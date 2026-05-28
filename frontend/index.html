@@ -2447,9 +2447,10 @@
             <div class="panel-subtitle">
               Ingresa una IP, dominio, URL, hash, usuario o recurso.
             </div>
+
             <div class="threat-search-card">
               <div class="input-row threat-search-input">
-                <label>Parametro de Busqueda</label>
+                <label>Parámetro de Búsqueda</label>
                 <input id="iocSearchInput" placeholder="Ej: 8.8.8.8, example.com, user@example.com, arn:aws...">
               </div>
 
@@ -2471,6 +2472,10 @@
                 </button>
               </div>
             </div>
+
+            <div id="iocSearchStatus" class="status-line">
+              Esperando búsqueda de IOC...
+            </div>
           </div>
 
           <div class="panel">
@@ -2483,10 +2488,11 @@
           <div class="panel">
             <h3>Historial de IOC</h3>
             <div id="iocHistoryPanel" class="empty">
-              Select an IOC to view historical activity.
+              Selecciona un IOC para ver actividad histórica.
             </div>
           </div>
         </div>
+
         <!-- AUDIT LOGS VIEW -->
         <div id="auditLogsView" class="hidden">
 

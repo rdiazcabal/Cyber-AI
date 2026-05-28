@@ -2455,19 +2455,19 @@
               </div>
 
               <div class="threat-actions">
-                <button onclick="searchIOC()">
+                <button id="btnSearchIOC" type="button">
                   Buscar IOC
                 </button>
 
-                <button class="secondary" onclick="checkIpReputation()">
+                <button id="btnIpReputation" type="button" class="secondary">
                   Verificar Reputación de IP
                 </button>
 
-                <button class="secondary" onclick="runUnifiedIOCAnalysis()">
+                <button id="btnUnifiedIOC" type="button" class="secondary">
                   Análisis Unificado de IOC
                 </button>
 
-                <button class="secondary" onclick="clearThreatHunting()">
+                <button id="btnClearThreatHunting" type="button" class="secondary">
                   Limpiar
                 </button>
               </div>
@@ -7403,6 +7403,48 @@
     </table>
   `;
     }
+
+    function bindThreatHuntingButtons() {
+      const btnSearchIOC = document.getElementById("btnSearchIOC");
+      const btnIpReputation = document.getElementById("btnIpReputation");
+      const btnUnifiedIOC = document.getElementById("btnUnifiedIOC");
+      const btnClearThreatHunting = document.getElementById("btnClearThreatHunting");
+
+      if (btnSearchIOC) {
+        btnSearchIOC.onclick = function () {
+          console.log("Buscar IOC clicked");
+          searchIOC();
+        };
+      }
+
+      if (btnIpReputation) {
+        btnIpReputation.onclick = function () {
+          console.log("Verificar Reputación clicked");
+          checkIpReputation();
+        };
+      }
+
+      if (btnUnifiedIOC) {
+        btnUnifiedIOC.onclick = function () {
+          console.log("Análisis Unificado clicked");
+          runUnifiedIOCAnalysis();
+        };
+      }
+
+      if (btnClearThreatHunting) {
+        btnClearThreatHunting.onclick = function () {
+          console.log("Limpiar clicked");
+          clearThreatHunting();
+        };
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", bindThreatHuntingButtons);
+
+    window.searchIOC = searchIOC;
+    window.checkIpReputation = checkIpReputation;
+    window.runUnifiedIOCAnalysis = runUnifiedIOCAnalysis;
+    window.clearThreatHunting = clearThreatHunting;
 
     loadSession();
 

@@ -3837,11 +3837,10 @@ def threat_ip_reputation(
                 "tags": [],
                 "malware_families": [],
                 "reasons": [
-                    reputation.get("error") if reputation else "AbuseIPDB no disponible o API key no configurada."
+                    reputation.get("error") if isinstance(reputation, dict) else "AbuseIPDB no disponible o API key no configurada."
                 ]
             },
             "recommendations": [
-                "Configurar ABUSEIPDB_API_KEY si deseas reputación externa real.",
                 "Usar Análisis Unificado de IOC para correlación interna y AI."
             ]
         }

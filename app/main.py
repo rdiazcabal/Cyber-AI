@@ -7,6 +7,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
+from fastapi.responses import JSONResponse
 from io import BytesIO
 from datetime import datetime, timedelta
 import os
@@ -124,6 +125,16 @@ async def block_sensitive_probe_paths(request: Request, call_next):
             status_code=404,
             content={"detail": "Fuck you"}
         )
+
+    return await call_next(request)
+
+@app.middleware("http")
+async def log_real_client_ip(request: Request, call_next):
+    xff = request.headers.get("x-forwarded-for", "")
+    real_ip = xff.split(",")[0].strip() if xff else request.client.host
+
+    if request.url.path not in ["/health"]:
+        print(f"CLIENT_IP={real_ip} METHOD={request.method} PATH={request.url.path}")
 
     return await call_next(request)
 

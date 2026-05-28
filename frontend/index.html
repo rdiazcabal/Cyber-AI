@@ -1672,6 +1672,76 @@
       font-size: 13px;
       font-weight: 900;
     }
+
+    /* ===== THREAT HUNTING FIX ===== */
+
+    .threat-search-card {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .threat-search-input {
+      margin-bottom: 0 !important;
+    }
+
+    .threat-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding-top: 4px;
+      margin-top: 4px;
+    }
+
+    .threat-actions button {
+      width: auto !important;
+      min-width: 150px;
+      margin-top: 0 !important;
+      padding: 12px 18px;
+    }
+
+    .threat-actions button.secondary {
+      background: transparent;
+    }
+
+    .unified-ioc-card {
+      border: 1px solid rgba(212, 175, 55, .28);
+      background:
+        radial-gradient(circle at top right, rgba(220, 38, 38, .10), transparent 34%),
+        linear-gradient(180deg, rgba(10, 10, 10, .92), rgba(3, 3, 3, .92));
+    }
+
+    .unified-ioc-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .unified-ioc-metric {
+      border: 1px solid rgba(212, 175, 55, .22);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(0, 0, 0, .38);
+    }
+
+    .unified-ioc-metric strong {
+      display: block;
+      color: var(--gold-soft);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    @media (max-width: 900px) {
+      .unified-ioc-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .threat-actions button {
+        width: 100% !important;
+      }
+    }
   </style>
 </head>
 
@@ -2377,27 +2447,29 @@
             <div class="panel-subtitle">
               Ingresa una IP, dominio, URL, hash, usuario o recurso.
             </div>
+            <div class="threat-search-card">
+              <div class="input-row threat-search-input">
+                <label>Parametro de Busqueda</label>
+                <input id="iocSearchInput" placeholder="Ej: 8.8.8.8, example.com, user@example.com, arn:aws...">
+              </div>
 
-            <div class="input-row">
-              <label>Search Query</label>
-              <input id="iocSearchInput" placeholder="Ej: 8.8.8.8, example.com, user@example.com, arn:aws...">
-            </div>
+              <div class="threat-actions">
+                <button onclick="searchIOC()">
+                  Buscar IOC
+                </button>
 
-            <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button onclick="searchIOC()">
-                Buscar IOC
-              </button>
-              <button class="secondary" onclick="checkIpReputation()">
-                Verificar Reputación de IP
-              </button>
+                <button class="secondary" onclick="checkIpReputation()">
+                  Verificar Reputación de IP
+                </button>
 
-              <button class="secondary" onclick="clearThreatHunting()">
-                Limpiar
-              </button>
-            </div>
+                <button class="secondary" onclick="runUnifiedIOCAnalysis()">
+                  Análisis Unificado de IOC
+                </button>
 
-            <div id="iocSearchStatus" class="status-line">
-              Buscando IOC...
+                <button class="secondary" onclick="clearThreatHunting()">
+                  Limpiar
+                </button>
+              </div>
             </div>
           </div>
 
@@ -4533,6 +4605,121 @@
 
       } catch (err) {
         status.innerText = `Search error: ${err.message}`;
+      }
+    }
+
+    async function runUnifiedIOCAnalysis() {
+      const query = document.getElementById("iocSearchInput").value.trim();
+      const status = document.getElementById("iocSearchStatus");
+      const panel = document.getElementById("iocSearchResultsPanel");
+
+      if (!query || query.length < 2) {
+        alert("Debes escribir al menos 2 caracteres.");
+        return;
+      }
+
+      status.innerText = "Running unified IOC analysis...";
+      panel.className = "empty";
+      panel.innerText = "Consultando historial interno, reputación externa y análisis AI...";
+
+      try {
+        const res = await fetch("/iocs/unified-analysis", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ query })
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          panel.className = "empty";
+          panel.innerText = `Unified IOC analysis failed: ${data.detail || res.status}`;
+          status.innerText = "Unified analysis failed.";
+          return;
+        }
+
+        const verdict = data.verdict || {};
+        const ai = data.ai_analysis || {};
+        const reputation = data.external_reputation || {};
+        const history = data.internal_history || [];
+
+        status.innerText = `Unified IOC analysis completed for ${data.ioc}.`;
+
+        panel.className = "";
+
+        panel.innerHTML = `
+      <div class="pattern-card unified-ioc-card">
+        <div class="pattern-header">
+          <span class="pill ${getSeverityPillClass(verdict.severity)}">${escapeHtml(verdict.severity || "Unknown")}</span>
+          <span class="pill pill-info">Score ${verdict.unified_score ?? 0}</span>
+          <span class="pill pill-info">Confidence ${Math.round((verdict.confidence || 0) * 100)}%</span>
+          <span class="pattern-title">${escapeHtml(data.ioc || query)}</span>
+        </div>
+
+        <div class="pattern-meta" style="margin-top:10px;">
+          <strong>Verdict:</strong> ${escapeHtml(verdict.verdict || "Needs Review")}
+        </div>
+
+        <div class="pattern-meta" style="margin-top:10px;">
+          <strong>AI Summary:</strong> ${escapeHtml(ai.summary || "No AI summary available.")}
+        </div>
+
+        <div class="unified-ioc-grid">
+          <div class="unified-ioc-metric">
+            <strong>IOC Type</strong>
+            ${escapeHtml(data.ioc_type || "unknown")}
+          </div>
+
+          <div class="unified-ioc-metric">
+            <strong>Internal Matches</strong>
+            ${history.length}
+          </div>
+
+          <div class="unified-ioc-metric">
+            <strong>Internal Max Risk</strong>
+            ${verdict.internal_max_risk ?? 0}
+          </div>
+
+          <div class="unified-ioc-metric">
+            <strong>Reputation Score</strong>
+            ${verdict.reputation_score ?? 0}
+          </div>
+        </div>
+
+        <div class="pattern-meta" style="margin-top:14px;">
+          <strong>External Reputation:</strong>
+          ${reputation && reputation.available
+            ? `Source: ${escapeHtml(reputation.source || "Unknown")} · Abuse Score: ${reputation.abuse_confidence_score ?? 0} · Reports: ${reputation.total_reports ?? 0} · Country: ${escapeHtml(reputation.country_code || "N/A")}`
+            : escapeHtml(reputation.error || "No external reputation available for this IOC type.")
+          }
+        </div>
+
+        <div class="pattern-meta" style="margin-top:14px;">
+          <strong>Recommendations:</strong>
+          ${(ai.recommendations || []).map(r => `<div>• ${escapeHtml(r)}</div>`).join("") || "No recommendations available."}
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
+          <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+            onclick="searchIOC()">
+            Ver Historial Interno
+          </button>
+
+          <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+            onclick="viewIOCHistory('${encodeURIComponent(data.ioc || query)}')">
+            Ver Timeline
+          </button>
+        </div>
+      </div>
+    `;
+
+      } catch (err) {
+        panel.className = "empty";
+        panel.innerText = `Unified IOC analysis error: ${err.message}`;
+        status.innerText = "Unified analysis error.";
       }
     }
 

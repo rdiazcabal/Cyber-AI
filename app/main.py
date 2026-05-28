@@ -21,7 +21,7 @@ from app.aws_client import get_guardduty_findings
 from app.notifier import send_slack_alert
 from app.normalizer import parse_input, extract_iocs_from_text
 from app.correlator import correlate_events
-from app.threat_intel import enrich_iocs
+from app.threat_intel import enrich_iocs, check_ip_abuse, is_public_ip
 from app.detection_engine import run_detections
 from app.mitre_mapper import build_mitre_coverage
 from app.cis_mapper import map_to_cis
@@ -3887,6 +3887,248 @@ def ioc_history(
         "ioc": clean_ioc,
         "count": len(history),
         "history": history
+    }
+
+def classify_ioc_value(value: str) -> str:
+    import re
+    from urllib.parse import urlparse
+
+    clean = (value or "").strip()
+
+    if not clean:
+        return "unknown"
+
+    try:
+        ipaddress.ip_address(clean)
+        return "ip"
+    except Exception:
+        pass
+
+    if clean.startswith("http://") or clean.startswith("https://"):
+        return "url"
+
+    if re.fullmatch(r"[a-fA-F0-9]{32}", clean):
+        return "md5"
+
+    if re.fullmatch(r"[a-fA-F0-9]{40}", clean):
+        return "sha1"
+
+    if re.fullmatch(r"[a-fA-F0-9]{64}", clean):
+        return "sha256"
+
+    parsed = urlparse(f"https://{clean}")
+    if "." in clean and parsed.hostname:
+        return "domain"
+
+    if "@" in clean:
+        return "user"
+
+    return "resource"
+
+def severity_from_score(score: int) -> str:
+    score = int(score or 0)
+
+    if score >= 90:
+        return "Critical"
+
+    if score >= 70:
+        return "High"
+
+    if score >= 40:
+        return "Medium"
+
+    return "Low"
+
+def build_unified_ioc_verdict(
+    ioc: str,
+    ioc_type: str,
+    internal_history: list[dict],
+    external_reputation: dict | None,
+    ai_result: dict,
+) -> dict:
+    internal_max_risk = 0
+
+    for item in internal_history:
+        internal_max_risk = max(
+            internal_max_risk,
+            int(item.get("risk_score") or 0)
+        )
+
+    reputation_score = 0
+
+    if external_reputation and external_reputation.get("available"):
+        reputation_score = int(
+            external_reputation.get("abuse_confidence_score")
+            or external_reputation.get("score")
+            or 0
+        )
+
+    ai_score = int(ai_result.get("risk_score") or 0)
+
+    unified_score = max(
+        internal_max_risk,
+        reputation_score,
+        ai_score,
+    )
+
+    verdict = "Benign"
+
+    if unified_score >= 90:
+        verdict = "Critical"
+    elif unified_score >= 70:
+        verdict = "Suspicious / High Risk"
+    elif unified_score >= 40:
+        verdict = "Needs Review"
+
+    confidence = float(ai_result.get("confidence") or 0.5)
+
+    if external_reputation and external_reputation.get("available"):
+        confidence = min(1.0, confidence + 0.15)
+
+    if internal_history:
+        confidence = min(1.0, confidence + 0.15)
+
+    return {
+        "ioc": ioc,
+        "ioc_type": ioc_type,
+        "unified_score": unified_score,
+        "severity": severity_from_score(unified_score),
+        "verdict": verdict,
+        "confidence": round(confidence, 2),
+        "internal_max_risk": internal_max_risk,
+        "reputation_score": reputation_score,
+        "ai_score": ai_score,
+    }
+
+@app.post("/iocs/unified-analysis")
+def unified_ioc_analysis(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    query = (payload.get("query") or "").strip()
+
+    if len(query) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="IOC query must have at least 2 characters"
+        )
+
+    ioc_type = classify_ioc_value(query)
+
+    obs_query = db.query(IOCObservation).filter(IOCObservation.ioc == query)
+
+    if not is_master_super_admin(current_user):
+        obs_query = obs_query.filter(
+            IOCObservation.company_id == current_user.company_id
+        )
+
+    observations = (
+        obs_query
+        .order_by(IOCObservation.created_at.desc())
+        .limit(25)
+        .all()
+    )
+
+    internal_history = []
+
+    for obs in observations:
+        report = None
+
+        if obs.report_id:
+            report_query = db.query(AnalysisReport).filter(
+                AnalysisReport.id == obs.report_id
+            )
+
+            if not is_master_super_admin(current_user):
+                report_query = report_query.filter(
+                    AnalysisReport.company_id == current_user.company_id
+                )
+
+            report = report_query.first()
+
+        parsed_result = {}
+
+        if report:
+            try:
+                parsed_result = json.loads(report.result_json or "{}")
+            except Exception:
+                parsed_result = {}
+
+        ai_struct = parsed_result.get("ai_structured_analysis", {}) or {}
+
+        internal_history.append({
+            "observation_id": obs.id,
+            "ioc": obs.ioc,
+            "type": obs.type,
+            "seen_at": obs.created_at,
+            "report_id": report.id if report else None,
+            "report_title": report.title if report else None,
+            "risk_score": report.risk_score if report else 0,
+            "severity": ai_struct.get("severity", "Unknown"),
+            "summary": ai_struct.get("summary"),
+        })
+
+    external_reputation = None
+
+    if ioc_type == "ip":
+        if is_public_ip(query):
+            external_reputation = check_ip_abuse(query)
+        else:
+            external_reputation = {
+                "ip": query,
+                "source": "Local validation",
+                "available": False,
+                "error": "Private, reserved, local or non-public IP. External reputation skipped."
+            }
+
+    ai_input = {
+        "analysis_type": "unified_ioc_analysis",
+        "ioc": query,
+        "ioc_type": ioc_type,
+        "internal_history": internal_history,
+        "external_reputation": external_reputation,
+        "instructions": [
+            "Analyze whether this IOC appears malicious, suspicious or benign.",
+            "Use only the provided evidence.",
+            "Do not invent reputation, geolocation or threat actor attribution.",
+            "Generate a SOC analyst summary and recommendations."
+        ]
+    }
+
+    ai_result = analyze_security_event_structured(ai_input)
+
+    unified_verdict = build_unified_ioc_verdict(
+        ioc=query,
+        ioc_type=ioc_type,
+        internal_history=internal_history,
+        external_reputation=external_reputation,
+        ai_result=ai_result,
+    )
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="UNIFIED_IOC_ANALYSIS",
+        resource_type="ioc",
+        resource_id=query,
+        details={
+            "ioc": query,
+            "ioc_type": ioc_type,
+            "unified_score": unified_verdict["unified_score"],
+            "severity": unified_verdict["severity"],
+            "internal_matches": len(internal_history),
+            "has_external_reputation": bool(external_reputation),
+        }
+    )
+
+    return {
+        "ioc": query,
+        "ioc_type": ioc_type,
+        "verdict": unified_verdict,
+        "internal_history": internal_history,
+        "external_reputation": external_reputation,
+        "ai_analysis": ai_result,
     }
 
 @app.get("/admin/company-settings")

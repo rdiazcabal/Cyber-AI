@@ -100,6 +100,33 @@ async def security_headers(request: Request, call_next):
 
     return response
 
+@app.middleware("http")
+async def block_sensitive_probe_paths(request: Request, call_next):
+    suspicious_patterns = [
+        ".env",
+        "dotenv",
+        "environment",
+        ".aws",
+        ".ssh",
+        ".docker",
+        "db.zip",
+        "db.tar",
+        "db.sql",
+        ".git",
+        "wp-admin",
+        "phpmyadmin",
+    ]
+
+    path = request.url.path.lower()
+
+    if any(pattern in path for pattern in suspicious_patterns):
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Fuck you"}
+        )
+
+    return await call_next(request)
+
 Base.metadata.create_all(bind=engine)
 bootstrap_admin_user()
 

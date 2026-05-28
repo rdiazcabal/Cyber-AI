@@ -138,6 +138,38 @@ async def log_real_client_ip(request: Request, call_next):
 
     return await call_next(request)
 
+@app.middleware("http")
+async def block_scanner_noise(request: Request, call_next):
+    path = request.url.path.lower()
+
+    blocked_patterns = [
+        "jquery-",
+        ".env",
+        "dotenv",
+        ".aws",
+        ".ssh",
+        ".docker",
+        ".git",
+        "wp-admin",
+        "phpmyadmin",
+        "adminer",
+        "backup",
+        "db.",
+        ".sql",
+        ".tar",
+        ".gz",
+        ".7z",
+        ".rar"
+    ]
+
+    if any(pattern in path for pattern in blocked_patterns):
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Not found"}
+        )
+
+    return await call_next(request)
+
 Base.metadata.create_all(bind=engine)
 bootstrap_admin_user()
 

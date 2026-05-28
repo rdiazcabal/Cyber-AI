@@ -165,7 +165,7 @@ async def block_scanner_noise(request: Request, call_next):
     if any(pattern in path for pattern in blocked_patterns):
         return JSONResponse(
             status_code=404,
-            content={"detail": "Not found"}
+            content={"detail": "Fuck you"}
         )
 
     return await call_next(request)

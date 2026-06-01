@@ -133,7 +133,12 @@ async def log_real_client_ip(request: Request, call_next):
     xff = request.headers.get("x-forwarded-for", "")
     real_ip = xff.split(",")[0].strip() if xff else request.client.host
 
-    if request.url.path not in ["/health"]:
+    ignored_paths = [
+        "/",
+        "/favicon.ico"
+    ]
+
+    if request.url.path not in ignored_paths:
         print(f"CLIENT_IP={real_ip} METHOD={request.method} PATH={request.url.path}")
 
     return await call_next(request)

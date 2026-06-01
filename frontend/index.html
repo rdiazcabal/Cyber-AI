@@ -1742,6 +1742,60 @@
         width: 100% !important;
       }
     }
+
+    .file-upload-row {
+      margin-top: 14px !important;
+    }
+
+    .file-upload-box {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      width: 100%;
+      padding: 12px;
+      border: 1px solid rgba(212, 175, 55, .38);
+      border-radius: 16px;
+      background:
+        radial-gradient(circle at top right, rgba(212, 175, 55, .10), transparent 35%),
+        rgba(0, 0, 0, .45);
+    }
+
+    .file-upload-btn {
+      width: auto !important;
+      min-width: 180px;
+      margin-top: 0 !important;
+      padding: 12px 18px !important;
+    }
+
+    .selected-file-name {
+      color: var(--text);
+      font-size: 13px;
+      opacity: .9;
+      word-break: break-word;
+    }
+
+    .dashboard-actions {
+      display: grid !important;
+      grid-template-columns: repeat(3, minmax(160px, 1fr));
+      gap: 14px !important;
+      margin-top: 14px;
+    }
+
+    .dashboard-actions button {
+      margin-top: 0 !important;
+      min-height: 48px;
+    }
+
+    @media (max-width: 900px) {
+      .dashboard-actions {
+        grid-template-columns: 1fr !important;
+      }
+
+      .file-upload-btn {
+        width: 100% !important;
+      }
+    }
   </style>
 </head>
 
@@ -2021,16 +2075,36 @@
 
               <textarea id="eventInput"></textarea>
 
-              <div class="input-row" style="margin-top:12px;">
-                <label>Cargar archivo de eventos/logs</label>
-                <input id="logFileInput" type="file" accept=".json,.txt,.log">
+              <div class="input-row file-upload-row" style="margin-top:14px;">
+                <label>Adjuntar archivo de eventos/logs</label>
+
+                <div class="file-upload-box">
+                  <input id="logFileInput" type="file" accept=".json,.txt,.log" hidden
+                    onchange="updateSelectedFileName()">
+
+                  <button type="button" class="secondary file-upload-btn"
+                    onclick="document.getElementById('logFileInput').click()">
+                    Adjuntar Archivo
+                  </button>
+
+                  <span id="selectedFileName" class="selected-file-name">
+                    Ningún archivo seleccionado
+                  </span>
+                </div>
               </div>
 
-              <div class="actions">
-                <button class="secondary" onclick="loadSample()">Cargar muestra</button>
-                <button class="secondary" onclick="clearInput()">Limpiar</button>
-                <button class="secondary" onclick="uploadAnalyze()">Subir y Analizar</button>
-                <button onclick="analyze()">Analizar</button>
+              <div class="actions dashboard-actions">
+                <button type="button" class="secondary" onclick="uploadOnly()">
+                  Subir
+                </button>
+
+                <button type="button" onclick="analyze()">
+                  Analizar
+                </button>
+
+                <button type="button" class="secondary" onclick="clearInput()">
+                  Limpiar
+                </button>
               </div>
 
               <div id="statusLine" class="status-line">
@@ -7447,6 +7521,47 @@
     window.checkIpReputation = checkIpReputation;
     window.runUnifiedIOCAnalysis = runUnifiedIOCAnalysis;
     window.clearThreatHunting = clearThreatHunting;
+
+
+    function updateSelectedFileName() {
+      const input = document.getElementById("logFileInput");
+      const label = document.getElementById("selectedFileName");
+
+      if (!input || !label) return;
+
+      if (!input.files || !input.files.length) {
+        label.innerText = "Ningún archivo seleccionado";
+        return;
+      }
+
+      label.innerText = input.files[0].name;
+    }
+
+    async function uploadOnly() {
+      const fileInput = document.getElementById("logFileInput");
+      const statusLine = document.getElementById("statusLine");
+
+      if (!fileInput || !fileInput.files || !fileInput.files.length) {
+        alert("Primero debes adjuntar un archivo.");
+        return;
+      }
+
+      const file = fileInput.files[0];
+
+      try {
+        const text = await file.text();
+
+        document.getElementById("eventInput").value = text;
+
+        if (statusLine) {
+          statusLine.innerText = `Archivo cargado en pantalla: ${file.name}. Ahora puedes presionar Analizar.`;
+        }
+      } catch (err) {
+        if (statusLine) {
+          statusLine.innerText = `No se pudo cargar el archivo: ${err.message}`;
+        }
+      }
+    }
 
     loadSession();
 

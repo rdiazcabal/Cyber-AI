@@ -6824,45 +6824,47 @@
         panel.className = "";
 
         panel.innerHTML = `
-      <div class="pattern-card">
-        <div class="pattern-header">
+      <div class="pattern-header">
           <span class="pill ${data.risk_level === "Critical" ? "pill-critical" : data.risk_level === "High" ? "pill-high" : data.risk_level === "Medium" ? "pill-medium" : "pill-low"}">
             ${escapeHtml(data.risk_level)}
           </span>
-          <span class="pill pill-info">Score ${data.risk_score}</span>
+
+          <span class="pill pill-info">Riesgo ${data.risk_score ?? 0}</span>
+          <span class="pill pill-info">Confianza ${Math.max(0, 100 - (data.risk_score ?? 0))}%</span>
+
           <span class="pattern-title">${escapeHtml(data.ip)}</span>
         </div>
 
         <div class="pattern-meta" style="margin-top:10px;">
-          <b>Source:</b> ${escapeHtml(data.summary.source)}<br>
+          <b>Fuente:</b> ${escapeHtml(data.summary.source)}<br>
           <b>OTX Pulses:</b> ${data.summary.pulse_count ?? 0}<br>
-          <b>Country:</b> ${escapeHtml(data.summary.country || "N/A")}<br>
+          <b>País:</b> ${escapeHtml(data.summary.country || "N/A")}<br>
           <b>ASN:</b> ${escapeHtml(data.summary.asn || "N/A")}
         </div>
 
         <div class="pattern-card">
           <b>Tags</b>
           <div class="pattern-meta">
-            ${(data.summary.tags || []).length ? data.summary.tags.map(t => `<span class="pill pill-info">${escapeHtml(t)}</span>`).join(" ") : "No tags found."}
+            ${(data.summary.tags || []).length ? data.summary.tags.map(t => `<span class="pill pill-info">${escapeHtml(t)}</span>`).join(" ") : "No se encontraron tags."}
           </div>
         </div>
 
         <div class="pattern-card">
-          <b>Malware Families</b>
+          <b>Familias de Malware</b>
           <div class="pattern-meta">
-            ${(data.summary.malware_families || []).length ? data.summary.malware_families.map(t => `<span class="pill pill-high">${escapeHtml(t)}</span>`).join(" ") : "No malware family found."}
+            ${(data.summary.malware_families || []).length ? data.summary.malware_families.map(t => `<span class="pill pill-high">${escapeHtml(t)}</span>`).join(" ") : "No se encontraron familias de malware."}
           </div>
         </div>
 
         <div class="pattern-card">
-          <b>Reasons</b>
+          <b>Razones</b>
           <ul>
-            ${(data.summary.reasons || []).map(r => `<li>${escapeHtml(r)}</li>`).join("") || "<li>No suspicious reputation signals found.</li>"}
+            ${(data.summary.reasons || []).map(r => `<li>${escapeHtml(r)}</li>`).join("") || "No se encontraron señales de reputación sospechosa."}
           </ul>
         </div>
 
         <div class="pattern-card">
-          <b>Recommendations</b>
+          <b>Recomendaciones</b>
           <ul>
             ${(data.recommendations || []).map(r => `<li>${escapeHtml(r)}</li>`).join("")}
           </ul>

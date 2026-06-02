@@ -4181,15 +4181,15 @@
       panel.className = "";
 
       panel.innerHTML = items.map(item => `
-    <div class="pattern-card">
-      <div class="pattern-header">
-        <span class="pill pill-info">${item.count} findings</span>
-        <span class="pattern-title">${escapeHtml(item.control)}</span>
-      </div>
-      <div class="pattern-meta">
-        Este control aparece relacionado en ${item.count} hallazgo(s).
-      </div>
-    </div>
+        <div class="pattern-card">
+          <div class="pattern-header">
+            <span class="pill pill-info">${item.count} findings</span>
+            <span class="pattern-title">${escapeHtml(item.control)}</span>
+          </div>
+          <div class="pattern-meta">
+            Este control aparece relacionado en ${item.count} hallazgo(s).
+          </div>
+        </div>
   `).join("");
     }
 
@@ -4205,13 +4205,13 @@
       panel.className = "";
 
       panel.innerHTML = items.map(item => `
-    <div class="pattern-card">
-      <div class="pattern-header">
-        <span class="pill pill-info">${item.count} hits</span>
-        <span class="pattern-title">${escapeHtml(item.technique)}</span>
-      </div>
-    </div>
-  `).join("");
+        <div class="pattern-card">
+          <div class="pattern-header">
+            <span class="pill pill-info">${item.count} hits</span>
+            <span class="pattern-title">${escapeHtml(item.technique)}</span>
+          </div>
+        </div>
+      `).join("");
     }
 
     function renderExecHighRisk(items) {
@@ -4226,41 +4226,41 @@
       panel.className = "";
 
       panel.innerHTML = items.map(r => `
-    <div class="pattern-card">
-      <div class="pattern-header">
-        <span class="pill ${getSeverityPillClass(r.severity)}">${escapeHtml(r.severity || "Unknown")}</span>
-        <span class="pill pill-info">Risk ${r.risk_score ?? 0}</span>
-        <span class="pattern-title">Report #${r.id} · ${escapeHtml(r.title || "Untitled")}</span>
-      </div>
+          <div class="pattern-card">
+            <div class="pattern-header">
+              <span class="pill ${getSeverityPillClass(r.severity)}">${escapeHtml(r.severity || "Unknown")}</span>
+              <span class="pill pill-info">Risk ${r.risk_score ?? 0}</span>
+              <span class="pattern-title">Report #${r.id} · ${escapeHtml(r.title || "Untitled")}</span>
+            </div>
 
-      <div class="pattern-meta">
-        ${escapeHtml(r.summary || "No summary available")}
-      </div>
+            <div class="pattern-meta">
+              ${escapeHtml(r.summary || "No summary available")}
+            </div>
 
-      <div class="pattern-meta" style="margin-top:8px;">
-        Case: ${r.case_id ? `#${r.case_id} · ${escapeHtml(r.case_status || "")}` : "No case"}
-      </div>
+            <div class="pattern-meta" style="margin-top:8px;">
+              Case: ${r.case_id ? `#${r.case_id} · ${escapeHtml(r.case_status || "")}` : "No case"}
+            </div>
 
-      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
-        <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
-          onclick="viewReport(${r.id})">
-          View
-        </button>
+            <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+              <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+                onclick="viewReport(${r.id})">
+                View
+              </button>
 
-        <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
-          onclick="downloadReportPDF(${r.id})">
-          PDF
-        </button>
+              <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+                onclick="downloadReportPDF(${r.id})">
+                PDF
+              </button>
 
-        ${r.case_id ? `
-          <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
-            onclick="showCases().then(() => viewCase(${r.case_id}))">
-            Open Case
-          </button>
-        ` : ""}
-      </div>
-    </div>
-  `).join("");
+              ${r.case_id ? `
+                <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+                  onclick="showCases().then(() => viewCase(${r.case_id}))">
+                  Open Case
+                </button>
+              ` : ""}
+            </div>
+          </div>
+        `).join("");
     }
 
     function getSettingsCompanyQuery() {
@@ -4417,67 +4417,67 @@
         panel.className = "";
 
         panel.innerHTML = `
-      <div class="pattern-card">
-        <div class="pattern-header">
-          <span class="pill ${getSeverityPillClass(c.severity)}">${escapeHtml(c.severity || "Unknown")}</span>
-          <span class="pill pill-info">${escapeHtml(c.status || "open")}</span>
-          <span class="pattern-title">Case #${c.id} · ${escapeHtml(c.title || "Untitled")}</span>
-        </div>
+          <div class="pattern-card">
+            <div class="pattern-header">
+              <span class="pill ${getSeverityPillClass(c.severity)}">${escapeHtml(c.severity || "Unknown")}</span>
+              <span class="pill pill-info">${escapeHtml(c.status || "open")}</span>
+              <span class="pattern-title">Case #${c.id} · ${escapeHtml(c.title || "Untitled")}</span>
+            </div>
 
-        <div class="pattern-meta">
-          Report: ${c.report_id ? `#${c.report_id} - ${escapeHtml(c.report_title || "")}` : "N/A"}
-        </div>
+            <div class="pattern-meta">
+              Report: ${c.report_id ? `#${c.report_id} - ${escapeHtml(c.report_title || "")}` : "N/A"}
+            </div>
 
-        <div class="pattern-meta">
-          Assigned: ${escapeHtml(c.assigned_to_username || "Unassigned")}
-        </div>
+            <div class="pattern-meta">
+              Assigned: ${escapeHtml(c.assigned_to_username || "Unassigned")}
+            </div>
 
-        <div class="pattern-meta">
-          Created: ${formatDate(c.created_at)}
-        </div>
+            <div class="pattern-meta">
+              Created: ${formatDate(c.created_at)}
+            </div>
 
-        <div class="grid" style="margin-top:14px;">
-          <div>
-            <label>Status</label>
-            <select id="caseStatusSelect">
-              <option value="open" ${c.status === "open" ? "selected" : ""}>open</option>
-              <option value="investigating" ${c.status === "investigating" ? "selected" : ""}>investigating</option>
-              <option value="contained" ${c.status === "contained" ? "selected" : ""}>contained</option>
-              <option value="resolved" ${c.status === "resolved" ? "selected" : ""}>resolved</option>
-              <option value="false_positive" ${c.status === "false_positive" ? "selected" : ""}>false_positive</option>
-            </select>
+            <div class="grid" style="margin-top:14px;">
+              <div>
+                <label>Status</label>
+                <select id="caseStatusSelect">
+                  <option value="open" ${c.status === "open" ? "selected" : ""}>open</option>
+                  <option value="investigating" ${c.status === "investigating" ? "selected" : ""}>investigating</option>
+                  <option value="contained" ${c.status === "contained" ? "selected" : ""}>contained</option>
+                  <option value="resolved" ${c.status === "resolved" ? "selected" : ""}>resolved</option>
+                  <option value="false_positive" ${c.status === "false_positive" ? "selected" : ""}>false_positive</option>
+                </select>
 
-            <button onclick="updateCaseStatus(${c.id})">
-              Update Status
-            </button>
+                <button onclick="updateCaseStatus(${c.id})">
+                  Update Status
+                </button>
+              </div>
+
+              <div>
+                <label>Assign to User ID</label>
+                <input id="caseAssignUserId" placeholder="Ej: 1" value="${c.assigned_to || ""}">
+                <button class="secondary" onclick="assignCase(${c.id})">
+                  Assign Case
+                </button>
+              </div>
+            </div>
+
+            <div style="margin-top:14px;">
+              <label>Add Note</label>
+              <textarea id="caseNoteInput" style="height:120px;" placeholder="Escribe una nota de investigación..."></textarea>
+              <button onclick="addCaseNote(${c.id})">Add Note</button>
+            </div>
+
+            <div style="margin-top:14px;">
+              <button class="secondary" onclick="loadCaseNotes(${c.id})">
+                Refresh Notes
+              </button>
+            </div>
+
+            <div id="caseNotesPanel" class="empty" style="margin-top:14px;">
+              Loading notes...
+            </div>
           </div>
-
-          <div>
-            <label>Assign to User ID</label>
-            <input id="caseAssignUserId" placeholder="Ej: 1" value="${c.assigned_to || ""}">
-            <button class="secondary" onclick="assignCase(${c.id})">
-              Assign Case
-            </button>
-          </div>
-        </div>
-
-        <div style="margin-top:14px;">
-          <label>Add Note</label>
-          <textarea id="caseNoteInput" style="height:120px;" placeholder="Escribe una nota de investigación..."></textarea>
-          <button onclick="addCaseNote(${c.id})">Add Note</button>
-        </div>
-
-        <div style="margin-top:14px;">
-          <button class="secondary" onclick="loadCaseNotes(${c.id})">
-            Refresh Notes
-          </button>
-        </div>
-
-        <div id="caseNotesPanel" class="empty" style="margin-top:14px;">
-          Loading notes...
-        </div>
-      </div>
-    `;
+        `;
 
         await loadCaseNotes(c.id);
 
@@ -4606,16 +4606,16 @@
         panel.className = "";
 
         panel.innerHTML = notes.map(n => `
-      <div class="pattern-card">
-        <div class="pattern-header">
-          <span class="pill pill-info">${escapeHtml(n.username || "unknown")}</span>
-          <span class="pattern-meta">${formatDate(n.created_at)}</span>
-        </div>
-        <div class="pattern-meta">
-          ${escapeHtml(n.note || "")}
-        </div>
-      </div>
-    `).join("");
+            <div class="pattern-card">
+              <div class="pattern-header">
+                <span class="pill pill-info">${escapeHtml(n.username || "unknown")}</span>
+                <span class="pattern-meta">${formatDate(n.created_at)}</span>
+              </div>
+              <div class="pattern-meta">
+                ${escapeHtml(n.note || "")}
+              </div>
+            </div>
+          `).join("");
 
       } catch (err) {
         panel.className = "empty";
@@ -4663,25 +4663,25 @@
         panel.className = "";
 
         panel.innerHTML = results.map((item, index) => `
-      <div class="pattern-card">
-        <div class="pattern-header">
-          <span class="pill pill-info">${escapeHtml(item.type || "ioc")}</span>
-          <span class="pill ${item.count >= 3 ? "pill-high" : "pill-low"}">${item.count} seen</span>
-          <span class="pattern-title">${escapeHtml(item.ioc)}</span>
-        </div>
+          <div class="pattern-card">
+            <div class="pattern-header">
+              <span class="pill pill-info">${escapeHtml(item.type || "ioc")}</span>
+              <span class="pill ${item.count >= 3 ? "pill-high" : "pill-low"}">${item.count} seen</span>
+              <span class="pattern-title">${escapeHtml(item.ioc)}</span>
+            </div>
 
-        <div class="pattern-meta">
-          Last seen: ${formatDate(item.last_seen)}
-        </div>
+            <div class="pattern-meta">
+              Last seen: ${formatDate(item.last_seen)}
+            </div>
 
-        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
-          <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
-            onclick="viewIOCHistory('${encodeURIComponent(item.ioc)}')">
-            View History
-          </button>
-        </div>
-      </div>
-    `).join("");
+            <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+              <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+                onclick="viewIOCHistory('${encodeURIComponent(item.ioc)}')">
+                View History
+              </button>
+            </div>
+          </div>
+        `).join("");
 
       } catch (err) {
         status.innerText = `Search error: ${err.message}`;
@@ -5376,10 +5376,10 @@
       let html = "";
       events.forEach((e, i) => {
         html += `
-<div class="timeline-item">
-  <div class="timeline-title">Step ${i + 1}: ${e.eventName || "Unknown"}</div>
-  <div class="timeline-meta">${e.service || "Unknown"} · User: ${e.user || "N/A"} · IP: ${e.source_ip || "N/A"} · Severity: ${e.severity ?? "N/A"}</div>
-</div>`;
+        <div class="timeline-item">
+          <div class="timeline-title">Step ${i + 1}: ${e.eventName || "Unknown"}</div>
+          <div class="timeline-meta">${e.service || "Unknown"} · User: ${e.user || "N/A"} · IP: ${e.source_ip || "N/A"} · Severity: ${e.severity ?? "N/A"}</div>
+        </div>`;
       });
       document.getElementById("timeline").className = events.length ? "" : "empty";
       document.getElementById("timeline").innerHTML = html || `No timeline data yet.`;
@@ -5397,20 +5397,20 @@
       let html = "";
       patterns.forEach(p => {
         html += `
-<div class="pattern-card">
-  <div class="pattern-header">
-    <span class="pill ${patternPillClass(p.severity)}">${p.severity || "N/A"}</span>
-    <span class="pattern-title">${p.name || "Unknown Pattern"}</span>
-  </div>
-  <div class="pattern-meta">
-    ${p.description || ""}<br>
-    <b>Kill Chain:</b> ${p.kill_chain_phase || "N/A"}<br>
-    <b>Attack Type:</b> ${p.attack_type || "N/A"}<br>
-    <b>MITRE:</b> ${typeof p.mitre === "string" ? p.mitre : JSON.stringify(p.mitre)}
-  </div>
-  <ul>${(p.playbook || []).map(x => `<li>${x}</li>`).join("")}</ul>
-</div>
-`;
+          <div class="pattern-card">
+            <div class="pattern-header">
+              <span class="pill ${patternPillClass(p.severity)}">${p.severity || "N/A"}</span>
+              <span class="pattern-title">${p.name || "Unknown Pattern"}</span>
+            </div>
+            <div class="pattern-meta">
+              ${p.description || ""}<br>
+              <b>Kill Chain:</b> ${p.kill_chain_phase || "N/A"}<br>
+              <b>Attack Type:</b> ${p.attack_type || "N/A"}<br>
+              <b>MITRE:</b> ${typeof p.mitre === "string" ? p.mitre : JSON.stringify(p.mitre)}
+            </div>
+            <ul>${(p.playbook || []).map(x => `<li>${x}</li>`).join("")}</ul>
+          </div>
+          `;
       });
       document.getElementById("patternsPanel").className = patterns.length ? "" : "empty";
       document.getElementById("patternsPanel").innerHTML = html || `No patterns detected yet.`;
@@ -5423,30 +5423,30 @@
 
       document.getElementById("iocPanel").className = "";
       document.getElementById("iocPanel").innerHTML = `
-<div class="kv-grid">
-  <div class="kv">
-    <div class="kv-label">IPs</div>
-    <div class="kv-value">${ips.length}</div>
-  </div>
-  <div class="kv">
-    <div class="kv-label">Users</div>
-    <div class="kv-value">${users.length}</div>
-  </div>
-  <div class="kv">
-    <div class="kv-label">Resources</div>
-    <div class="kv-value">${resources.length}</div>
-  </div>
-  <div class="kv">
-    <div class="kv-label">IOC Total</div>
-    <div class="kv-value">${ips.length + users.length + resources.length}</div>
-  </div>
-</div>
-<div class="pattern-card">
-  <b>IPs</b><pre>${JSON.stringify(ips, null, 2)}</pre>
-  <b>Users</b><pre>${JSON.stringify(users, null, 2)}</pre>
-  <b>Resources</b><pre>${JSON.stringify(resources, null, 2)}</pre>
-</div>
-`;
+          <div class="kv-grid">
+            <div class="kv">
+              <div class="kv-label">IPs</div>
+              <div class="kv-value">${ips.length}</div>
+            </div>
+            <div class="kv">
+              <div class="kv-label">Users</div>
+              <div class="kv-value">${users.length}</div>
+            </div>
+            <div class="kv">
+              <div class="kv-label">Resources</div>
+              <div class="kv-value">${resources.length}</div>
+            </div>
+            <div class="kv">
+              <div class="kv-label">IOC Total</div>
+              <div class="kv-value">${ips.length + users.length + resources.length}</div>
+            </div>
+          </div>
+                    <div class="pattern-card">
+                      <b>IPs</b><pre>${JSON.stringify(ips, null, 2)}</pre>
+                      <b>Users</b><pre>${JSON.stringify(users, null, 2)}</pre>
+                      <b>Resources</b><pre>${JSON.stringify(resources, null, 2)}</pre>
+                    </div>
+                  `;
     }
 
     function renderThreatIntel(threatIntel) {
@@ -5465,20 +5465,20 @@
         const pill = score >= 80 ? "pill-critical" : score >= 50 ? "pill-high" : "pill-low";
 
         html += `
-<div class="pattern-card">
-  <div class="pattern-header">
-    <span class="pill ${pill}">Abuse Score: ${score}</span>
-    <span class="pattern-title">${ip.ip}</span>
-  </div>
-  <div class="pattern-meta">
-    <b>Country:</b> ${ip.country_code || "N/A"}<br>
-    <b>ISP:</b> ${ip.isp || "N/A"}<br>
-    <b>Domain:</b> ${ip.domain || "N/A"}<br>
-    <b>Total Reports:</b> ${ip.total_reports ?? "N/A"}<br>
-    <b>Provider:</b> ${ip.provider || "N/A"}
-  </div>
-</div>
-`;
+          <div class="pattern-card">
+            <div class="pattern-header">
+              <span class="pill ${pill}">Abuse Score: ${score}</span>
+              <span class="pattern-title">${ip.ip}</span>
+            </div>
+            <div class="pattern-meta">
+              <b>Country:</b> ${ip.country_code || "N/A"}<br>
+              <b>ISP:</b> ${ip.isp || "N/A"}<br>
+              <b>Domain:</b> ${ip.domain || "N/A"}<br>
+              <b>Total Reports:</b> ${ip.total_reports ?? "N/A"}<br>
+              <b>Provider:</b> ${ip.provider || "N/A"}
+            </div>
+          </div>
+          `;
       });
 
       panel.className = "";
@@ -5500,18 +5500,18 @@
 
       panel.className = "";
       panel.innerHTML = `
-<div class="pattern-card">
-  <div class="pattern-header">
-    <span class="pill ${pill}">Anomaly Score: ${score}</span>
-    <span class="pattern-title">ML Anomaly Detection</span>
-  </div>
-  <div class="pattern-meta">
-    <b>Anomalies Found:</b> ${anomalies.length}<br>
-    <b>Status:</b> ${anomalies.length > 0 ? "Anomalous behavior detected" : "No anomalies detected"}
-  </div>
-</div>
-<pre>${JSON.stringify(anomalies, null, 2)}</pre>
-`;
+        <div class="pattern-card">
+          <div class="pattern-header">
+            <span class="pill ${pill}">Anomaly Score: ${score}</span>
+            <span class="pattern-title">ML Anomaly Detection</span>
+          </div>
+          <div class="pattern-meta">
+            <b>Anomalies Found:</b> ${anomalies.length}<br>
+            <b>Status:</b> ${anomalies.length > 0 ? "Anomalous behavior detected" : "No anomalies detected"}
+          </div>
+        </div>
+        <pre>${JSON.stringify(anomalies, null, 2)}</pre>
+        `;
     }
 
     function renderDetections(detections) {

@@ -6448,26 +6448,31 @@
 
       if (provider === "gcp") {
         box.innerHTML = `
-      <div class="input-row">
-        <label>Auth Type</label>
-        <input id="integrationAuthType" value="service_account" readonly>
-      </div>
+            <div class="input-row">
+              <label>Auth Type</label>
+              <input id="integrationAuthType" value="service_account" readonly>
+            </div>
 
-      <div class="input-row">
-        <label>Project ID</label>
-        <input id="gcpProjectId" placeholder="client-project-id">
-      </div>
+            <div class="input-row">
+              <label>Project ID</label>
+              <input id="gcpProjectId" placeholder="client-project-id">
+            </div>
 
-      <div class="input-row">
-        <label>Service Account Secret Ref</label>
-        <input id="gcpServiceAccountSecretRef" placeholder="CyberAI/GCP/customer-service-account">
-      </div>
+            <div class="input-row">
+              <label>Organization ID</label>
+              <input id="gcpOrganizationId" placeholder="123456789012">
+            </div>
 
-      <div class="input-row">
-        <label>Sources</label>
-        <input id="gcpSources" value="audit_logs,security_command_center">
-      </div>
-    `;
+            <div class="input-row">
+              <label>Service Account Secret Ref</label>
+              <input id="gcpServiceAccountSecretRef" placeholder="aws-sm:GCP_SERVICE_ACCOUNT_JSON">
+            </div>
+
+            <div class="input-row">
+              <label>Sources</label>
+              <input id="gcpSources" value="audit_logs,security_command_center">
+            </div>
+           `;
       }
     }
 
@@ -6509,10 +6514,16 @@
       }
 
       if (provider === "gcp") {
+        const sources = document.getElementById("gcpSources").value
+          .split(",")
+          .map(x => x.trim())
+          .filter(Boolean);
+
         payload.config = {
           project_id: document.getElementById("gcpProjectId").value.trim(),
+          organization_id: document.getElementById("gcpOrganizationId").value.trim(),
           service_account_secret_ref: document.getElementById("gcpServiceAccountSecretRef").value.trim(),
-          sources: document.getElementById("gcpSources").value.split(",").map(x => x.trim()).filter(Boolean)
+          sources: sources
         };
       }
 
@@ -7522,6 +7533,46 @@
     window.runUnifiedIOCAnalysis = runUnifiedIOCAnalysis;
     window.clearThreatHunting = clearThreatHunting;
 
+
+    function updateSelectedFileName() {
+      const input = document.getElementById("logFileInput");
+      const label = document.getElementById("selectedFileName");
+
+      if (!input || !label) return;
+
+      if (!input.files || !input.files.length) {
+        label.innerText = "Ningún archivo seleccionado";
+        return;
+      }
+
+      label.innerText = input.files[0].name;
+    }
+
+    async function uploadOnly() {
+      const fileInput = document.getElementById("logFileInput");
+      const statusLine = document.getElementById("statusLine");
+
+      if (!fileInput || !fileInput.files || !fileInput.files.length) {
+        alert("Primero debes adjuntar un archivo.");
+        return;
+      }
+
+      const file = fileInput.files[0];
+
+      try {
+        const text = await file.text();
+
+        document.getElementById("eventInput").value = text;
+
+        if (statusLine) {
+          statusLine.innerText = `Archivo cargado en pantalla: ${file.name}. Ahora puedes presionar Analizar.`;
+        }
+      } catch (err) {
+        if (statusLine) {
+          statusLine.innerText = `No se pudo cargar el archivo: ${err.message}`;
+        }
+      }
+    }
 
     function updateSelectedFileName() {
       const input = document.getElementById("logFileInput");

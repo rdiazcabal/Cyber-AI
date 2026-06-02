@@ -4153,20 +4153,20 @@
       panel.className = "";
 
       panel.innerHTML = items.map(item => `
-    <div class="pattern-card">
-      <div class="pattern-header">
-        <span class="pill pill-info">${escapeHtml(item.type || "ioc")}</span>
-        <span class="pill pill-high">${item.count} seen</span>
-        <span class="pattern-title">${escapeHtml(item.ioc)}</span>
-      </div>
-      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
-        <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
-          onclick="showThreatHunting().then(() => { document.getElementById('iocSearchInput').value='${escapeHtml(item.ioc)}'; searchIOC(); })">
-          Hunt
-        </button>
-      </div>
-    </div>
-  `).join("");
+      <div class="pattern-card">
+        <div class="pattern-header">
+          <span class="pill pill-info">${escapeHtml(item.type || "ioc")}</span>
+          <span class="pill pill-high">${item.count} seen</span>
+          <span class="pattern-title">${escapeHtml(item.ioc)}</span>
+        </div>
+            <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+              <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
+                onclick="showThreatHunting().then(() => { document.getElementById('iocSearchInput').value='${escapeHtml(item.ioc)}'; searchIOC(); })">
+                Hunt
+              </button>
+            </div>
+          </div>
+        `).join("");
     }
 
     function renderExecTopCis(items) {

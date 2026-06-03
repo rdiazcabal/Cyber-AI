@@ -3444,8 +3444,48 @@ def list_audit_logs(
 
     return result
 
+def security_case_to_dict(db: Session, case: SecurityCase) -> dict:
+    report = None
+    if case.report_id:
+        report = db.query(AnalysisReport).filter(AnalysisReport.id == case.report_id).first()
+
+    assigned_user = None
+    if case.assigned_to:
+        assigned_user = db.query(User).filter(User.id == case.assigned_to).first()
+
+    archived_user = None
+    if getattr(case, "archived_by", None):
+        archived_user = db.query(User).filter(User.id == case.archived_by).first()
+
+    assigned_name = None
+    if assigned_user:
+        assigned_name = assigned_user.full_name or assigned_user.username
+
+    archived_by_name = None
+    if archived_user:
+        archived_by_name = archived_user.full_name or archived_user.username
+
+    return {
+        "id": case.id,
+        "company_id": case.company_id,
+        "report_id": case.report_id,
+        "report_title": report.title if report else None,
+        "title": case.title,
+        "severity": case.severity,
+        "status": case.status,
+        "assigned_to": case.assigned_to,
+        "assigned_to_username": assigned_user.username if assigned_user else None,
+        "assigned_to_name": assigned_name,
+        "created_at": case.created_at,
+        "is_archived": bool(getattr(case, "is_archived", False)),
+        "archived_at": getattr(case, "archived_at", None),
+        "archived_by": getattr(case, "archived_by", None),
+        "archived_by_name": archived_by_name,
+    }
+
 @app.get("/cases")
 def list_cases(
+    include_archived: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -3454,33 +3494,56 @@ def list_cases(
     if not is_master_super_admin(current_user):
         query = query.filter(SecurityCase.company_id == current_user.company_id)
 
+    if not include_archived:
+        query = query.filter(SecurityCase.is_archived == False)
+
     cases = query.order_by(SecurityCase.created_at.desc()).all()
 
-    result = []
+    return [
+        security_case_to_dict(db, case)
+        for case in cases
+    ]
 
-    for case in cases:
-        report = None
-        if case.report_id:
-            report = db.query(AnalysisReport).filter(AnalysisReport.id == case.report_id).first()
+@app.get("/cases/history")
+def list_archived_cases(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(SecurityCase).filter(SecurityCase.is_archived == True)
 
-        assigned_user = None
-        if case.assigned_to:
-            assigned_user = db.query(User).filter(User.id == case.assigned_to).first()
+    if not is_master_super_admin(current_user):
+        query = query.filter(SecurityCase.company_id == current_user.company_id)
 
-        result.append({
-            "id": case.id,
-            "company_id": case.company_id,
-            "report_id": case.report_id,
-            "report_title": report.title if report else None,
-            "title": case.title,
-            "severity": case.severity,
-            "status": case.status,
-            "assigned_to": case.assigned_to,
-            "assigned_to_username": assigned_user.username if assigned_user else None,
-            "created_at": case.created_at,
-        })
+    cases = query.order_by(SecurityCase.archived_at.desc(), SecurityCase.created_at.desc()).all()
 
-    return result
+    return [
+        security_case_to_dict(db, case)
+        for case in cases
+    ]
+
+@app.get("/cases/assignable-users")
+def list_case_assignable_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(User).filter(User.is_active == True)
+
+    if not is_master_super_admin(current_user):
+        query = query.filter(User.company_id == current_user.company_id)
+
+    users = query.order_by(User.full_name.asc(), User.username.asc()).all()
+
+    return [
+        {
+            "id": user.id,
+            "username": user.username,
+            "full_name": user.full_name,
+            "display_name": user.full_name or user.username,
+            "role": user.role,
+            "company_id": user.company_id,
+        }
+        for user in users
+    ]
 
 @app.get("/cases/{case_id}")
 def get_case(
@@ -3502,29 +3565,25 @@ def get_case(
     if case.report_id:
         report = db.query(AnalysisReport).filter(AnalysisReport.id == case.report_id).first()
 
-    assigned_user = None
-    if case.assigned_to:
-        assigned_user = db.query(User).filter(User.id == case.assigned_to).first()
+    data = security_case_to_dict(db, case)
 
-    return {
-        "id": case.id,
-        "company_id": case.company_id,
-        "report_id": case.report_id,
-        "report_title": report.title if report else None,
-        "title": case.title,
-        "severity": case.severity,
-        "status": case.status,
-        "assigned_to": case.assigned_to,
-        "assigned_to_username": assigned_user.username if assigned_user else None,
-        "created_at": case.created_at,
-        "report": {
+    data["report"] = None
+
+    if report:
+        try:
+            report_result = json.loads(report.result_json or "{}")
+        except Exception:
+            report_result = {}
+
+        data["report"] = {
             "id": report.id,
             "title": report.title,
             "risk_score": report.risk_score,
             "created_at": report.created_at,
-            "result": json.loads(report.result_json),
-        } if report else None
-    }
+            "result": report_result,
+        }
+
+    return data
 
 @app.patch("/cases/{case_id}/status")
 def update_case_status(
@@ -3578,6 +3637,59 @@ def update_case_status(
         "id": case.id,
         "status": case.status,
         "message": "Case status updated"
+    }
+
+@app.delete("/cases/{case_id}")
+def archive_case(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(SecurityCase).filter(SecurityCase.id == case_id)
+
+    if not is_master_super_admin(current_user):
+        query = query.filter(SecurityCase.company_id == current_user.company_id)
+
+    case = query.first()
+
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    if case.is_archived:
+        return {
+            "id": case.id,
+            "message": "Case already archived"
+        }
+
+    old_status = case.status
+
+    case.is_archived = True
+    case.archived_at = datetime.utcnow()
+    case.archived_by = current_user.id
+    case.status = "archived"
+
+    db.commit()
+    db.refresh(case)
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="ARCHIVE_CASE",
+        resource_type="security_case",
+        resource_id=case.id,
+        details={
+            "case_id": case.id,
+            "old_status": old_status,
+            "new_status": "archived",
+            "archived_by": current_user.id,
+            "archived_by_username": current_user.username,
+        }
+    )
+
+    return {
+        "id": case.id,
+        "message": "Case archived",
+        "archived_at": case.archived_at,
     }
 
 @app.patch("/cases/{case_id}/assign")

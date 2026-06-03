@@ -1796,6 +1796,109 @@
         width: 100% !important;
       }
     }
+
+    .case-action-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 14px;
+    }
+
+    .case-action-row button {
+      width: auto !important;
+      min-width: 130px;
+      margin-top: 0 !important;
+      padding: 10px 14px !important;
+    }
+
+    .case-modal.hidden {
+      display: none !important;
+    }
+
+    .case-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .case-modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, .76);
+      backdrop-filter: blur(5px);
+    }
+
+    .case-modal-content {
+      position: relative;
+      width: min(1180px, 96vw);
+      max-height: 92vh;
+      overflow: auto;
+      border-radius: 22px;
+      border: 1px solid rgba(212, 175, 55, .42);
+      background:
+        radial-gradient(circle at top right, rgba(220, 38, 38, .16), transparent 32%),
+        linear-gradient(180deg, rgba(15, 15, 15, .98), rgba(2, 2, 2, .98));
+      box-shadow:
+        0 28px 90px rgba(0, 0, 0, .65),
+        0 0 28px rgba(212, 175, 55, .14);
+      padding: 24px;
+    }
+
+    .case-modal-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-start;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(212, 175, 55, .20);
+      margin-bottom: 18px;
+    }
+
+    .case-modal-close {
+      width: auto !important;
+      margin-top: 0 !important;
+    }
+
+    .case-modal-body textarea {
+      min-height: 120px;
+    }
+
+    .case-modal-body select,
+    .case-modal-body input,
+    .case-modal-body textarea {
+      width: 100%;
+    }
+
+    .case-danger-btn {
+      border-color: rgba(239, 68, 68, .55) !important;
+      color: #fecaca !important;
+      background: rgba(127, 29, 29, .18) !important;
+    }
+
+    @media (max-width: 900px) {
+      .case-modal {
+        padding: 10px;
+      }
+
+      .case-modal-content {
+        width: 100%;
+        max-height: 95vh;
+        padding: 16px;
+      }
+
+      .case-modal-header {
+        flex-direction: column;
+      }
+
+      .case-action-row button {
+        width: 100% !important;
+      }
+    }
   </style>
 </head>
 
@@ -2493,13 +2596,38 @@
           </div>
 
           <div class="panel">
-            <h3>Detalles de Caso</h3>
+            <h3>Histórico de Casos Eliminados</h3>
             <div class="panel-subtitle">
-              Selecciona un caso para revisar detalles, actualizar estado y agregar notas.
+              Casos archivados. No se eliminan físicamente; quedan disponibles para auditoría e histórico.
             </div>
 
-            <div id="caseDetailsPanel" class="empty">
-              No case selected.
+            <button type="button" class="secondary" style="width:auto;padding:10px 16px;margin-bottom:14px;"
+              onclick="loadCaseHistory()">
+              Actualizar histórico
+            </button>
+
+            <div id="caseHistoryPanel" class="empty">
+              No hay casos archivados aún.
+            </div>
+          </div>
+          <div id="caseModal" class="case-modal hidden">
+            <div class="case-modal-backdrop" onclick="closeCaseModal()"></div>
+
+            <div class="case-modal-content">
+              <div class="case-modal-header">
+                <div>
+                  <h3 id="caseModalTitle">Detalle de Caso</h3>
+                  <div class="panel-subtitle">Gestión, asignación, notas e investigación SOC.</div>
+                </div>
+
+                <button type="button" class="secondary case-modal-close" onclick="closeCaseModal()">
+                  Cerrar
+                </button>
+              </div>
+
+              <div id="caseModalBody" class="case-modal-body">
+                Cargando caso...
+              </div>
             </div>
           </div>
         </div>
@@ -3444,6 +3572,7 @@
       if (billingPlanNav) billingPlanNav.classList.remove("active");
 
       await loadCases();
+      await loadCaseHistory();
     }
 
     async function loadCases() {
@@ -3501,13 +3630,18 @@
               <td>${escapeHtml(c.status || "open")}</td>
               <td>${escapeHtml(c.title || "Untitled")}</td>
               <td>${c.report_id ? `#${c.report_id}` : "N/A"}</td>
-              <td>${escapeHtml(c.assigned_to_username || "Unassigned")}</td>
+              <td>${escapeHtml(c.assigned_to_name || c.assigned_to_username || "Unassigned")}</td>
               <td>${formatDate(c.created_at)}</td>
               <td>
-                <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
-                  onclick="viewCase(${c.id})">
-                  Open
-                </button>
+                <div class="case-action-row">
+                  <button class="secondary" type="button" onclick="viewCase(${c.id})">
+                    Abrir
+                  </button>
+
+                  <button class="secondary case-danger-btn" type="button" onclick="deleteCase(${c.id})">
+                    Eliminar
+                  </button>
+                </div>
               </td>
             </tr>
           `).join("")}
@@ -3518,6 +3652,78 @@
       } catch (err) {
         panel.className = "empty";
         panel.innerText = `Cases load error: ${err.message}`;
+      }
+    }
+
+    async function loadCaseHistory() {
+      const panel = document.getElementById("caseHistoryPanel");
+
+      if (!panel) return;
+
+      try {
+        const res = await fetch("/cases/history", {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          panel.className = "empty";
+          panel.innerText = `No se pudo cargar histórico: ${await res.text()}`;
+          return;
+        }
+
+        const cases = await res.json();
+
+        if (!cases.length) {
+          panel.className = "empty";
+          panel.innerText = "No hay casos archivados aún.";
+          return;
+        }
+
+        panel.className = "";
+
+        panel.innerHTML = `
+      <table class="user-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Severity</th>
+            <th>Title</th>
+            <th>Assigned</th>
+            <th>Archived</th>
+            <th>Archived By</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${cases.map(c => `
+            <tr>
+              <td>${c.id}</td>
+              <td>
+                <span class="pill ${getSeverityPillClass(c.severity)}">
+                  ${escapeHtml(c.severity || "Unknown")}
+                </span>
+              </td>
+              <td>${escapeHtml(c.title || "Untitled")}</td>
+              <td>${escapeHtml(c.assigned_to_name || c.assigned_to_username || "Unassigned")}</td>
+              <td>${formatDate(c.archived_at)}</td>
+              <td>${escapeHtml(c.archived_by_name || "N/A")}</td>
+              <td>
+                <button class="secondary" type="button" style="width:auto;margin-top:0;padding:8px 12px;"
+                  onclick="viewCase(${c.id})">
+                  Ver
+                </button>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+
+      } catch (err) {
+        panel.className = "empty";
+        panel.innerText = `Histórico error: ${err.message}`;
       }
     }
 
@@ -4395,8 +4601,88 @@
       }
     }
 
+    function closeCaseModal() {
+      const modal = document.getElementById("caseModal");
+      if (modal) modal.classList.add("hidden");
+    }
+
+    async function loadCaseAssignees(selectedUserId) {
+      const select = document.getElementById("caseAssignUserId");
+
+      if (!select) return;
+
+      try {
+        const res = await fetch("/cases/assignable-users", {
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          select.innerHTML = `<option value="">No se pudieron cargar usuarios</option>`;
+          return;
+        }
+
+        const users = await res.json();
+
+        select.innerHTML = `
+      <option value="">Selecciona usuario</option>
+      ${users.map(user => `
+        <option value="${user.id}" ${Number(selectedUserId) === Number(user.id) ? "selected" : ""}>
+          ${escapeHtml(user.display_name || user.username)} (${escapeHtml(user.role || "user")})
+        </option>
+      `).join("")}
+    `;
+
+      } catch (err) {
+        select.innerHTML = `<option value="">Error cargando usuarios</option>`;
+      }
+    }
+
+    async function deleteCase(caseId) {
+      const confirmDelete = confirm(
+        `¿Seguro que deseas eliminar el caso #${caseId}? El caso no se borrará físicamente; quedará en histórico.`
+      );
+
+      if (!confirmDelete) return;
+
+      try {
+        const res = await fetch(`/cases/${caseId}`, {
+          method: "DELETE",
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        });
+
+        if (!res.ok) {
+          alert(`No se pudo eliminar el caso: ${await res.text()}`);
+          return;
+        }
+
+        closeCaseModal();
+
+        await loadCases();
+        await loadCaseHistory();
+
+        const socView = document.getElementById("socView");
+        if (socView && !socView.classList.contains("hidden")) {
+          await loadSOCOverview();
+        }
+
+      } catch (err) {
+        alert(`Error eliminando caso: ${err.message}`);
+      }
+    }
+
     async function viewCase(caseId) {
-      const panel = document.getElementById("caseDetailsPanel");
+      const modal = document.getElementById("caseModal");
+      const panel = document.getElementById("caseModalBody");
+      const title = document.getElementById("caseModalTitle");
+
+      if (!modal || !panel) return;
+
+      modal.classList.remove("hidden");
+      panel.innerHTML = "Cargando caso...";
 
       try {
         const res = await fetch(`/cases/${caseId}`, {
@@ -4407,83 +4693,98 @@
 
         if (!res.ok) {
           const errorText = await res.text();
-          panel.className = "empty";
-          panel.innerText = `Could not load case: ${errorText}`;
+          panel.innerHTML = `<div class="empty">Could not load case: ${escapeHtml(errorText)}</div>`;
           return;
         }
 
         const c = await res.json();
+        const archived = Boolean(c.is_archived);
 
-        panel.className = "";
+        if (title) {
+          title.innerText = `Caso #${c.id}`;
+        }
 
         panel.innerHTML = `
-          <div class="pattern-card">
-            <div class="pattern-header">
-              <span class="pill ${getSeverityPillClass(c.severity)}">${escapeHtml(c.severity || "Unknown")}</span>
-              <span class="pill pill-info">${escapeHtml(c.status || "open")}</span>
-              <span class="pattern-title">Case #${c.id} · ${escapeHtml(c.title || "Untitled")}</span>
-            </div>
+      <div class="pattern-card">
+        <div class="pattern-header">
+          <span class="pill ${getSeverityPillClass(c.severity)}">${escapeHtml(c.severity || "Unknown")}</span>
+          <span class="pill pill-info">${escapeHtml(c.status || "open")}</span>
+          ${archived ? `<span class="pill pill-critical">Archivado</span>` : ""}
+          <span class="pattern-title">Case #${c.id} · ${escapeHtml(c.title || "Untitled")}</span>
+        </div>
 
-            <div class="pattern-meta">
-              Report: ${c.report_id ? `#${c.report_id} - ${escapeHtml(c.report_title || "")}` : "N/A"}
-            </div>
+        <div class="pattern-meta" style="margin-top:10px;">
+          <strong>Report:</strong> ${c.report_id ? `#${c.report_id} - ${escapeHtml(c.report_title || "")}` : "N/A"}<br>
+          <strong>Asignado a:</strong> ${escapeHtml(c.assigned_to_name || c.assigned_to_username || "Sin asignar")}<br>
+          <strong>Creado:</strong> ${formatDate(c.created_at)}
+          ${archived ? `<br><strong>Archivado:</strong> ${formatDate(c.archived_at)} por ${escapeHtml(c.archived_by_name || "N/A")}` : ""}
+        </div>
 
-            <div class="pattern-meta">
-              Assigned: ${escapeHtml(c.assigned_to_username || "Unassigned")}
-            </div>
+        <div class="grid" style="margin-top:18px;">
+          <div>
+            <label>Status</label>
+            <select id="caseStatusSelect" ${archived ? "disabled" : ""}>
+              <option value="open" ${c.status === "open" ? "selected" : ""}>open</option>
+              <option value="investigating" ${c.status === "investigating" ? "selected" : ""}>investigating</option>
+              <option value="contained" ${c.status === "contained" ? "selected" : ""}>contained</option>
+              <option value="resolved" ${c.status === "resolved" ? "selected" : ""}>resolved</option>
+              <option value="false_positive" ${c.status === "false_positive" ? "selected" : ""}>false_positive</option>
+              <option value="archived" ${c.status === "archived" ? "selected" : ""}>archived</option>
+            </select>
 
-            <div class="pattern-meta">
-              Created: ${formatDate(c.created_at)}
-            </div>
-
-            <div class="grid" style="margin-top:14px;">
-              <div>
-                <label>Status</label>
-                <select id="caseStatusSelect">
-                  <option value="open" ${c.status === "open" ? "selected" : ""}>open</option>
-                  <option value="investigating" ${c.status === "investigating" ? "selected" : ""}>investigating</option>
-                  <option value="contained" ${c.status === "contained" ? "selected" : ""}>contained</option>
-                  <option value="resolved" ${c.status === "resolved" ? "selected" : ""}>resolved</option>
-                  <option value="false_positive" ${c.status === "false_positive" ? "selected" : ""}>false_positive</option>
-                </select>
-
-                <button onclick="updateCaseStatus(${c.id})">
-                  Update Status
-                </button>
-              </div>
-
-              <div>
-                <label>Assign to User ID</label>
-                <input id="caseAssignUserId" placeholder="Ej: 1" value="${c.assigned_to || ""}">
-                <button class="secondary" onclick="assignCase(${c.id})">
-                  Assign Case
-                </button>
-              </div>
-            </div>
-
-            <div style="margin-top:14px;">
-              <label>Add Note</label>
-              <textarea id="caseNoteInput" style="height:120px;" placeholder="Escribe una nota de investigación..."></textarea>
-              <button onclick="addCaseNote(${c.id})">Add Note</button>
-            </div>
-
-            <div style="margin-top:14px;">
-              <button class="secondary" onclick="loadCaseNotes(${c.id})">
-                Refresh Notes
+            <div class="case-action-row">
+              <button type="button" ${archived ? "disabled" : ""} onclick="updateCaseStatus(${c.id})">
+                Actualizar Status
               </button>
             </div>
+          </div>
 
-            <div id="caseNotesPanel" class="empty" style="margin-top:14px;">
-              Loading notes...
+          <div>
+            <label>Asignar a usuario</label>
+            <select id="caseAssignUserId" ${archived ? "disabled" : ""}>
+              <option value="">Cargando usuarios...</option>
+            </select>
+
+            <div class="case-action-row">
+              <button type="button" class="secondary" ${archived ? "disabled" : ""} onclick="assignCase(${c.id})">
+                Asignar Caso
+              </button>
             </div>
           </div>
-        `;
+        </div>
 
+        <div style="margin-top:18px;">
+          <label>Agregar Nota</label>
+          <textarea id="caseNoteInput" placeholder="Escribe una nota de investigación..." ${archived ? "disabled" : ""}></textarea>
+
+          <div class="case-action-row">
+            <button type="button" ${archived ? "disabled" : ""} onclick="addCaseNote(${c.id})">
+              Agregar Nota
+            </button>
+
+            <button type="button" class="secondary" onclick="loadCaseNotes(${c.id})">
+              Refrescar Notas
+            </button>
+
+            ${!archived ? `
+              <button type="button" class="secondary case-danger-btn" onclick="deleteCase(${c.id})">
+                Eliminar Caso
+              </button>
+            ` : ""}
+          </div>
+        </div>
+
+        <div id="caseNotesPanel" class="empty" style="margin-top:18px;">
+          Loading notes...
+        </div>
+      </div>
+    `;
+
+        await loadCaseAssignees(c.assigned_to);
         await loadCaseNotes(c.id);
 
       } catch (err) {
-        panel.className = "empty";
-        panel.innerText = `Case load error: ${err.message}`;
+        panel.innerHTML = `<div class="empty">Case load error: ${escapeHtml(err.message)}</div>`;
       }
     }
 
@@ -4518,7 +4819,7 @@
       const userId = document.getElementById("caseAssignUserId").value;
 
       if (!userId) {
-        alert("Debes escribir un user_id.");
+        alert("Debes seleccionar un usuario.");
         return;
       }
 

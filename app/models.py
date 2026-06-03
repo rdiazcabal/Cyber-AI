@@ -67,6 +67,11 @@ class SecurityCase(Base):
     severity = Column(String(30), nullable=False, default="Medium")
     status = Column(String(30), nullable=False, default="open")
     assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    is_archived = Column(Boolean, default=False, nullable=False)
+    archived_at = Column(DateTime, nullable=True)
+    archived_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class IOCObservation(Base):

@@ -3835,14 +3835,14 @@ def threat_ip_reputation(
             "risk_level": "Low",
             "risk_score": 0,
             "summary": {
-                "source": "AbuseIPDB",
+                "source": "Security Feed",
                 "pulse_count": 0,
                 "country": "N/A",
                 "asn": "N/A",
                 "tags": [],
                 "malware_families": [],
                 "reasons": [
-                    reputation.get("error") if isinstance(reputation, dict) else "AbuseIPDB no disponible o API key no configurada."
+                    reputation.get("error") if isinstance(reputation, dict) else "Security Feed no disponible o API key no configurada."
                 ]
             },
             "recommendations": [
@@ -3880,7 +3880,7 @@ def threat_ip_reputation(
         "risk_level": risk_level,
         "risk_score": score,
         "summary": {
-            "source": reputation.get("source", "AbuseIPDB"),
+            "source": reputation.get("source", "Security Feed"),
             "pulse_count": reputation.get("total_reports", 0),
             "country": reputation.get("country_code") or "N/A",
             "asn": reputation.get("isp") or "N/A",

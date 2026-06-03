@@ -2,7 +2,10 @@ import os
 import ipaddress
 import requests
 
-ABUSEIPDB_API_KEY = os.getenv("ABUSEIPDB_API_KEY")
+SECURITY_FEEDS_API_KEY = (
+    os.getenv("SECURITY_FEEDS_API_KEY")
+    or os.getenv("ABUSEIPDB_API_KEY")
+)
 
 
 def is_public_ip(ip: str) -> bool:
@@ -20,13 +23,13 @@ def is_public_ip(ip: str) -> bool:
         return False
 
 
-def check_ip_abuse(ip: str) -> dict | None:
+def check_security_feed_ip(ip: str) -> dict | None:
     """
-    Checks IP reputation using AbuseIPDB.
+    Checks IP reputation using configured Security Feeds.
     Private/reserved/local IPs are skipped.
-    Returns None if AbuseIPDB is unavailable or the IP should not be checked.
+    Returns None if Security Feeds are unavailable or the IP should not be checked.
     """
-    if not ABUSEIPDB_API_KEY:
+    if not SECURITY_FEEDS_API_KEY:
         return None
 
     if not is_public_ip(ip):
@@ -35,7 +38,7 @@ def check_ip_abuse(ip: str) -> dict | None:
     url = "https://api.abuseipdb.com/api/v2/check"
 
     headers = {
-        "Key": ABUSEIPDB_API_KEY,
+        "Key": SECURITY_FEEDS_API_KEY,
         "Accept": "application/json"
     }
 
@@ -56,17 +59,18 @@ def check_ip_abuse(ip: str) -> dict | None:
         if response.status_code != 200:
             return {
                 "ip": ip,
-                "source": "AbuseIPDB",
+                "source": "Security Feeds",
                 "available": False,
-                "error": f"AbuseIPDB HTTP {response.status_code}"
+                "error": f"Security Feeds HTTP {response.status_code}"
             }
 
         data = response.json().get("data", {})
 
         return {
             "ip": ip,
-            "source": "AbuseIPDB",
+            "source": "Security Feeds",
             "available": True,
+            "security_feed_score": data.get("abuseConfidenceScore", 0),
             "abuse_confidence_score": data.get("abuseConfidenceScore", 0),
             "country_code": data.get("countryCode"),
             "usage_type": data.get("usageType"),
@@ -80,18 +84,21 @@ def check_ip_abuse(ip: str) -> dict | None:
     except Exception as e:
         return {
             "ip": ip,
-            "source": "AbuseIPDB",
+            "source": "Security Feeds",
             "available": False,
             "error": str(e)
         }
 
 
+def check_ip_abuse(ip: str) -> dict | None:
+    """
+    Backward-compatible wrapper.
+    Do not expose AbuseIPDB naming to the UI.
+    """
+    return check_security_feed_ip(ip)
+
+
 def enrich_iocs(iocs: dict) -> dict:
-    """
-    Existing-compatible function.
-    Keeps your current calls working:
-      enrich_iocs(result.get("iocs", {}))
-    """
     ips = []
 
     if isinstance(iocs, dict):
@@ -100,7 +107,7 @@ def enrich_iocs(iocs: dict) -> dict:
     enriched_ips = []
 
     for ip in ips:
-        intel = check_ip_abuse(ip)
+        intel = check_security_feed_ip(ip)
         if intel:
             enriched_ips.append(intel)
 

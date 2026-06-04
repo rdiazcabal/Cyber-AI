@@ -3369,22 +3369,55 @@ def soc_overview(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    cases_query = db.query(SecurityCase)
+    active_query = db.query(SecurityCase).filter(SecurityCase.is_archived == False)
+    archived_query = db.query(SecurityCase).filter(SecurityCase.is_archived == True)
 
     if not is_master_super_admin(current_user):
-        cases_query = cases_query.filter(
-            SecurityCase.company_id == current_user.company_id
-        )
+        active_query = active_query.filter(SecurityCase.company_id == current_user.company_id)
+        archived_query = archived_query.filter(SecurityCase.company_id == current_user.company_id)
 
-    cases = cases_query.all()
+    cases = active_query.order_by(SecurityCase.created_at.desc()).all()
+    archived_cases = archived_query.all()
 
     open_cases = [c for c in cases if c.status == "open"]
     critical_cases = [c for c in cases if c.severity == "Critical"]
+    high_cases = [c for c in cases if c.severity == "High"]
+    investigating_cases = [c for c in cases if c.status == "investigating"]
+    contained_cases = [c for c in cases if c.status == "contained"]
+    resolved_cases = [c for c in cases if c.status == "resolved"]
+    false_positive_cases = [c for c in cases if c.status == "false_positive"]
+    unassigned_cases = [c for c in cases if not c.assigned_to]
+
+    latest_critical = sorted(
+        critical_cases,
+        key=lambda x: x.created_at,
+        reverse=True
+    )[:5]
+
+    oldest_open = sorted(
+        open_cases,
+        key=lambda x: x.created_at
+    )[:5]
 
     return {
         "total_cases": len(cases),
         "open_cases": len(open_cases),
         "critical_cases": len(critical_cases),
+        "high_cases": len(high_cases),
+        "investigating_cases": len(investigating_cases),
+        "contained_cases": len(contained_cases),
+        "resolved_cases": len(resolved_cases),
+        "false_positive_cases": len(false_positive_cases),
+        "unassigned_cases": len(unassigned_cases),
+        "archived_cases": len(archived_cases),
+        "latest_critical_cases": [
+            security_case_to_dict(db, case)
+            for case in latest_critical
+        ],
+        "oldest_open_cases": [
+            security_case_to_dict(db, case)
+            for case in oldest_open
+        ],
     }
 
 @app.get("/admin/audit-logs")

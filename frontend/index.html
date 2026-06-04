@@ -1899,6 +1899,17 @@
         width: 100% !important;
       }
     }
+
+    .soc-clickable-card {
+      cursor: pointer;
+      transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+    }
+
+    .soc-clickable-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(212, 175, 55, .75);
+      box-shadow: 0 18px 40px rgba(212, 175, 55, .12);
+    }
   </style>
 </head>
 
@@ -2485,22 +2496,40 @@
 
           <div class="cards">
 
-            <div class="card card-total">
+            <div class="card card-total soc-clickable-card" onclick="openCasesFromSOC('all')">
               <div class="card-label">Total Casos</div>
               <h2 id="socTotalCases" class="card-value">0</h2>
-              <div class="card-foot">Casos registrados</div>
+              <div class="card-foot">Casos activos registrados</div>
             </div>
 
-            <div class="card card-high">
+            <div class="card card-high soc-clickable-card" onclick="openCasesFromSOC('open')">
               <div class="card-label">Casos Abiertos</div>
               <h2 id="socOpenCases" class="card-value">0</h2>
-              <div class="card-foot">Casos abiertos</div>
+              <div class="card-foot">Pendientes de atención</div>
             </div>
 
-            <div class="card card-critical">
+            <div class="card card-critical soc-clickable-card" onclick="openCasesFromSOC('critical')">
               <div class="card-label">Casos Críticos</div>
               <h2 id="socCriticalCases" class="card-value">0</h2>
-              <div class="card-foot">Casos críticos</div>
+              <div class="card-foot">Severidad Crítica</div>
+            </div>
+
+            <div class="card card-risk soc-clickable-card" onclick="openCasesFromSOC('high')">
+              <div class="card-label">Casos Altos</div>
+              <h2 id="socHighCases" class="card-value">0</h2>
+              <div class="card-foot">Severidad Alta</div>
+            </div>
+
+            <div class="card card-patterns soc-clickable-card" onclick="openCasesFromSOC('unassigned')">
+              <div class="card-label">Sin Asignar</div>
+              <h2 id="socUnassignedCases" class="card-value">0</h2>
+              <div class="card-foot">Requieren asignación</div>
+            </div>
+
+            <div class="card card-total soc-clickable-card" onclick="openCasesFromSOC('investigating')">
+              <div class="card-label">Investigando</div>
+              <h2 id="socInvestigatingCases" class="card-value">0</h2>
+              <div class="card-foot">En análisis SOC</div>
             </div>
 
           </div>
@@ -3575,6 +3604,13 @@
       await loadCaseHistory();
     }
 
+    let activeCaseFilter = "all";
+
+    async function openCasesFromSOC(filter) {
+      activeCaseFilter = filter || "all";
+      await showCases();
+    }
+
     async function loadCases() {
       const panel = document.getElementById("casesPanel");
 
@@ -3596,9 +3632,31 @@
 
         const cases = await res.json();
 
-        if (!cases.length) {
+        let visibleCases = [...cases];
+
+        if (activeCaseFilter === "open") {
+          visibleCases = visibleCases.filter(c => c.status === "open");
+        }
+
+        if (activeCaseFilter === "critical") {
+          visibleCases = visibleCases.filter(c => c.severity === "Critical");
+        }
+
+        if (activeCaseFilter === "high") {
+          visibleCases = visibleCases.filter(c => c.severity === "High");
+        }
+
+        if (activeCaseFilter === "unassigned") {
+          visibleCases = visibleCases.filter(c => !c.assigned_to);
+        }
+
+        if (activeCaseFilter === "investigating") {
+          visibleCases = visibleCases.filter(c => c.status === "investigating");
+        }
+
+        if (!visibleCases.length) {
           panel.className = "empty";
-          panel.innerText = "No cases found.";
+          panel.innerText = "No cases found for this filter.";
           return;
         }
 
@@ -3619,7 +3677,7 @@
           </tr>
         </thead>
         <tbody>
-          ${cases.map(c => `
+          ${visibleCases.map(c => `
             <tr>
               <td>${c.id}</td>
               <td>

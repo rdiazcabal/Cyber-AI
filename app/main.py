@@ -4009,7 +4009,7 @@ def threat_ip_reputation(
     reasons = []
 
     if score > 0:
-        reasons.append(f"Abuse confidence score: {score}")
+        reasons.append(f"Puntaje de amenaza: {score}")
 
     if reputation.get("total_reports"):
         reasons.append(f"Total reports: {reputation.get('total_reports')}")
@@ -4414,8 +4414,10 @@ def unified_ioc_analysis(
             "Analyze whether this IOC appears malicious, suspicious or benign.",
             "Use only the provided evidence.",
             "Do not invent reputation, geolocation or threat actor attribution.",
-            "Generate a SOC analyst summary and recommendations."
-        ]
+            "When describing scores, use the Spanish term 'puntaje de amenaza'.",
+            "Do not use the term 'puntaje de confianza' or 'confianza' to describe malicious reputation.",
+            "Generate a SOC analyst summary and recommendations in Spanish."
+]
     }
 
     ai_result = analyze_security_event_structured(ai_input)

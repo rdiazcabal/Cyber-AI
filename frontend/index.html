@@ -5094,7 +5094,7 @@
         <div class="pattern-header">
           <span class="pill ${getSeverityPillClass(verdict.severity)}">${escapeHtml(verdict.severity || "Unknown")}</span>
           <span class="pill pill-info">Puntaje ${verdict.unified_score ?? 0}</span>
-          <span class="pill pill-info">Confianza ${Math.max(0, 100 - (verdict.unified_score ?? 0))}%</span>
+          <span class="pill pill-info">Puntaje de Amenaza ${verdict.unified_score ?? 0}</span>
           <span class="pattern-title">${escapeHtml(data.ioc || query)}</span>
         </div>
 
@@ -7274,7 +7274,7 @@
           </span>
 
           <span class="pill pill-info">Riesgo ${data.risk_score ?? 0}</span>
-          <span class="pill pill-info">Confianza ${Math.max(0, 100 - (data.risk_score ?? 0))}%</span>
+          <span class="pill pill-info">Puntaje de Amenaza ${data.risk_score ?? 0}</span>
 
           <span class="pattern-title">${escapeHtml(data.ip)}</span>
         </div>

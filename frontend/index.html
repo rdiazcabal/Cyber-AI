@@ -2193,7 +2193,7 @@
                 <label>Adjuntar archivo de eventos/logs</label>
 
                 <div class="file-upload-box">
-                  <input id="logFileInput" type="file" accept=".json,.txt,.log" hidden
+                  <input id="logFileInput" type="file" accept=".json,.jsonl,.txt,.log" hidden
                     onchange="updateSelectedFileName()">
 
                   <button type="button" class="secondary file-upload-btn"
@@ -5758,15 +5758,57 @@
 
     async function analyze() {
       try {
-        document.getElementById("statusLine").innerText = "Analyzing security events...";
-        let input = JSON.parse(document.getElementById("eventInput").value);
+        const statusLine = document.getElementById("statusLine");
+        const rawInput = document.getElementById("eventInput").value.trim();
 
-        let res = await fetch("/reports/analyze-save", {
+        statusLine.innerText = "Analyzing security events...";
+
+        if (!rawInput) {
+          statusLine.innerText = "ERROR: No hay eventos para analizar.";
+          return;
+        }
+
+        let events = [];
+
+        try {
+          const parsed = JSON.parse(rawInput);
+
+          if (Array.isArray(parsed)) {
+            // Caso: archivo JSON exportado como array
+            events = parsed;
+          } else if (parsed && Array.isArray(parsed.events)) {
+            // Caso: formato esperado por SecuRI
+            events = parsed.events;
+          } else if (parsed && typeof parsed === "object") {
+            // Caso: un solo evento JSON
+            events = [parsed];
+          }
+        } catch (jsonError) {
+          // Caso: JSONL, un JSON por línea
+          events = rawInput
+            .split(/\r?\n/)
+            .map(line => line.trim())
+            .filter(line => line.length > 0)
+            .map((line, index) => {
+              try {
+                return JSON.parse(line);
+              } catch (err) {
+                throw new Error(`JSONL inválido en línea ${index + 1}: ${err.message}`);
+              }
+            });
+        }
+
+        if (!events.length) {
+          statusLine.innerText = "ERROR: No events provided.";
+          return;
+        }
+
+        const res = await fetch("/reports/analyze-save", {
           method: "POST",
           headers: authHeaders(),
           body: JSON.stringify({
             title: "Manual SOC Analysis",
-            events: input.events || []
+            events: events
           })
         });
 
@@ -5775,8 +5817,8 @@
           throw new Error(errorText);
         }
 
-        let saved = await res.json();
-        let data = saved.result;
+        const saved = await res.json();
+        const data = saved.result;
 
         document.getElementById("riskScore").innerText = data.risk_score ?? 0;
         document.getElementById("patternsCount").innerText = (data.patterns_detected || []).length;
@@ -5793,11 +5835,11 @@
 
         await loadReports();
 
-        document.getElementById("statusLine").innerText = "Analysis completed and saved successfully.";
+        statusLine.innerText = `Analysis completed and saved successfully. Eventos analizados: ${events.length}.`;
+
       } catch (error) {
         document.getElementById("statusLine").innerText = "ERROR: " + error.message;
       }
-
     }
 
     function updateSeverityCounters(events) {

@@ -5085,17 +5085,80 @@
         const reputation = data.external_reputation || {};
         const history = data.internal_history || [];
 
-        status.innerText = `Unified IOC analysis completed for ${data.ioc}.`;
+        const threatScore = Number(verdict.threat_score ?? verdict.unified_score ?? 0);
+        const reputationScore = Number(verdict.reputation_score ?? 0);
+        const internalRisk = Number(verdict.internal_max_risk ?? 0);
+        const aiScore = Number(verdict.ai_score ?? 0);
+
+        const analysisConfidence = (() => {
+          const directPercent = Number(verdict.analysis_confidence_percent);
+
+          if (!Number.isNaN(directPercent) && directPercent >= 0) {
+            return Math.round(directPercent);
+          }
+
+          const rawConfidence = Number(verdict.confidence ?? 0);
+
+          if (Number.isNaN(rawConfidence)) {
+            return 0;
+          }
+
+          return Math.round(rawConfidence > 1 ? rawConfidence : rawConfidence * 100);
+        })();
+
+        const scoreBasis = verdict.score_basis === "evidence_based"
+          ? "Evidencia verificable"
+          : escapeHtml(verdict.score_basis || "Evidencia verificable");
+
+        const enterpriseSummary = verdict.score_explanation || `
+      Puntaje de amenaza oficial: ${threatScore}.
+      Riesgo interno máximo: ${internalRisk}.
+      Reputación externa: ${reputationScore}.
+      AI score informativo: ${aiScore}.
+      La IA apoya la interpretación, pero no modifica el puntaje oficial si no existe evidencia interna o reputación externa.
+    `.trim();
+
+        const aiSummary = ai.summary || "No AI summary available.";
+
+        const recommendationsHtml = (ai.recommendations || [])
+          .map(r => `<div>• ${escapeHtml(r)}</div>`)
+          .join("") || "No hay recomendaciones disponibles.";
+
+        const externalReputationHtml =
+          reputation && reputation.available
+            ? `
+            Fuente: ${escapeHtml(reputation.source || "Unknown")} ·
+            Puntaje de Abuso: ${reputation.abuse_confidence_score ?? 0} ·
+            Reportes: ${reputation.total_reports ?? 0} ·
+            País: ${escapeHtml(reputation.country_code || "N/A")}
+          `
+            : escapeHtml(
+              reputation.error ||
+              "No hay información externa sobre la reputación de este tipo de IOC."
+            );
+
+        status.innerText = `Unified IOC analysis completed for ${data.ioc || query}.`;
 
         panel.className = "";
 
         panel.innerHTML = `
       <div class="pattern-card unified-ioc-card">
         <div class="pattern-header">
-          <span class="pill ${getSeverityPillClass(verdict.severity)}">${escapeHtml(verdict.severity || "Unknown")}</span>
-          <span class="pill pill-info">Puntaje ${verdict.unified_score ?? 0}</span>
-          <span class="pill pill-info">Puntaje de Amenaza ${verdict.unified_score ?? 0}</span>
-          <span class="pattern-title">${escapeHtml(data.ioc || query)}</span>
+          <span class="pill ${getSeverityPillClass(verdict.severity)}">
+            ${escapeHtml(verdict.severity || "Unknown")}
+          </span>
+
+          <span class="pill pill-info">
+            Puntaje de Amenaza ${threatScore}
+          </span>
+
+          <span class="pill pill-info">
+            Confianza del Análisis ${analysisConfidence}%
+          </span>
+
+          <span class="pattern-title">
+            ${escapeHtml(data.ioc || query)}
+          </span>
         </div>
 
         <div class="pattern-meta" style="margin-top:10px;">
@@ -5103,7 +5166,15 @@
         </div>
 
         <div class="pattern-meta" style="margin-top:10px;">
-          <strong>Resumen AI:</strong> ${escapeHtml(ai.summary || "No AI summary available.")}
+          <strong>Resumen Ejecutivo:</strong> ${escapeHtml(enterpriseSummary)}
+        </div>
+
+        <div class="pattern-meta" style="margin-top:10px;">
+          <strong>Interpretación AI:</strong> ${escapeHtml(aiSummary)}
+          <br>
+          <span class="pattern-meta">
+            Nota: El AI Score es informativo. El puntaje oficial de amenaza se calcula con evidencia verificable.
+          </span>
         </div>
 
         <div class="unified-ioc-grid">
@@ -5113,32 +5184,49 @@
           </div>
 
           <div class="unified-ioc-metric">
+            <strong>Puntaje de Amenaza</strong>
+            ${threatScore}
+          </div>
+
+          <div class="unified-ioc-metric">
+            <strong>Riesgo Interno</strong>
+            ${internalRisk}
+          </div>
+
+          <div class="unified-ioc-metric">
+            <strong>Reputación Externa</strong>
+            ${reputationScore}
+          </div>
+
+          <div class="unified-ioc-metric">
             <strong>Coincidencias Internas</strong>
             ${history.length}
           </div>
 
           <div class="unified-ioc-metric">
-            <strong>Riesgo Interno Máximo</strong>
-            ${verdict.internal_max_risk ?? 0}
+            <strong>AI Score Informativo</strong>
+            ${aiScore}
           </div>
 
           <div class="unified-ioc-metric">
-            <strong>Puntaje de Reputación</strong>
-            ${verdict.reputation_score ?? 0}
+            <strong>Confianza del Análisis</strong>
+            ${analysisConfidence}%
+          </div>
+
+          <div class="unified-ioc-metric">
+            <strong>Base del Score</strong>
+            ${scoreBasis}
           </div>
         </div>
 
         <div class="pattern-meta" style="margin-top:14px;">
           <strong>Reputación Externa:</strong>
-          ${reputation && reputation.available
-            ? `Fuente: ${escapeHtml(reputation.source || "Unknown")} · Puntaje de Abuso: ${reputation.abuse_confidence_score ?? 0} · Reportes: ${reputation.total_reports ?? 0} · País: ${escapeHtml(reputation.country_code || "N/A")}`
-            : escapeHtml(reputation.error || "No hay información externa sobre la reputación de este tipo de IOC.")
-          }
+          ${externalReputationHtml}
         </div>
 
         <div class="pattern-meta" style="margin-top:14px;">
           <strong>Recomendaciones:</strong>
-          ${(ai.recommendations || []).map(r => `<div>• ${escapeHtml(r)}</div>`).join("") || "No hay recomendaciones disponibles."}
+          ${recommendationsHtml}
         </div>
 
         <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">

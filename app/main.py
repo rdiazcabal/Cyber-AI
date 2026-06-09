@@ -4268,41 +4268,88 @@ def build_unified_ioc_verdict(
     external_reputation: dict | None,
     ai_result: dict,
 ) -> dict:
+    """
+    Enterprise IOC verdict scoring.
+
+    Official threat score is evidence-based only:
+    - Internal historical risk
+    - External reputation score
+
+    AI score is preserved as informational context, but it does not increase
+    the official threat score when there is no supporting evidence.
+    """
+
+    def safe_int(value, default: int = 0) -> int:
+        try:
+            if value is None:
+                return default
+            return int(float(value))
+        except Exception:
+            return default
+
+    def safe_confidence(value, default: float = 0.5) -> float:
+        try:
+            confidence_value = float(value)
+        except Exception:
+            confidence_value = default
+
+        # Some AI providers may return confidence as 50 instead of 0.50
+        if confidence_value > 1:
+            confidence_value = confidence_value / 100
+
+        if confidence_value < 0:
+            confidence_value = 0
+
+        if confidence_value > 1:
+            confidence_value = 1
+
+        return confidence_value
+
+    # 1. Internal evidence score
     internal_max_risk = 0
 
-    for item in internal_history:
+    for item in internal_history or []:
         internal_max_risk = max(
             internal_max_risk,
-            int(item.get("risk_score") or 0)
+            safe_int(item.get("risk_score"), 0)
         )
 
+    # 2. External reputation score
     reputation_score = 0
 
     if external_reputation and external_reputation.get("available"):
-        reputation_score = int(
+        reputation_score = safe_int(
             external_reputation.get("abuse_confidence_score")
             or external_reputation.get("score")
-            or 0
+            or 0,
+            0
         )
 
-    ai_score = int(ai_result.get("risk_score") or 0)
+    # 3. AI score is informational only
+    ai_score = safe_int(ai_result.get("risk_score"), 0)
 
-    unified_score = max(
+    # 4. Official threat score: evidence-based only
+    threat_score = max(
         internal_max_risk,
         reputation_score,
-        ai_score,
     )
 
-    verdict = "Benign"
+    unified_score = threat_score
 
+    # 5. Enterprise verdict
     if unified_score >= 90:
         verdict = "Critical"
     elif unified_score >= 70:
         verdict = "Suspicious / High Risk"
     elif unified_score >= 40:
         verdict = "Needs Review"
+    elif unified_score > 0:
+        verdict = "Low Risk / Monitor"
+    else:
+        verdict = "Sin evidencia de amenaza"
 
-    confidence = float(ai_result.get("confidence") or 0.5)
+    # 6. Confidence of the analysis, not threat level
+    confidence = safe_confidence(ai_result.get("confidence"), 0.5)
 
     if external_reputation and external_reputation.get("available"):
         confidence = min(1.0, confidence + 0.15)
@@ -4310,16 +4357,49 @@ def build_unified_ioc_verdict(
     if internal_history:
         confidence = min(1.0, confidence + 0.15)
 
+    # 7. Evidence source labels for GUI / auditability
+    evidence_sources = []
+
+    if internal_max_risk > 0:
+        evidence_sources.append("internal_history")
+
+    if reputation_score > 0:
+        evidence_sources.append("external_reputation")
+
+    if not evidence_sources:
+        evidence_sources.append("no_positive_evidence")
+
+    score_explanation = (
+        f"Puntaje de amenaza oficial calculado con evidencia verificable. "
+        f"Riesgo interno máximo: {internal_max_risk}. "
+        f"Reputación externa: {reputation_score}. "
+        f"AI score informativo: {ai_score}. "
+        f"La IA apoya la interpretación, pero no modifica el puntaje oficial "
+        f"si no existe evidencia interna o reputación externa."
+    )
+
     return {
         "ioc": ioc,
         "ioc_type": ioc_type,
+
+        # Official scoring fields
         "unified_score": unified_score,
+        "threat_score": threat_score,
         "severity": severity_from_score(unified_score),
         "verdict": verdict,
-        "confidence": round(confidence, 2),
+
+        # Evidence components
         "internal_max_risk": internal_max_risk,
         "reputation_score": reputation_score,
+        "evidence_sources": evidence_sources,
+        "score_basis": "evidence_based",
+        "score_explanation": score_explanation,
+
+        # Informational AI fields
         "ai_score": ai_score,
+        "ai_score_type": "informational_only",
+        "confidence": round(confidence, 2),
+        "analysis_confidence_percent": int(round(confidence * 100)),
     }
 
 @app.post("/iocs/unified-analysis")

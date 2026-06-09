@@ -13,7 +13,6 @@ def get_field(event: Dict[str, Any], *paths, default="N/A"):
             continue
     return default
 
-
 def normalize_resource(resource):
     if isinstance(resource, dict):
         return (
@@ -29,7 +28,6 @@ def normalize_resource(resource):
         return str(resource)
 
     return "N/A"
-
 
 def extract_iocs(events: List[Dict[str, Any]]) -> Dict[str, list]:
     raw = str(events)
@@ -68,37 +66,112 @@ def extract_iocs(events: List[Dict[str, Any]]) -> Dict[str, list]:
         "resources": list(set(resources))
     }
 
+def parse_severity(value) -> float:
+    if value is None:
+        return 0.0
+
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    text = str(value).strip().upper()
+
+    severity_map = {
+        "DEBUG": 1.0,
+        "DEFAULT": 1.0,
+        "INFO": 2.0,
+        "NOTICE": 3.0,
+        "LOW": 3.0,
+        "WARNING": 5.0,
+        "WARN": 5.0,
+        "MEDIUM": 5.0,
+        "ERROR": 7.0,
+        "ERR": 7.0,
+        "HIGH": 8.0,
+        "CRITICAL": 9.5,
+        "ALERT": 10.0,
+        "EMERGENCY": 10.0,
+        "FATAL": 10.0,
+    }
+
+    if text in severity_map:
+        return severity_map[text]
+
+    try:
+        return float(text)
+    except Exception:
+        return 0.0
 
 def normalize_event(event: Dict[str, Any]) -> Dict[str, Any]:
-    severity = float(event.get("severity", event.get("Severity", 0)) or 0)
+    severity = parse_severity(
+        event.get("severity")
+        or event.get("Severity")
+        or event.get("level")
+        or event.get("severityLabel")
+        or 0
+    )
 
     resource = normalize_resource(
         event.get("resource")
         or event.get("bucket")
         or event.get("resourceId")
         or event.get("resourceName")
+        or event.get("dst_ip")
+        or get_field(event, "resource.labels.service_name", default=None)
+    )
+
+    service = (
+        event.get("service")
+        or event.get("source")
+        or event.get("cloud")
+        or get_field(event, "resource.labels.service_name", default=None)
+        or get_field(event, "resource.type", default="Unknown")
+    )
+
+    event_name = (
+        event.get("eventName")
+        or event.get("event_type")
+        or event.get("type")
+        or event.get("rule")
+        or event.get("rule_name")
+        or get_field(event, "protoPayload.methodName", default=None)
+        or get_field(event, "httpRequest.requestMethod", default=None)
+        or "Unknown"
+    )
+
+    source_ip = (
+        event.get("sourceIPAddress")
+        or event.get("src_ip")
+        or event.get("remoteIp")
+        or get_field(event, "httpRequest.remoteIp", default=None)
+        or get_field(event, "network.remoteIp", default="N/A")
+    )
+
+    user = get_field(
+        event,
+        "userIdentity.userName",
+        "principalEmail",
+        "protoPayload.authenticationInfo.principalEmail",
+        "user",
+        default="N/A"
+    )
+
+    description = (
+        event.get("description")
+        or event.get("message")
+        or event.get("textPayload")
+        or get_field(event, "jsonPayload.message", default="")
+        or ""
     )
 
     return {
-        "service": event.get("service", "Unknown"),
+        "service": service,
         "severity": severity,
-        "eventName": event.get("eventName") or event.get("type") or event.get("rule") or "Unknown",
-        "user": get_field(
-            event,
-            "userIdentity.userName",
-            "principalEmail",
-            "user",
-            default="N/A"
-        ),
-        "source_ip": (
-            event.get("sourceIPAddress")
-            or event.get("remoteIp")
-            or get_field(event, "network.remoteIp", default="N/A")
-        ),
+        "eventName": event_name,
+        "user": user,
+        "source_ip": source_ip,
         "resource": resource,
-        "description": event.get("description", "")
+        "description": description,
     }
-
 
 def build_pattern(name, severity, description, mitre, kill_chain, attack_type, playbook):
     return {
@@ -110,7 +183,6 @@ def build_pattern(name, severity, description, mitre, kill_chain, attack_type, p
         "attack_type": attack_type,
         "playbook": playbook
     }
-
 
 def correlate_events(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     normalized = [normalize_event(e) for e in events]

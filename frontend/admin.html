@@ -1661,8 +1661,10 @@
       });
 
       if (!res.ok) {
+        sessionStorage.clear();
         localStorage.removeItem("cyberToken");
-        showDenied("Token inválido o expirado. Inicia sesión nuevamente.");
+        localStorage.removeItem("cyberTokenExpiresAt");
+        window.location.replace("/");
         return;
       }
 
@@ -1825,8 +1827,8 @@
           Cambiar rol
         </button>
         <button class="secondary" onclick="changeUserPassword(${u.id}, '${u.username}')">
-  Cambiar password
-</button>
+        Cambiar password
+      </button>
         ${currentUser.role === "super_admin" ? `
           <button class="secondary" onclick="changeUserCompany(${u.id}, ${u.company_id || "null"})">
             Cambiar empresa

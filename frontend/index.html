@@ -3266,7 +3266,7 @@
       });
 
       if (!res.ok) {
-        localStorage.removeItem("cyberToken");
+        clearSessionData();
         showLoginView();
         return;
       }
@@ -5563,6 +5563,8 @@
             <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;"
               onclick="downloadReportPDF(${f.report_id})">
               PDF
+            </button>
+
             <button class="secondary" style="width:auto;margin-top:0;padding:8px 12px;border-color:rgba(239,68,68,.45);color:#fecaca;"
               onclick="deleteReport(${f.report_id})">
               Delete
@@ -5706,8 +5708,6 @@
       if (loginView) loginView.classList.add("hidden");
       if (appView) appView.classList.remove("hidden");
     }
-
-
 
     function logout() {
       clearSessionData();

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
 from io import BytesIO
 from datetime import datetime, timedelta
+from starlette.middleware.gzip import GZipMiddleware
 import os
 import requests
 import ipaddress
@@ -73,6 +74,8 @@ else:
         openapi_url="/openapi.json",
     )
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -98,6 +101,12 @@ async def security_headers(request: Request, call_next):
         "base-uri 'self'; "
         "form-action 'self';"
     )
+
+    if request.url.path.startswith("/assets/"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+
+    if request.url.path in ["/", "/admin"]:
+        response.headers["Cache-Control"] = "no-store"
 
     return response
 

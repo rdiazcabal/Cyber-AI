@@ -1098,6 +1098,11 @@ def onboard_customer(
     subscription_status = (payload.get("subscription_status") or "active").strip().lower()
     billing_email = (payload.get("billing_email") or "").strip() or None
 
+    rtn = (payload.get("rtn") or "").strip() or None
+    phone = (payload.get("phone") or "").strip() or None
+    address = (payload.get("address") or "").strip() or None
+    contact_phone = (payload.get("contact_phone") or "").strip() or None
+
     admin_username = (payload.get("admin_username") or "").strip()
     admin_password = payload.get("admin_password") or ""
     admin_full_name = (payload.get("admin_full_name") or "").strip() or "Company Admin"
@@ -1119,15 +1124,13 @@ def onboard_customer(
 
     validate_password_policy(admin_password)
 
-    existing_user = db.query(User).filter(User.username == admin_username).first()
-    if existing_user:
-        raise HTTPException(status_code=409, detail="Admin username already exists")
-
     existing_company = db.query(Company).filter(Company.name == company_name).first()
     if existing_company:
         raise HTTPException(status_code=409, detail="Company already exists")
 
-    plan = PLAN_LIMITS[plan_name]
+    existing_user = db.query(User).filter(User.username == admin_username).first()
+    if existing_user:
+        raise HTTPException(status_code=409, detail="Admin username already exists")
 
     if not plan_started_at_raw or not plan_expires_at_raw:
         raise HTTPException(
@@ -1143,6 +1146,7 @@ def onboard_customer(
         plan_expires_at = datetime.fromisoformat(
             str(plan_expires_at_raw).replace("Z", "+00:00")
         ).replace(tzinfo=None)
+
     except Exception:
         raise HTTPException(
             status_code=400,
@@ -1157,17 +1161,29 @@ def onboard_customer(
 
     duration_days = (plan_expires_at - plan_started_at).days
 
-    if duration_days < 180:
-        raise HTTPException(
-            status_code=400,
-            detail="Plan validity must be at least 6 months"
-        )
+    if subscription_status == "trial":
+        if duration_days > 3:
+            raise HTTPException(
+                status_code=400,
+                detail="Trial period cannot exceed 3 days"
+            )
+        trial_ends_at = plan_expires_at
+    else:
+        if duration_days < 180:
+            raise HTTPException(
+                status_code=400,
+                detail="Plan validity must be at least 6 months"
+            )
 
-    if duration_days > 365:
-        raise HTTPException(
-            status_code=400,
-            detail="Plan validity cannot exceed 1 year"
-        )
+        if duration_days > 365:
+            raise HTTPException(
+                status_code=400,
+                detail="Plan validity cannot exceed 1 year"
+            )
+
+        trial_ends_at = None
+
+    plan = PLAN_LIMITS[plan_name]
 
     company = Company(
         name=company_name,
@@ -1177,10 +1193,14 @@ def onboard_customer(
         max_users=plan["max_users"],
         max_integrations=plan["max_integrations"],
         billing_email=billing_email,
+        rtn=rtn,
+        phone=phone,
+        address=address,
+        contact_phone=contact_phone,
         license_required=True,
         plan_started_at=plan_started_at,
         plan_expires_at=plan_expires_at,
-        trial_ends_at=None,
+        trial_ends_at=trial_ends_at,
     )
 
     db.add(company)
@@ -1193,6 +1213,7 @@ def onboard_customer(
         role="company_admin",
         company_id=company.id,
         is_active=True,
+        session_version=0,
     )
 
     db.add(admin_user)
@@ -1210,9 +1231,14 @@ def onboard_customer(
             "plan": company.plan,
             "subscription_status": company.subscription_status,
             "billing_email": company.billing_email,
+            "rtn": company.rtn,
+            "phone": company.phone,
+            "address": company.address,
+            "contact_phone": company.contact_phone,
             "license_required": company.license_required,
             "plan_started_at": str(company.plan_started_at),
             "plan_expires_at": str(company.plan_expires_at),
+            "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,
             "duration_days": duration_days,
             "admin_user_id": admin_user.id,
             "admin_username": admin_user.username,
@@ -1231,9 +1257,14 @@ def onboard_customer(
             "plan": company.plan,
             "subscription_status": company.subscription_status,
             "billing_email": company.billing_email,
+            "rtn": company.rtn,
+            "phone": company.phone,
+            "address": company.address,
+            "contact_phone": company.contact_phone,
             "license_required": company.license_required,
             "plan_started_at": str(company.plan_started_at),
             "plan_expires_at": str(company.plan_expires_at),
+            "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,
             "max_users": company.max_users,
             "max_integrations": company.max_integrations,
         },

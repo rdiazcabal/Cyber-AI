@@ -1506,8 +1506,32 @@
                 Selecciona una empresa para ver la licencia.
               </div>
 
+              <div class="form-section-title">Admin inicial del cliente
+              </div>
+
+              <div class="input-row">
+                <label>Usuario admin inicial</label>
+                <input id="onboardAdminUsername" placeholder="admin.empresa">
+              </div>
+
+              <div class="input-row">
+                <label>Nombre completo admin</label>
+                <input id="onboardAdminFullName" placeholder="Company Admin">
+              </div>
+
+              <div class="input-row">
+                <label>Password admin inicial</label>
+                <input id="onboardAdminPassword" type="password" placeholder="Ejemplo: CyberPro2026!">
+              </div>
+
+              <div class="input-row">
+                <label>Confirmar password admin</label>
+                <input id="onboardAdminPasswordConfirm" type="password" placeholder="Confirma el password">
+              </div>
+
               <div class="button-row">
-                <button onclick="createCompanyFromAdmin()">Crear empresa</button>
+                <button onclick="onboardCustomerFromAdmin()">Onboard Cliente</button>
+                <button class="secondary" onclick="createCompanyFromAdmin()">Crear empresa simple</button>
                 <button class="secondary" onclick="saveCompanyPlanLicense()">Guardar plan/licencia</button>
               </div>
 
@@ -2297,6 +2321,145 @@
       }
 
       return true;
+    }
+
+    async function onboardCustomerFromAdmin() {
+      const status = document.getElementById("companyAdminStatus");
+
+      const companyName = document.getElementById("companyNameAdmin").value.trim();
+      const rtn = document.getElementById("companyRtnAdmin").value.trim();
+      const phone = document.getElementById("companyPhoneAdmin").value.trim();
+      const address = document.getElementById("companyAddressAdmin").value.trim();
+      const contactPhone = document.getElementById("companyContactPhoneAdmin").value.trim();
+
+      const plan = document.getElementById("companyPlan").value;
+      const subscriptionStatus = document.getElementById("companySubscriptionStatus").value;
+      const billingEmail = document.getElementById("companyBillingEmail").value.trim();
+
+      const planStartedAt = document.getElementById("companyPlanStartedAt").value;
+      const planExpiresAt = document.getElementById("companyPlanExpiresAt").value;
+
+      const adminUsername = document.getElementById("onboardAdminUsername").value.trim();
+      const adminFullName = document.getElementById("onboardAdminFullName").value.trim();
+      const adminPassword = document.getElementById("onboardAdminPassword").value;
+      const adminPasswordConfirm = document.getElementById("onboardAdminPasswordConfirm").value;
+
+      if (currentUser.role !== "super_admin" || Number(currentUser.company_id) !== 1) {
+        status.innerText = "Solo Super Admin de la compañía master puede hacer onboarding de clientes.";
+        return;
+      }
+
+      if (companyName.length < 2) {
+        status.innerText = "El nombre de la empresa debe tener al menos 2 caracteres.";
+        return;
+      }
+
+      if (!planStartedAt || !planExpiresAt) {
+        status.innerText = "Debes indicar inicio y expiración de licencia.";
+        return;
+      }
+
+      const start = new Date(planStartedAt);
+      const end = new Date(planExpiresAt);
+      const durationDays = Math.floor((end - start) / (1000 * 60 * 60 * 24));
+
+      if (end <= start) {
+        status.innerText = "La fecha de expiración debe ser posterior al inicio.";
+        return;
+      }
+
+      if (subscriptionStatus === "trial") {
+        if (durationDays > 3) {
+          status.innerText = "El trial no puede exceder 3 días.";
+          return;
+        }
+      } else {
+        if (durationDays < 180) {
+          status.innerText = "La licencia debe durar al menos 6 meses.";
+          return;
+        }
+
+        if (durationDays > 365) {
+          status.innerText = "La licencia no puede exceder 1 año.";
+          return;
+        }
+      }
+
+      if (adminUsername.length < 3) {
+        status.innerText = "El usuario admin inicial debe tener al menos 3 caracteres.";
+        return;
+      }
+
+      if (!adminPassword || !adminPasswordConfirm) {
+        status.innerText = "Debes escribir y confirmar el password del admin inicial.";
+        return;
+      }
+
+      if (adminPassword !== adminPasswordConfirm) {
+        status.innerText = "Los passwords del admin inicial no coinciden.";
+        return;
+      }
+
+      const passwordPolicyError = validatePasswordPolicyClient(adminPassword);
+
+      if (passwordPolicyError) {
+        status.innerText = passwordPolicyError;
+        return;
+      }
+
+      const payload = {
+        company_name: companyName,
+        rtn: rtn || null,
+        phone: phone || null,
+        address: address || null,
+        contact_phone: contactPhone || null,
+        plan: plan,
+        subscription_status: subscriptionStatus,
+        billing_email: billingEmail || null,
+        plan_started_at: planStartedAt,
+        plan_expires_at: planExpiresAt,
+        admin_username: adminUsername,
+        admin_full_name: adminFullName || "Company Admin",
+        admin_password: adminPassword
+      };
+
+      status.innerText = `Creando onboarding para ${companyName}...`;
+
+      try {
+        const res = await fetch("/admin/customers/onboard", {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          status.innerText = `No se pudo hacer onboarding: ${data.detail || res.status}`;
+          return;
+        }
+
+        status.innerText =
+          `Cliente onboarded: ${data.company?.name || companyName}. ` +
+          `Admin inicial: ${data.admin_user?.username || adminUsername}.`;
+
+        document.getElementById("onboardAdminUsername").value = "";
+        document.getElementById("onboardAdminFullName").value = "";
+        document.getElementById("onboardAdminPassword").value = "";
+        document.getElementById("onboardAdminPasswordConfirm").value = "";
+
+        await loadCompanies();
+        renderCompaniesAdmin();
+        await loadUsers();
+
+        if (data.company?.id) {
+          document.getElementById("companyAdminSelect").value = String(data.company.id);
+          selectCompanyForEdit();
+        }
+
+      } catch (err) {
+        status.innerText = `Error en onboarding: ${err.message}`;
+      }
     }
 
     async function createCompanyFromAdmin() {

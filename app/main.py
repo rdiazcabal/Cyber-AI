@@ -900,6 +900,7 @@ def update_company_plan(
         raise HTTPException(status_code=404, detail="Company not found")
 
     old_company_name = company.name
+    duration_days = None
 
     # -----------------------------
     # Basic company information
@@ -978,64 +979,38 @@ def update_company_plan(
     else:
         company.license_required = True
 
-        started_raw = payload.get("plan_started_at")
-        expires_raw = payload.get("plan_expires_at")
-
-        if not started_raw or not expires_raw:
-            raise HTTPException(
-                status_code=400,
-                detail="plan_started_at and plan_expires_at are required for licensed companies"
-            )
-
         try:
-            plan_started_at = datetime.fromisoformat(
-                str(started_raw).replace("Z", "+00:00")
-            ).replace(tzinfo=None)
-
-            plan_expires_at = datetime.fromisoformat(
-                str(expires_raw).replace("Z", "+00:00")
-            ).replace(tzinfo=None)
-
+            license_days = int(payload.get("license_days") or 0)
         except Exception:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid date format. Use ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS"
+                detail="license_days must be a valid number"
             )
-
-        if plan_expires_at <= plan_started_at:
-            raise HTTPException(
-                status_code=400,
-                detail="plan_expires_at must be after plan_started_at"
-            )
-
-        duration_days = (plan_expires_at - plan_started_at).days
 
         if subscription_status == "trial":
-            if duration_days > 3:
+            if license_days != 3:
                 raise HTTPException(
                     status_code=400,
-                    detail="Trial period cannot exceed 3 days"
+                    detail="Trial license must be exactly 3 days"
                 )
-
-            company.trial_ends_at = plan_expires_at
-
         else:
-            if duration_days < 180:
+            if license_days not in [180, 270, 365]:
                 raise HTTPException(
                     status_code=400,
-                    detail="Plan validity must be at least 6 months"
+                    detail="license_days must be 180, 270 or 365 for paid plans"
                 )
 
-            if duration_days > 365:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Plan validity cannot exceed 1 year"
-                )
-
-            company.trial_ends_at = None
+        plan_started_at = datetime.utcnow()
+        plan_expires_at = plan_started_at + timedelta(days=license_days)
+        duration_days = license_days
 
         company.plan_started_at = plan_started_at
         company.plan_expires_at = plan_expires_at
+
+        if subscription_status == "trial":
+            company.trial_ends_at = plan_expires_at
+        else:
+            company.trial_ends_at = None
 
     audit_action(
         db=db,
@@ -1057,6 +1032,7 @@ def update_company_plan(
             "address": company.address,
             "contact_phone": company.contact_phone,
             "license_required": company.license_required,
+            "license_days": duration_days,
             "plan_started_at": str(company.plan_started_at) if company.plan_started_at else None,
             "plan_expires_at": str(company.plan_expires_at) if company.plan_expires_at else None,
             "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,
@@ -1080,6 +1056,7 @@ def update_company_plan(
         "address": company.address,
         "contact_phone": company.contact_phone,
         "license_required": company.license_required,
+        "license_days": duration_days,
         "plan_started_at": str(company.plan_started_at) if company.plan_started_at else None,
         "plan_expires_at": str(company.plan_expires_at) if company.plan_expires_at else None,
         "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,
@@ -1107,8 +1084,13 @@ def onboard_customer(
     admin_password = payload.get("admin_password") or ""
     admin_full_name = (payload.get("admin_full_name") or "").strip() or "Company Admin"
 
-    plan_started_at_raw = payload.get("plan_started_at")
-    plan_expires_at_raw = payload.get("plan_expires_at")
+    try:
+        license_days = int(payload.get("license_days") or 0)
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="license_days must be a valid number"
+        )
 
     if len(company_name) < 2:
         raise HTTPException(status_code=400, detail="Company name must have at least 2 characters")
@@ -1118,6 +1100,19 @@ def onboard_customer(
 
     if subscription_status not in ["active", "trial", "past_due", "suspended", "cancelled"]:
         raise HTTPException(status_code=400, detail="Invalid subscription status")
+
+    if subscription_status == "trial":
+        if license_days != 3:
+            raise HTTPException(
+                status_code=400,
+                detail="Trial license must be exactly 3 days"
+            )
+    else:
+        if license_days not in [180, 270, 365]:
+            raise HTTPException(
+                status_code=400,
+                detail="license_days must be 180, 270 or 365 for paid plans"
+            )
 
     if len(admin_username) < 3:
         raise HTTPException(status_code=400, detail="Admin username must have at least 3 characters")
@@ -1132,55 +1127,13 @@ def onboard_customer(
     if existing_user:
         raise HTTPException(status_code=409, detail="Admin username already exists")
 
-    if not plan_started_at_raw or not plan_expires_at_raw:
-        raise HTTPException(
-            status_code=400,
-            detail="plan_started_at and plan_expires_at are required"
-        )
-
-    try:
-        plan_started_at = datetime.fromisoformat(
-            str(plan_started_at_raw).replace("Z", "+00:00")
-        ).replace(tzinfo=None)
-
-        plan_expires_at = datetime.fromisoformat(
-            str(plan_expires_at_raw).replace("Z", "+00:00")
-        ).replace(tzinfo=None)
-
-    except Exception:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS"
-        )
-
-    if plan_expires_at <= plan_started_at:
-        raise HTTPException(
-            status_code=400,
-            detail="plan_expires_at must be after plan_started_at"
-        )
-
-    duration_days = (plan_expires_at - plan_started_at).days
+    plan_started_at = datetime.utcnow()
+    plan_expires_at = plan_started_at + timedelta(days=license_days)
+    duration_days = license_days
 
     if subscription_status == "trial":
-        if duration_days > 3:
-            raise HTTPException(
-                status_code=400,
-                detail="Trial period cannot exceed 3 days"
-            )
         trial_ends_at = plan_expires_at
     else:
-        if duration_days < 180:
-            raise HTTPException(
-                status_code=400,
-                detail="Plan validity must be at least 6 months"
-            )
-
-        if duration_days > 365:
-            raise HTTPException(
-                status_code=400,
-                detail="Plan validity cannot exceed 1 year"
-            )
-
         trial_ends_at = None
 
     plan = PLAN_LIMITS[plan_name]
@@ -1236,6 +1189,7 @@ def onboard_customer(
             "address": company.address,
             "contact_phone": company.contact_phone,
             "license_required": company.license_required,
+            "license_days": duration_days,
             "plan_started_at": str(company.plan_started_at),
             "plan_expires_at": str(company.plan_expires_at),
             "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,
@@ -1262,6 +1216,7 @@ def onboard_customer(
             "address": company.address,
             "contact_phone": company.contact_phone,
             "license_required": company.license_required,
+            "license_days": duration_days,
             "plan_started_at": str(company.plan_started_at),
             "plan_expires_at": str(company.plan_expires_at),
             "trial_ends_at": str(company.trial_ends_at) if company.trial_ends_at else None,

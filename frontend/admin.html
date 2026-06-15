@@ -1490,16 +1490,19 @@
 
               <div class="form-section-title">Vigencia de licencia</div>
 
-              <div class="license-date-grid">
-                <div class="input-row">
-                  <label>Inicio de licencia</label>
-                  <input id="companyPlanStartedAt" type="date">
-                </div>
+              <div class="input-row">
+                <label>Vigencia de licencia</label>
+                <select id="companyLicenseDays" onchange="updateLicenseSummary()">
+                  <option value="">Selecciona vigencia</option>
+                  <option value="3">Trial - 3 días</option>
+                  <option value="180">6 meses - 180 días</option>
+                  <option value="270">9 meses - 270 días</option>
+                  <option value="365">1 año - 365 días</option>
+                </select>
+              </div>
 
-                <div class="input-row">
-                  <label>Expiración de licencia</label>
-                  <input id="companyPlanExpiresAt" type="date">
-                </div>
+              <div id="companyLicenseSummary" class="card-note">
+                Selecciona la vigencia de licencia. El día de activación cuenta como día 1.
               </div>
 
               <div id="companyLicenseSummary" class="card-note">

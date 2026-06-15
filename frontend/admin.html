@@ -1298,6 +1298,37 @@
     .password-modal input {
       width: 100%;
     }
+
+    .company-modal {
+      width: 100%;
+      max-width: 920px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .company-modal-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .company-modal-grid .full {
+      grid-column: 1 / -1;
+    }
+
+    .company-modal-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      margin-top: 18px;
+    }
+
+    @media (max-width: 860px) {
+      .company-modal-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 
@@ -1420,151 +1451,40 @@
 
         <!-- COMPANIES / LICENSES SECTION -->
         <div id="companiesSection" class="hidden">
-          <div class="admin-two-columns">
-
-            <div class="admin-inner-card">
-              <h3>Empresas / Licencias</h3>
-              <div class="panel-subtitle">
-                Crea empresas y administra planes con vigencia de licencia.
+          <div class="admin-inner-card">
+            <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;">
+              <div>
+                <h3>Empresas / Licencias</h3>
+                <div class="panel-subtitle">
+                  Administra empresas, planes, licencias y onboarding de clientes.
+                </div>
               </div>
 
-              <div class="form-section-title">Información de empresa</div>
-
-              <div class="input-row">
-                <label>Empresa existente</label>
-                <select id="companyAdminSelect" onchange="selectCompanyForEdit()"></select>
-              </div>
-
-              <div class="input-row">
-                <label>Nombre de empresa</label>
-                <input id="companyNameAdmin" placeholder="Nombre de la empresa">
-              </div>
-
-              <div class="input-row">
-                <label>RTN</label>
-                <input id="companyRtnAdmin" placeholder="08011999123456">
-              </div>
-
-              <div class="input-row">
-                <label>Teléfono</label>
-                <input id="companyPhoneAdmin" placeholder="+504 9999-9999">
-              </div>
-
-              <div class="input-row">
-                <label>Dirección</label>
-                <input id="companyAddressAdmin" placeholder="Dirección fiscal o comercial">
-              </div>
-
-              <div class="input-row">
-                <label>Teléfono de contacto</label>
-                <input id="companyContactPhoneAdmin" placeholder="+504 9999-9999">
-              </div>
-
-              <div class="form-section-title">Plan y suscripción</div>
-
-              <div class="input-row">
-                <label>Plan</label>
-                <select id="companyPlan">
-                  <option value="starter">Starter</option>
-                  <option value="professional">Professional</option>
-                  <option value="business">Business</option>
-                  <option value="enterprise">Enterprise</option>
-                </select>
-              </div>
-
-              <div class="input-row">
-                <label>Estado de suscripción</label>
-                <select id="companySubscriptionStatus">
-                  <option value="active">Active</option>
-                  <option value="trial">Trial</option>
-                  <option value="past_due">Past Due</option>
-                  <option value="suspended">Suspended</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
-
-              <div class="input-row">
-                <label>Billing Email</label>
-                <input id="companyBillingEmail" type="email" placeholder="billing@empresa.com">
-              </div>
-
-              <div class="form-section-title">Vigencia de licencia</div>
-
-              <div class="input-row">
-                <label>Vigencia de licencia</label>
-                <select id="companyLicenseDays" onchange="updateLicenseSummary()">
-                  <option value="">Selecciona vigencia</option>
-                  <option value="3">Trial - 3 días</option>
-                  <option value="180">6 meses - 180 días</option>
-                  <option value="270">9 meses - 270 días</option>
-                  <option value="365">1 año - 365 días</option>
-                </select>
-              </div>
-
-              <div id="companyLicenseSummary" class="card-note">
-                Selecciona la vigencia de licencia. El día de activación cuenta como día 1.
-              </div>
-
-              <div class="form-section-title">Admin inicial del cliente
-              </div>
-
-              <div class="input-row">
-                <label>Usuario admin inicial</label>
-                <input id="onboardAdminUsername" placeholder="admin.empresa">
-              </div>
-
-              <div class="input-row">
-                <label>Nombre completo admin</label>
-                <input id="onboardAdminFullName" placeholder="Company Admin">
-              </div>
-
-              <div class="input-row">
-                <label>Password admin inicial</label>
-                <input id="onboardAdminPassword" type="password" placeholder="Ejemplo: CyberPro2026!">
-              </div>
-
-              <div class="input-row">
-                <label>Confirmar password admin</label>
-                <input id="onboardAdminPasswordConfirm" type="password" placeholder="Confirma el password">
-              </div>
-
-              <div class="button-row">
-                <button onclick="onboardCustomerFromAdmin()">Onboard Cliente</button>
-                <button class="secondary" onclick="createCompanyFromAdmin()">Crear empresa simple</button>
-                <button class="secondary" onclick="saveCompanyPlanLicense()">Guardar plan/licencia</button>
-              </div>
-
-              <div id="companyAdminStatus" class="status-line"></div>
+              <button onclick="openCompanyOnboardModal()">Onboard Cliente</button>
             </div>
 
-            <div class="admin-inner-card">
-              <h3>Listado de empresas</h3>
-              <div class="panel-subtitle">
-                La empresa ID 1 no requiere licencia. Las demás requieren vigencia entre 180 y 365 días.
-              </div>
+            <div id="companyAdminStatus" class="status-line"></div>
 
-              <div class="table-shell">
-                <table class="user-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Empresa</th>
-                      <th>Plan</th>
-                      <th>Estado</th>
-                      <th>Licencia</th>
-                      <th>Expira</th>
-                      <th>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody id="companiesTable">
-                    <tr>
-                      <td colspan="6" class="empty">Cargando empresas...</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+            <div class="table-shell" style="margin-top:16px;">
+              <table class="user-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Empresa</th>
+                    <th>Plan</th>
+                    <th>Estado</th>
+                    <th>Licencia</th>
+                    <th>Expira</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="companiesTable">
+                  <tr>
+                    <td colspan="7" class="empty">Cargando empresas...</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-
           </div>
         </div>
 
@@ -2208,39 +2128,38 @@
     }
 
     function renderCompaniesAdmin() {
-      const select = document.getElementById("companyAdminSelect");
       const tbody = document.getElementById("companiesTable");
 
+      if (!tbody) return;
+
       if (!companies.length) {
-        select.innerHTML = `<option value="">Sin empresas</option>`;
         tbody.innerHTML = `<tr><td colspan="7" class="empty">Sin empresas disponibles.</td></tr>`;
         return;
       }
 
-      select.innerHTML = `
-    <option value="">Nueva empresa</option>
-    ${companies.map(c => `<option value="${c.id}">${c.id} - ${c.name}</option>`).join("")}
-  `;
-
       tbody.innerHTML = companies.map(c => `
-          <tr>
-            <td>${c.id}</td>
-            <td>${escapeHtml(c.name)}</td>
-            <td>${c.plan || "-"}</td>
-            <td>${c.subscription_status || "-"}</td>
-            <td>${c.id === 1 || c.license_required === false ? "No requerida" : "Requerida"}</td>
-            <td>${c.plan_expires_at || "-"}</td>
-            <td>
-              ${Number(c.id) === 1 ? `
-                <span class="pill pill-info">Master</span>
-              ` : `
-                <button class="danger" onclick="deleteCompanyAdmin(${c.id}, '${escapeJsString(c.name)}')">
-                  Eliminar
-                </button>
-              `}
-            </td>
-          </tr>
-          `).join("");
+    <tr>
+      <td>${c.id}</td>
+      <td>${escapeHtml(c.name)}</td>
+      <td>${c.plan || "-"}</td>
+      <td>${c.subscription_status || "-"}</td>
+      <td>${c.id === 1 || c.license_required === false ? "No requerida" : "Requerida"}</td>
+      <td>${formatDateInput(c.plan_expires_at) || "-"}</td>
+      <td>
+        ${Number(c.id) === 1 ? `
+          <span class="pill pill-info">Master</span>
+        ` : `
+          <button class="secondary" onclick="openCompanyEditModal(${c.id})">
+            Modificar
+          </button>
+
+          <button class="danger" onclick="deleteCompanyAdmin(${c.id}, '${escapeJsString(c.name)}')">
+            Eliminar
+          </button>
+        `}
+      </td>
+    </tr>
+  `).join("");
     }
 
     function selectCompanyForEdit() {
@@ -2266,6 +2185,247 @@
       return String(value).slice(0, 10);
     }
 
+    function inferLicenseDays(company) {
+      if (!company) return "";
+
+      if (company.subscription_status === "trial") {
+        return "3";
+      }
+
+      if (!company.plan_started_at || !company.plan_expires_at) {
+        return "";
+      }
+
+      const start = new Date(formatDateInput(company.plan_started_at));
+      const end = new Date(formatDateInput(company.plan_expires_at));
+      const days = Math.round((end - start) / (1000 * 60 * 60 * 24));
+
+      if (days <= 3) return "3";
+      if (days <= 180) return "180";
+      if (days <= 270) return "270";
+      return "365";
+    }
+
+    function resetCompanyModal() {
+      document.getElementById("companyModalMode").value = "create";
+      document.getElementById("companyModalCompanyId").value = "";
+
+      document.getElementById("companyNameAdmin").value = "";
+      document.getElementById("companyRtnAdmin").value = "";
+      document.getElementById("companyPhoneAdmin").value = "";
+      document.getElementById("companyAddressAdmin").value = "";
+      document.getElementById("companyContactPhoneAdmin").value = "";
+      document.getElementById("companyPlan").value = "starter";
+      document.getElementById("companySubscriptionStatus").value = "active";
+      document.getElementById("companyBillingEmail").value = "";
+      document.getElementById("companyLicenseDays").value = "";
+
+      document.getElementById("onboardAdminUsername").value = "";
+      document.getElementById("onboardAdminFullName").value = "";
+      document.getElementById("onboardAdminPassword").value = "";
+      document.getElementById("onboardAdminPasswordConfirm").value = "";
+
+      document.getElementById("companyModalStatus").innerText = "";
+      document.getElementById("companyLicenseSummary").innerText =
+        "Selecciona la vigencia de licencia. El día de activación cuenta como día 1.";
+    }
+
+    function openCompanyOnboardModal() {
+      resetCompanyModal();
+
+      document.getElementById("companyModalMode").value = "create";
+      document.getElementById("companyModalTitle").innerText = "Onboard Cliente";
+      document.getElementById("companyModalSubtitle").innerText =
+        "Crea empresa, licencia y admin inicial en un solo paso.";
+
+      document.getElementById("onboardAdminFields").classList.remove("hidden");
+      document.getElementById("companyModal").classList.remove("hidden");
+    }
+
+    function openCompanyEditModal(companyId) {
+      resetCompanyModal();
+
+      const company = companies.find(c => Number(c.id) === Number(companyId));
+
+      if (!company) {
+        document.getElementById("companyAdminStatus").innerText = "Empresa no encontrada.";
+        return;
+      }
+
+      document.getElementById("companyModalMode").value = "edit";
+      document.getElementById("companyModalCompanyId").value = String(company.id);
+      document.getElementById("companyModalTitle").innerText = `Modificar empresa: ${company.name}`;
+      document.getElementById("companyModalSubtitle").innerText =
+        "Modifica información comercial, plan y licencia.";
+
+      document.getElementById("companyNameAdmin").value = company.name || "";
+      document.getElementById("companyRtnAdmin").value = company.rtn || "";
+      document.getElementById("companyPhoneAdmin").value = company.phone || "";
+      document.getElementById("companyAddressAdmin").value = company.address || "";
+      document.getElementById("companyContactPhoneAdmin").value = company.contact_phone || "";
+      document.getElementById("companyPlan").value = company.plan || "starter";
+      document.getElementById("companySubscriptionStatus").value = company.subscription_status || "active";
+      document.getElementById("companyBillingEmail").value = company.billing_email || "";
+      document.getElementById("companyLicenseDays").value = inferLicenseDays(company);
+
+      document.getElementById("onboardAdminFields").classList.add("hidden");
+
+      updateLicenseSummary();
+
+      document.getElementById("companyModal").classList.remove("hidden");
+    }
+
+    function closeCompanyModal() {
+      document.getElementById("companyModal").classList.add("hidden");
+    }
+
+    function updateLicenseSummary() {
+      const companyId = Number(document.getElementById("companyModalCompanyId").value || 0);
+      const licenseDays = Number(document.getElementById("companyLicenseDays").value);
+      const subscriptionStatus = document.getElementById("companySubscriptionStatus").value;
+      const summary = document.getElementById("companyLicenseSummary");
+
+      if (companyId === 1) {
+        summary.innerText = "Empresa interna: licencia no requerida.";
+        return;
+      }
+
+      if (!licenseDays) {
+        summary.innerText = "Selecciona la vigencia de licencia. El día de activación cuenta como día 1.";
+        return;
+      }
+
+      if (subscriptionStatus === "trial" && licenseDays !== 3) {
+        summary.innerText = "Para Trial debes seleccionar exactamente 3 días.";
+        return;
+      }
+
+      if (subscriptionStatus !== "trial" && licenseDays === 3) {
+        summary.innerText = "La vigencia de 3 días solo debe usarse para Trial.";
+        return;
+      }
+
+      const start = new Date();
+      const end = new Date();
+      end.setDate(start.getDate() + licenseDays);
+
+      summary.innerText =
+        `Licencia seleccionada: ${licenseDays} días. ` +
+        `Activación: hoy. ` +
+        `Expira aproximadamente: ${end.toISOString().slice(0, 10)}.`;
+    }
+
+    async function saveCompanyModal() {
+      const mode = document.getElementById("companyModalMode").value;
+
+      if (mode === "edit") {
+        await saveCompanyPlanLicense();
+        return;
+      }
+
+      await onboardCustomerFromAdmin();
+    }
+
+    async function onboardCustomerFromAdmin() {
+      const status = document.getElementById("companyModalStatus");
+
+      const companyName = document.getElementById("companyNameAdmin").value.trim();
+      const rtn = document.getElementById("companyRtnAdmin").value.trim();
+      const phone = document.getElementById("companyPhoneAdmin").value.trim();
+      const address = document.getElementById("companyAddressAdmin").value.trim();
+      const contactPhone = document.getElementById("companyContactPhoneAdmin").value.trim();
+
+      const plan = document.getElementById("companyPlan").value;
+      const subscriptionStatus = document.getElementById("companySubscriptionStatus").value;
+      const billingEmail = document.getElementById("companyBillingEmail").value.trim();
+      const licenseDays = Number(document.getElementById("companyLicenseDays").value);
+
+      const adminUsername = document.getElementById("onboardAdminUsername").value.trim();
+      const adminFullName = document.getElementById("onboardAdminFullName").value.trim();
+      const adminPassword = document.getElementById("onboardAdminPassword").value;
+      const adminPasswordConfirm = document.getElementById("onboardAdminPasswordConfirm").value;
+
+      if (currentUser.role !== "super_admin" || Number(currentUser.company_id) !== 1) {
+        status.innerText = "Solo Super Admin de la compañía master puede hacer onboarding de clientes.";
+        return;
+      }
+
+      if (companyName.length < 2) {
+        status.innerText = "El nombre de la empresa debe tener al menos 2 caracteres.";
+        return;
+      }
+
+      if (!validateCompanyLicenseForm(0, subscriptionStatus, licenseDays)) {
+        return;
+      }
+
+      if (adminUsername.length < 3) {
+        status.innerText = "El usuario admin inicial debe tener al menos 3 caracteres.";
+        return;
+      }
+
+      if (!adminPassword || !adminPasswordConfirm) {
+        status.innerText = "Debes escribir y confirmar el password del admin inicial.";
+        return;
+      }
+
+      if (adminPassword !== adminPasswordConfirm) {
+        status.innerText = "Los passwords del admin inicial no coinciden.";
+        return;
+      }
+
+      const passwordPolicyError = validatePasswordPolicyClient(adminPassword);
+
+      if (passwordPolicyError) {
+        status.innerText = passwordPolicyError;
+        return;
+      }
+
+      const payload = {
+        company_name: companyName,
+        rtn: rtn || null,
+        phone: phone || null,
+        address: address || null,
+        contact_phone: contactPhone || null,
+        plan: plan,
+        subscription_status: subscriptionStatus,
+        billing_email: billingEmail || null,
+        license_days: licenseDays,
+        admin_username: adminUsername,
+        admin_full_name: adminFullName || "Company Admin",
+        admin_password: adminPassword
+      };
+
+      status.innerText = `Creando onboarding para ${companyName}...`;
+
+      try {
+        const res = await fetch("/admin/customers/onboard", {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          status.innerText = `No se pudo hacer onboarding: ${data.detail || res.status}`;
+          return;
+        }
+
+        document.getElementById("companyAdminStatus").innerText =
+          `Cliente onboarded: ${data.company?.name || companyName}. Admin inicial: ${data.admin_user?.username || adminUsername}.`;
+
+        closeCompanyModal();
+
+        await loadCompanies();
+        renderCompaniesAdmin();
+        await loadUsers();
+
+      } catch (err) {
+        status.innerText = `Error en onboarding: ${err.message}`;
+      }
+    }
+
     function updateLicenseSummary() {
       const companyId = Number(document.getElementById("companyAdminSelect").value);
       const startValue = document.getElementById("companyPlanStartedAt").value;
@@ -2289,33 +2449,27 @@
       summary.innerText = `Duración de licencia: ${days} días. Permitido: mínimo 180, máximo 365.`;
     }
 
-    function validateCompanyLicenseForm(companyId, planStartedAt, planExpiresAt) {
+    function validateCompanyLicenseForm(companyId, subscriptionStatus, licenseDays) {
       if (Number(companyId) === 1) {
         return true;
       }
 
-      if (!planStartedAt || !planExpiresAt) {
-        alert("Las fechas de licencia son requeridas para empresas externas.");
+      if (!licenseDays) {
+        alert("Selecciona la vigencia de licencia.");
         return false;
       }
 
-      const start = new Date(planStartedAt);
-      const end = new Date(planExpiresAt);
+      if (subscriptionStatus === "trial") {
+        if (Number(licenseDays) !== 3) {
+          alert("El trial debe ser exactamente de 3 días.");
+          return false;
+        }
 
-      if (end <= start) {
-        alert("La fecha de expiración debe ser posterior al inicio.");
-        return false;
+        return true;
       }
 
-      const durationDays = Math.floor((end - start) / (1000 * 60 * 60 * 24));
-
-      if (durationDays < 180) {
-        alert("La licencia debe durar al menos 6 meses.");
-        return false;
-      }
-
-      if (durationDays > 365) {
-        alert("La licencia no puede exceder 1 año.");
+      if (![180, 270, 365].includes(Number(licenseDays))) {
+        alert("Para planes pagados selecciona 180, 270 o 365 días.");
         return false;
       }
 
@@ -2493,10 +2647,11 @@
     }
 
     async function saveCompanyPlanLicense() {
-      const companyId = Number(document.getElementById("companyAdminSelect").value);
+      const status = document.getElementById("companyModalStatus");
+      const companyId = Number(document.getElementById("companyModalCompanyId").value);
 
       if (!companyId) {
-        document.getElementById("companyAdminStatus").innerText = "Selecciona una empresa existente.";
+        status.innerText = "Selecciona una empresa existente.";
         return;
       }
 
@@ -2508,16 +2663,14 @@
       const plan = document.getElementById("companyPlan").value;
       const subscriptionStatus = document.getElementById("companySubscriptionStatus").value;
       const billingEmail = document.getElementById("companyBillingEmail").value.trim();
+      const licenseDays = Number(document.getElementById("companyLicenseDays").value);
 
       if (companyName.length < 2) {
-        document.getElementById("companyAdminStatus").innerText =
-          "El nombre de la empresa debe tener al menos 2 caracteres.";
+        status.innerText = "El nombre de la empresa debe tener al menos 2 caracteres.";
         return;
       }
-      const planStartedAt = document.getElementById("companyPlanStartedAt").value;
-      const planExpiresAt = document.getElementById("companyPlanExpiresAt").value;
 
-      if (!validateCompanyLicenseForm(companyId, planStartedAt, planExpiresAt)) {
+      if (!validateCompanyLicenseForm(companyId, subscriptionStatus, licenseDays)) {
         return;
       }
 
@@ -2529,13 +2682,9 @@
         contact_phone: contactPhone || null,
         plan: plan,
         subscription_status: subscriptionStatus,
-        billing_email: billingEmail || null
+        billing_email: billingEmail || null,
+        license_days: licenseDays
       };
-
-      if (companyId !== 1) {
-        payload.plan_started_at = planStartedAt;
-        payload.plan_expires_at = planExpiresAt;
-      }
 
       const res = await fetch(`/admin/companies/${companyId}/plan`, {
         method: "PUT",
@@ -2546,17 +2695,28 @@
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        document.getElementById("companyAdminStatus").innerText =
-          `No se pudo guardar licencia: ${data.detail || res.status}`;
+        status.innerText = `No se pudo guardar empresa: ${data.detail || res.status}`;
         return;
       }
 
       document.getElementById("companyAdminStatus").innerText =
-        `Plan/licencia actualizado para ${data.name}.`;
+        `Empresa ${data.name} actualizada correctamente.`;
+
+      closeCompanyModal();
 
       await loadCompanies();
       renderCompaniesAdmin();
+      await loadUsers();
     }
+
+    document.addEventListener("input", function (event) {
+      if (
+        event.target &&
+        ["companyLicenseDays", "companySubscriptionStatus"].includes(event.target.id)
+      ) {
+        updateLicenseSummary();
+      }
+    });
 
     document.addEventListener("input", function (event) {
       if (
@@ -2685,6 +2845,124 @@
 
     initAdminPage();
   </script>
+  <!-- COMPANY MODAL -->
+  <div id="companyModal" class="password-modal-backdrop hidden">
+    <div class="password-modal company-modal">
+      <h3 id="companyModalTitle">Onboard Cliente</h3>
+      <p id="companyModalSubtitle">Crea o modifica información de empresa.</p>
+
+      <input id="companyModalMode" type="hidden" value="create">
+      <input id="companyModalCompanyId" type="hidden" value="">
+
+      <div class="form-section-title">Información de empresa</div>
+
+      <div class="company-modal-grid">
+        <div class="input-row">
+          <label>Nombre de empresa</label>
+          <input id="companyNameAdmin" placeholder="Nombre de la empresa">
+        </div>
+
+        <div class="input-row">
+          <label>RTN</label>
+          <input id="companyRtnAdmin" placeholder="08011999123456">
+        </div>
+
+        <div class="input-row">
+          <label>Teléfono</label>
+          <input id="companyPhoneAdmin" placeholder="+504 9999-9999">
+        </div>
+
+        <div class="input-row">
+          <label>Teléfono de contacto</label>
+          <input id="companyContactPhoneAdmin" placeholder="+504 9999-9999">
+        </div>
+
+        <div class="input-row full">
+          <label>Dirección</label>
+          <input id="companyAddressAdmin" placeholder="Dirección fiscal o comercial">
+        </div>
+      </div>
+
+      <div class="form-section-title">Plan y licencia</div>
+
+      <div class="company-modal-grid">
+        <div class="input-row">
+          <label>Plan</label>
+          <select id="companyPlan">
+            <option value="starter">Starter</option>
+            <option value="professional">Professional</option>
+            <option value="business">Business</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+        </div>
+
+        <div class="input-row">
+          <label>Estado de suscripción</label>
+          <select id="companySubscriptionStatus" onchange="updateLicenseSummary()">
+            <option value="active">Active</option>
+            <option value="trial">Trial</option>
+            <option value="past_due">Past Due</option>
+            <option value="suspended">Suspended</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+
+        <div class="input-row">
+          <label>Billing Email</label>
+          <input id="companyBillingEmail" type="email" placeholder="billing@empresa.com">
+        </div>
+
+        <div class="input-row">
+          <label>Vigencia de licencia</label>
+          <select id="companyLicenseDays" onchange="updateLicenseSummary()">
+            <option value="">Selecciona vigencia</option>
+            <option value="3">Trial - 3 días</option>
+            <option value="180">6 meses - 180 días</option>
+            <option value="270">9 meses - 270 días</option>
+            <option value="365">1 año - 365 días</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="companyLicenseSummary" class="card-note">
+        Selecciona la vigencia de licencia. El día de activación cuenta como día 1.
+      </div>
+
+      <div id="onboardAdminFields">
+        <div class="form-section-title">Admin inicial del cliente</div>
+
+        <div class="company-modal-grid">
+          <div class="input-row">
+            <label>Usuario admin inicial</label>
+            <input id="onboardAdminUsername" placeholder="admin.empresa">
+          </div>
+
+          <div class="input-row">
+            <label>Nombre completo admin</label>
+            <input id="onboardAdminFullName" placeholder="Company Admin">
+          </div>
+
+          <div class="input-row">
+            <label>Password admin inicial</label>
+            <input id="onboardAdminPassword" type="password" placeholder="Ejemplo: CyberPro2026!">
+          </div>
+
+          <div class="input-row">
+            <label>Confirmar password admin</label>
+            <input id="onboardAdminPasswordConfirm" type="password" placeholder="Confirma el password">
+          </div>
+        </div>
+      </div>
+
+      <div id="companyModalStatus" class="status-line"></div>
+
+      <div class="company-modal-actions">
+        <button onclick="saveCompanyModal()">Guardar</button>
+        <button class="secondary" onclick="closeCompanyModal()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- PASSWORD MODAL -->
   <div id="passwordModal" class="password-modal-backdrop hidden">
     <div class="password-modal">

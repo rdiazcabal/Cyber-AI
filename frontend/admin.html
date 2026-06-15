@@ -2538,15 +2538,6 @@
       }
     });
 
-    document.addEventListener("input", function (event) {
-      if (
-        event.target &&
-        ["companyPlanStartedAt", "companyPlanExpiresAt"].includes(event.target.id)
-      ) {
-        updateLicenseSummary();
-      }
-    });
-
     async function loadBillingOverview() {
       const tbody = document.getElementById("billingOverviewTable");
 

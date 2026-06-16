@@ -44,6 +44,7 @@ from app.models import (
     AlertRule,
     CloudIntegration,
     IntegrationSyncRun,
+    BillingInvoice,
 )
 
 from app.auth import (
@@ -489,6 +490,37 @@ def require_master_company(current_user: User):
             status_code=403,
             detail="Only master company super admin can access this resource"
         )
+
+def is_master_accounting(user: User) -> bool:
+    return (
+        user is not None
+        and user.role == "accounting"
+        and int(user.company_id or 0) == 1
+    )
+
+def is_master_billing_user(user: User) -> bool:
+    return is_master_super_admin(user) or is_master_accounting(user)
+
+def require_master_billing_user(current_user: User = Depends(get_current_user)):
+    if not is_master_billing_user(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="Only master company billing users can access this resource"
+        )
+
+    return current_user
+
+def require_admin_or_accounting(current_user: User = Depends(get_current_user)):
+    if current_user.role not in ["super_admin", "company_admin", "accounting"]:
+        raise HTTPException(status_code=403, detail="Admin or accounting role required")
+
+    if current_user.role == "accounting" and int(current_user.company_id or 0) != 1:
+        raise HTTPException(
+            status_code=403,
+            detail="Accounting role is only allowed for master company"
+        )
+
+    return current_user
 
 def apply_company_scope(query, model, current_user: User):
     """
@@ -1296,6 +1328,271 @@ def get_billing_plan(
         },
         "features": features,
     }
+
+def parse_billing_date(value, field_name: str):
+    if not value:
+        return None
+
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(tzinfo=None)
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {field_name}. Use YYYY-MM-DD or ISO datetime format"
+        )
+
+def serialize_invoice(invoice: BillingInvoice, company_name: str | None = None):
+    return {
+        "id": invoice.id,
+        "company_id": invoice.company_id,
+        "company_name": company_name,
+        "invoice_number": invoice.invoice_number,
+        "billing_period": invoice.billing_period,
+        "amount_usd": invoice.amount_usd,
+        "currency": invoice.currency,
+        "status": invoice.status,
+        "due_date": str(invoice.due_date) if invoice.due_date else None,
+        "paid_at": str(invoice.paid_at) if invoice.paid_at else None,
+        "notes": invoice.notes,
+        "created_by_user_id": invoice.created_by_user_id,
+        "created_at": str(invoice.created_at) if invoice.created_at else None,
+        "updated_at": str(invoice.updated_at) if invoice.updated_at else None,
+    }
+
+@app.get("/admin/invoices")
+def admin_list_invoices(
+    status: str | None = None,
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    require_master_company(current_user)
+
+    query = db.query(BillingInvoice)
+
+    if status:
+        query = query.filter(BillingInvoice.status == status)
+
+    if company_id:
+        query = query.filter(BillingInvoice.company_id == company_id)
+
+    invoices = query.order_by(BillingInvoice.created_at.desc()).all()
+
+    company_ids = list({invoice.company_id for invoice in invoices})
+
+    companies = (
+        db.query(Company)
+        .filter(Company.id.in_(company_ids))
+        .all()
+        if company_ids else []
+    )
+
+    company_map = {company.id: company.name for company in companies}
+
+    return [
+        serialize_invoice(
+            invoice,
+            company_name=company_map.get(invoice.company_id)
+        )
+        for invoice in invoices
+    ]
+
+@app.post("/admin/invoices")
+def admin_create_invoice(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    require_master_company(current_user)
+
+    company_id = int(payload.get("company_id") or 0)
+    amount_usd = float(payload.get("amount_usd") or 0)
+
+    billing_period = (payload.get("billing_period") or "").strip() or None
+    invoice_number = (payload.get("invoice_number") or "").strip()
+    currency = (payload.get("currency") or "USD").strip().upper()
+    status = (payload.get("status") or "draft").strip().lower()
+    notes = (payload.get("notes") or "").strip() or None
+    due_date = parse_billing_date(payload.get("due_date"), "due_date")
+
+    allowed_statuses = ["draft", "sent", "paid", "overdue", "cancelled"]
+
+    if status not in allowed_statuses:
+        raise HTTPException(status_code=400, detail="Invalid invoice status")
+
+    if company_id <= 0:
+        raise HTTPException(status_code=400, detail="company_id is required")
+
+    if company_id == 1:
+        raise HTTPException(status_code=400, detail="Master company cannot be invoiced")
+
+    if amount_usd <= 0:
+        raise HTTPException(status_code=400, detail="amount_usd must be greater than zero")
+
+    company = (
+        db.query(Company)
+        .filter(
+            Company.id == company_id,
+            Company.is_active == True
+        )
+        .first()
+    )
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found or inactive")
+
+    if not invoice_number:
+        invoice_number = f"INV-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{company_id}"
+
+    existing_invoice = (
+        db.query(BillingInvoice)
+        .filter(BillingInvoice.invoice_number == invoice_number)
+        .first()
+    )
+
+    if existing_invoice:
+        raise HTTPException(status_code=409, detail="Invoice number already exists")
+
+    invoice = BillingInvoice(
+        company_id=company.id,
+        invoice_number=invoice_number,
+        billing_period=billing_period,
+        amount_usd=amount_usd,
+        currency=currency,
+        status=status,
+        due_date=due_date,
+        paid_at=datetime.utcnow() if status == "paid" else None,
+        notes=notes,
+        created_by_user_id=current_user.id,
+    )
+
+    db.add(invoice)
+    db.flush()
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="CREATE_INVOICE",
+        resource_type="billing_invoice",
+        resource_id=invoice.id,
+        details={
+            "invoice_id": invoice.id,
+            "invoice_number": invoice.invoice_number,
+            "company_id": company.id,
+            "company_name": company.name,
+            "amount_usd": invoice.amount_usd,
+            "currency": invoice.currency,
+            "status": invoice.status,
+            "billing_period": invoice.billing_period,
+            "due_date": str(invoice.due_date) if invoice.due_date else None,
+        },
+    )
+
+    db.commit()
+    db.refresh(invoice)
+
+    return serialize_invoice(invoice, company_name=company.name)
+
+@app.put("/admin/invoices/{invoice_id}")
+def admin_update_invoice(
+    invoice_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    require_master_company(current_user)
+
+    invoice = db.query(BillingInvoice).filter(BillingInvoice.id == invoice_id).first()
+
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    company = db.query(Company).filter(Company.id == invoice.company_id).first()
+
+    allowed_statuses = ["draft", "sent", "paid", "overdue", "cancelled"]
+
+    if "invoice_number" in payload:
+        new_invoice_number = (payload.get("invoice_number") or "").strip()
+
+        if not new_invoice_number:
+            raise HTTPException(status_code=400, detail="invoice_number cannot be empty")
+
+        existing_invoice = (
+            db.query(BillingInvoice)
+            .filter(
+                BillingInvoice.invoice_number == new_invoice_number,
+                BillingInvoice.id != invoice.id
+            )
+            .first()
+        )
+
+        if existing_invoice:
+            raise HTTPException(status_code=409, detail="Invoice number already exists")
+
+        invoice.invoice_number = new_invoice_number
+
+    if "billing_period" in payload:
+        invoice.billing_period = (payload.get("billing_period") or "").strip() or None
+
+    if "amount_usd" in payload:
+        amount_usd = float(payload.get("amount_usd") or 0)
+
+        if amount_usd <= 0:
+            raise HTTPException(status_code=400, detail="amount_usd must be greater than zero")
+
+        invoice.amount_usd = amount_usd
+
+    if "currency" in payload:
+        invoice.currency = (payload.get("currency") or "USD").strip().upper()
+
+    if "status" in payload:
+        new_status = (payload.get("status") or "").strip().lower()
+
+        if new_status not in allowed_statuses:
+            raise HTTPException(status_code=400, detail="Invalid invoice status")
+
+        invoice.status = new_status
+
+        if new_status == "paid" and not invoice.paid_at:
+            invoice.paid_at = datetime.utcnow()
+
+        if new_status != "paid":
+            invoice.paid_at = None
+
+    if "due_date" in payload:
+        invoice.due_date = parse_billing_date(payload.get("due_date"), "due_date")
+
+    if "notes" in payload:
+        invoice.notes = (payload.get("notes") or "").strip() or None
+
+    invoice.updated_at = datetime.utcnow()
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="UPDATE_INVOICE",
+        resource_type="billing_invoice",
+        resource_id=invoice.id,
+        details={
+            "invoice_id": invoice.id,
+            "invoice_number": invoice.invoice_number,
+            "company_id": invoice.company_id,
+            "amount_usd": invoice.amount_usd,
+            "currency": invoice.currency,
+            "status": invoice.status,
+            "billing_period": invoice.billing_period,
+            "due_date": str(invoice.due_date) if invoice.due_date else None,
+            "paid_at": str(invoice.paid_at) if invoice.paid_at else None,
+        },
+    )
+
+    db.commit()
+    db.refresh(invoice)
+
+    return serialize_invoice(
+        invoice,
+        company_name=company.name if company else None
+    )
 
 @app.get("/admin/billing/overview")
 def admin_billing_overview(

@@ -195,3 +195,27 @@ class IntegrationSyncRun(Base):
 
     error_message = Column(Text, nullable=True)
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+class BillingInvoice(Base):
+    __tablename__ = "billing_invoices"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    invoice_number = Column(String(80), unique=True, nullable=False, index=True)
+
+    billing_period = Column(String(20), nullable=True)  # YYYY-MM
+    amount_usd = Column(Float, default=0, nullable=False)
+    currency = Column(String(10), default="USD", nullable=False)
+
+    status = Column(String(30), default="draft", nullable=False)
+    # draft, sent, paid, overdue, cancelled
+
+    due_date = Column(DateTime, nullable=True)
+    paid_at = Column(DateTime, nullable=True)
+
+    notes = Column(Text, nullable=True)
+
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)

@@ -1350,6 +1350,7 @@
       <div class="nav-item" id="sessionCompany">Empresa: -</div>
       <div class="nav-item active" id="usersNav" onclick="showAdminSection('users')">Usuarios</div>
       <div class="nav-item hidden" id="billingOverviewNav" onclick="showAdminSection('billing')">Billing Overview</div>
+      <div class="nav-item hidden" id="invoicesNav" onclick="showAdminSection('invoices')">Facturación</div>
       <div class="nav-item hidden" id="companiesNav" onclick="showAdminSection('companies')">Empresas / Licencias</div>
     </aside>
 
@@ -1515,6 +1516,118 @@
             </tbody>
           </table>
         </div>
+        <!-- INVOICES / FACTURACION SECTION -->
+        <div id="invoicesSection" class="hidden">
+          <div class="admin-inner-card">
+            <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;">
+              <div>
+                <h3>Facturación</h3>
+                <div class="panel-subtitle">
+                  Módulo contable para crear, actualizar y controlar facturas de clientes.
+                </div>
+              </div>
+
+              <button class="secondary" onclick="loadInvoices()">Actualizar</button>
+            </div>
+
+            <div class="kv-grid" style="margin-top:16px;">
+              <div class="kv">
+                <div class="kv-label">Pendiente</div>
+                <div class="kv-value" id="invoicePendingTotal">$0</div>
+              </div>
+
+              <div class="kv">
+                <div class="kv-label">Pagado</div>
+                <div class="kv-value" id="invoicePaidTotal">$0</div>
+              </div>
+
+              <div class="kv">
+                <div class="kv-label">Facturas abiertas</div>
+                <div class="kv-value" id="invoiceOpenCount">0</div>
+              </div>
+
+              <div class="kv">
+                <div class="kv-label">Vencidas</div>
+                <div class="kv-value" id="invoiceOverdueCount">0</div>
+              </div>
+            </div>
+
+            <div class="panel" style="margin-top:16px;">
+              <h3>Crear factura</h3>
+
+              <div class="company-modal-grid">
+                <div class="input-row">
+                  <label>Cliente</label>
+                  <select id="invoiceCompanySelect"></select>
+                </div>
+
+                <div class="input-row">
+                  <label>Número de factura</label>
+                  <input id="invoiceNumber" placeholder="Auto si lo dejas vacío">
+                </div>
+
+                <div class="input-row">
+                  <label>Periodo</label>
+                  <input id="invoiceBillingPeriod" type="month">
+                </div>
+
+                <div class="input-row">
+                  <label>Monto USD</label>
+                  <input id="invoiceAmountUsd" type="number" min="0" step="0.01" placeholder="250.00">
+                </div>
+
+                <div class="input-row">
+                  <label>Fecha de vencimiento</label>
+                  <input id="invoiceDueDate" type="date">
+                </div>
+
+                <div class="input-row">
+                  <label>Estado</label>
+                  <select id="invoiceStatus">
+                    <option value="draft">Draft</option>
+                    <option value="sent">Sent</option>
+                    <option value="paid">Paid</option>
+                    <option value="overdue">Overdue</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+
+                <div class="input-row full">
+                  <label>Notas</label>
+                  <input id="invoiceNotes" placeholder="Notas contables o referencia de pago">
+                </div>
+              </div>
+
+              <div class="button-row">
+                <button onclick="createInvoice()">Crear factura</button>
+              </div>
+            </div>
+
+            <div id="invoiceStatusLine" class="status-line">Cargando facturas...</div>
+
+            <div class="table-shell" style="margin-top:16px;">
+              <table class="user-table">
+                <thead>
+                  <tr>
+                    <th>Factura</th>
+                    <th>Cliente</th>
+                    <th>Periodo</th>
+                    <th>Monto</th>
+                    <th>Estado</th>
+                    <th>Vence</th>
+                    <th>Pagado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="invoicesTable">
+                  <tr>
+                    <td colspan="8" class="empty">Cargando facturas...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   </div>
@@ -1525,7 +1638,7 @@
     let companies = [];
 
     function setAdminActiveNav(activeNavId) {
-      ["usersNav", "billingOverviewNav", "companiesNav"].forEach(id => {
+      ["usersNav", "billingOverviewNav", "invoicesNav", "companiesNav"].forEach(id => {
         const item = document.getElementById(id);
         if (item) item.classList.remove("active");
       });
@@ -1629,12 +1742,13 @@
 
       const usersSection = document.getElementById("usersSection");
       const companiesSection = document.getElementById("companiesSection");
+      const billingOverviewSection = document.getElementById("billingOverviewSection");
+      const invoicesSection = document.getElementById("invoicesSection");
 
       if (usersSection) usersSection.classList.remove("hidden");
       if (companiesSection) companiesSection.classList.add("hidden");
-
-      const billingOverviewSection = document.getElementById("billingOverviewSection");
       if (billingOverviewSection) billingOverviewSection.classList.add("hidden");
+      if (invoicesSection) invoicesSection.classList.add("hidden");
 
       setAdminActiveNav("usersNav");
 
@@ -1685,6 +1799,7 @@
       const companyAdminNote = document.getElementById("companyAdminNote");
       const companiesNav = document.getElementById("companiesNav");
       const billingOverviewNav = document.getElementById("billingOverviewNav");
+      const invoicesNav = document.getElementById("invoicesNav");
 
       const isMasterSuperAdmin =
         currentUser.role === "super_admin" && Number(currentUser.company_id) === 1;
@@ -1701,6 +1816,7 @@
 
         if (companiesNav) companiesNav.classList.remove("hidden");
         if (billingOverviewNav) billingOverviewNav.classList.remove("hidden");
+        if (invoicesNav) invoicesNav.classList.remove("hidden");
 
         return;
       }
@@ -1716,6 +1832,7 @@
 
         if (companiesNav) companiesNav.classList.add("hidden");
         if (billingOverviewNav) billingOverviewNav.classList.add("hidden");
+        if (invoicesNav) invoicesNav.classList.add("hidden");
 
         return;
       }
@@ -1730,6 +1847,7 @@
 
       if (companiesNav) companiesNav.classList.add("hidden");
       if (billingOverviewNav) billingOverviewNav.classList.add("hidden");
+      if (invoicesNav) invoicesNav.classList.add("hidden");
     }
 
     async function loadUsers() {
@@ -2088,10 +2206,12 @@
       const usersSection = document.getElementById("usersSection");
       const companiesSection = document.getElementById("companiesSection");
       const billingOverviewSection = document.getElementById("billingOverviewSection");
+      const invoicesSection = document.getElementById("invoicesSection");
 
       if (usersSection) usersSection.classList.add("hidden");
       if (companiesSection) companiesSection.classList.add("hidden");
       if (billingOverviewSection) billingOverviewSection.classList.add("hidden");
+      if (invoicesSection) invoicesSection.classList.add("hidden");
 
       if (section === "companies") {
         if (currentUser.role !== "super_admin" || Number(currentUser.company_id) !== 1) {
@@ -2120,6 +2240,22 @@
         setAdminActiveNav("billingOverviewNav");
         billingOverviewSection.classList.remove("hidden");
         loadBillingOverview();
+        return;
+      }
+
+      if (section === "invoices") {
+        if (currentUser.role !== "super_admin" || Number(currentUser.company_id) !== 1) {
+          document.getElementById("adminStatus").innerText =
+            "Solo la empresa master puede acceder a Facturación.";
+          setAdminActiveNav("usersNav");
+          if (usersSection) usersSection.classList.remove("hidden");
+          return;
+        }
+
+        setAdminActiveNav("invoicesNav");
+        invoicesSection.classList.remove("hidden");
+        fillInvoiceCompanySelect();
+        loadInvoices();
         return;
       }
 
@@ -2537,6 +2673,253 @@
         updateLicenseSummary();
       }
     });
+
+    function formatMoneyUsd(value) {
+      return `$${Number(value || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      })}`;
+    }
+
+    function fillInvoiceCompanySelect() {
+      const select = document.getElementById("invoiceCompanySelect");
+
+      if (!select) return;
+
+      const billableCompanies = companies.filter(c => Number(c.id) !== 1 && c.is_active !== false);
+
+      if (!billableCompanies.length) {
+        select.innerHTML = `<option value="">Sin clientes facturables</option>`;
+        return;
+      }
+
+      select.innerHTML = billableCompanies.map(c => `
+    <option value="${c.id}">${c.id} - ${escapeHtml(c.name)}</option>
+  `).join("");
+    }
+
+    async function loadInvoices() {
+      const tbody = document.getElementById("invoicesTable");
+      const statusLine = document.getElementById("invoiceStatusLine");
+
+      if (!tbody) return;
+
+      tbody.innerHTML = `
+    <tr>
+      <td colspan="8" class="empty">Cargando facturas...</td>
+    </tr>
+  `;
+
+      statusLine.innerText = "Cargando facturas...";
+
+      const res = await fetch("/admin/invoices", {
+        headers: authHeaders()
+      });
+
+      const data = await res.json().catch(() => ([]));
+
+      if (!res.ok) {
+        tbody.innerHTML = `
+      <tr>
+        <td colspan="8" class="empty">No se pudieron cargar facturas: ${data.detail || res.status}</td>
+      </tr>
+    `;
+
+        statusLine.innerText = `Error cargando facturas: ${data.detail || res.status}`;
+        return;
+      }
+
+      const pendingStatuses = ["draft", "sent", "overdue"];
+
+      const pendingTotal = data
+        .filter(inv => pendingStatuses.includes(inv.status))
+        .reduce((total, inv) => total + Number(inv.amount_usd || 0), 0);
+
+      const paidTotal = data
+        .filter(inv => inv.status === "paid")
+        .reduce((total, inv) => total + Number(inv.amount_usd || 0), 0);
+
+      const openCount = data.filter(inv => pendingStatuses.includes(inv.status)).length;
+      const overdueCount = data.filter(inv => inv.status === "overdue").length;
+
+      document.getElementById("invoicePendingTotal").innerText = formatMoneyUsd(pendingTotal);
+      document.getElementById("invoicePaidTotal").innerText = formatMoneyUsd(paidTotal);
+      document.getElementById("invoiceOpenCount").innerText = openCount;
+      document.getElementById("invoiceOverdueCount").innerText = overdueCount;
+
+      if (!data.length) {
+        tbody.innerHTML = `
+      <tr>
+        <td colspan="8" class="empty">No hay facturas registradas.</td>
+      </tr>
+    `;
+
+        statusLine.innerText = "No hay facturas registradas.";
+        return;
+      }
+
+      tbody.innerHTML = data.map(inv => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(inv.invoice_number)}</strong>
+        <br>
+        <span class="pattern-meta">${formatDateInput(inv.created_at) || "-"}</span>
+      </td>
+      <td>${escapeHtml(inv.company_name || inv.company_id || "-")}</td>
+      <td>${escapeHtml(inv.billing_period || "-")}</td>
+      <td>${formatMoneyUsd(inv.amount_usd)}</td>
+      <td>
+        <select id="invoiceStatus_${inv.id}">
+          ${["draft", "sent", "paid", "overdue", "cancelled"].map(status => `
+            <option value="${status}" ${inv.status === status ? "selected" : ""}>${status}</option>
+          `).join("")}
+        </select>
+      </td>
+      <td>${formatDateInput(inv.due_date) || "-"}</td>
+      <td>${formatDateInput(inv.paid_at) || "-"}</td>
+      <td>
+        <button class="secondary" onclick="updateInvoiceStatus(${inv.id})">
+          Guardar
+        </button>
+
+        <button class="secondary" onclick="markInvoicePaid(${inv.id})">
+          Pagar
+        </button>
+
+        <button class="danger" onclick="cancelInvoice(${inv.id})">
+          Anular
+        </button>
+      </td>
+    </tr>
+  `).join("");
+
+      statusLine.innerText =
+        `Facturas cargadas. Pendiente: ${formatMoneyUsd(pendingTotal)} · Pagado: ${formatMoneyUsd(paidTotal)}`;
+    }
+
+    async function createInvoice() {
+      const statusLine = document.getElementById("invoiceStatusLine");
+
+      const companyId = Number(document.getElementById("invoiceCompanySelect").value);
+      const invoiceNumber = document.getElementById("invoiceNumber").value.trim();
+      const billingPeriod = document.getElementById("invoiceBillingPeriod").value;
+      const amountUsd = Number(document.getElementById("invoiceAmountUsd").value);
+      const dueDate = document.getElementById("invoiceDueDate").value;
+      const status = document.getElementById("invoiceStatus").value;
+      const notes = document.getElementById("invoiceNotes").value.trim();
+
+      if (!companyId) {
+        statusLine.innerText = "Selecciona un cliente.";
+        return;
+      }
+
+      if (!amountUsd || amountUsd <= 0) {
+        statusLine.innerText = "El monto debe ser mayor a cero.";
+        return;
+      }
+
+      const payload = {
+        company_id: companyId,
+        invoice_number: invoiceNumber || null,
+        billing_period: billingPeriod || null,
+        amount_usd: amountUsd,
+        currency: "USD",
+        status: status,
+        due_date: dueDate || null,
+        notes: notes || null
+      };
+
+      statusLine.innerText = "Creando factura...";
+
+      const res = await fetch("/admin/invoices", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        statusLine.innerText = `No se pudo crear factura: ${data.detail || res.status}`;
+        return;
+      }
+
+      statusLine.innerText = `Factura ${data.invoice_number} creada.`;
+
+      document.getElementById("invoiceNumber").value = "";
+      document.getElementById("invoiceBillingPeriod").value = "";
+      document.getElementById("invoiceAmountUsd").value = "";
+      document.getElementById("invoiceDueDate").value = "";
+      document.getElementById("invoiceStatus").value = "draft";
+      document.getElementById("invoiceNotes").value = "";
+
+      await loadInvoices();
+    }
+
+    async function updateInvoiceStatus(invoiceId) {
+      const statusLine = document.getElementById("invoiceStatusLine");
+      const status = document.getElementById(`invoiceStatus_${invoiceId}`).value;
+
+      const res = await fetch(`/admin/invoices/${invoiceId}`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ status })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        statusLine.innerText = `No se pudo actualizar factura: ${data.detail || res.status}`;
+        return;
+      }
+
+      statusLine.innerText = `Factura ${data.invoice_number} actualizada a ${data.status}.`;
+      await loadInvoices();
+    }
+
+    async function markInvoicePaid(invoiceId) {
+      const statusLine = document.getElementById("invoiceStatusLine");
+
+      const res = await fetch(`/admin/invoices/${invoiceId}`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ status: "paid" })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        statusLine.innerText = `No se pudo marcar como pagada: ${data.detail || res.status}`;
+        return;
+      }
+
+      statusLine.innerText = `Factura ${data.invoice_number} marcada como pagada.`;
+      await loadInvoices();
+    }
+
+    async function cancelInvoice(invoiceId) {
+      const statusLine = document.getElementById("invoiceStatusLine");
+
+      if (!confirm("¿Seguro que deseas anular esta factura?")) {
+        return;
+      }
+
+      const res = await fetch(`/admin/invoices/${invoiceId}`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ status: "cancelled" })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        statusLine.innerText = `No se pudo anular factura: ${data.detail || res.status}`;
+        return;
+      }
+
+      statusLine.innerText = `Factura ${data.invoice_number} anulada.`;
+      await loadInvoices();
+    }
 
     async function loadBillingOverview() {
       const tbody = document.getElementById("billingOverviewTable");

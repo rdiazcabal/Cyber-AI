@@ -1979,6 +1979,44 @@ def admin_list_users(
 
     return result
 
+@app.get("/admin/users/inactive")
+def admin_list_inactive_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    query = db.query(User).filter(
+        User.is_active == False,
+        ~User.username.startswith("deleted_user_")
+    )
+
+    if not is_master_super_admin(current_user):
+        query = query.filter(User.company_id == current_user.company_id)
+
+    users = query.order_by(User.created_at.desc()).all()
+
+    result = []
+
+    for user in users:
+        company = None
+
+        if user.company_id:
+            company = db.query(Company).filter(Company.id == user.company_id).first()
+
+        result.append(
+            {
+                "id": user.id,
+                "username": user.username,
+                "full_name": user.full_name,
+                "role": user.role,
+                "company_id": user.company_id,
+                "company_name": company.name if company else None,
+                "is_active": user.is_active,
+                "created_at": user.created_at,
+            }
+        )
+
+    return result
+
 @app.post("/admin/users")
 def admin_create_user(
     payload: dict,
@@ -2171,6 +2209,64 @@ def admin_update_user(
         company = db.query(Company).filter(Company.id == user.company_id).first()
 
     return {
+        "id": user.id,
+        "username": user.username,
+        "full_name": user.full_name,
+        "role": user.role,
+        "company_id": user.company_id,
+        "company_name": company.name if company else None,
+        "is_active": user.is_active,
+    }
+
+@app.put("/admin/users/{user_id}/reactivate")
+def admin_reactivate_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    query = db.query(User).filter(
+        User.id == user_id,
+        User.is_active == False,
+        ~User.username.startswith("deleted_user_")
+    )
+
+    if not is_master_super_admin(current_user):
+        query = query.filter(User.company_id == current_user.company_id)
+
+    user = query.first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Inactive user not found")
+
+    user.is_active = True
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    user.session_version = int(user.session_version or 0) + 1
+
+    audit_action(
+        db=db,
+        current_user=current_user,
+        action="REACTIVATE_USER",
+        resource_type="user",
+        resource_id=user.id,
+        details={
+            "target_user_id": user.id,
+            "username": user.username,
+            "role": user.role,
+            "company_id": user.company_id,
+            "is_active": user.is_active,
+        },
+    )
+
+    db.commit()
+    db.refresh(user)
+
+    company = None
+    if user.company_id:
+        company = db.query(Company).filter(Company.id == user.company_id).first()
+
+    return {
+        "message": "User reactivated successfully",
         "id": user.id,
         "username": user.username,
         "full_name": user.full_name,

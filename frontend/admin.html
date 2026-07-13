@@ -1428,6 +1428,11 @@
               <div class="panel-subtitle" id="usersSubtitle">
                 Usuarios disponibles según tu alcance de permisos.
               </div>
+              <div class="button-row" style="margin-top:10px;margin-bottom:12px;">
+                <button class="secondary" onclick="openInactiveUsersModal()">
+                  Ver desactivados
+                </button>
+              </div>
 
               <table class="user-table">
                 <thead>
@@ -1958,20 +1963,137 @@
     }
 
     async function toggleUserState(id, isActive) {
+      const actionText = isActive ? "desactivar" : "activar";
+
+      if (!confirm(`¿Seguro que deseas ${actionText} este usuario?`)) {
+        return;
+      }
+
       const res = await fetch(`/admin/users/${id}`, {
         method: "PUT",
         headers: authHeaders(),
         body: JSON.stringify({ is_active: !isActive })
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const error = await res.json().catch(() => ({}));
         document.getElementById("adminStatus").innerText =
-          `No se pudo actualizar estado: ${error.detail || res.status}`;
+          `No se pudo actualizar estado: ${data.detail || res.status}`;
         return;
       }
 
-      document.getElementById("adminStatus").innerText = "Usuario actualizado.";
+      document.getElementById("adminStatus").innerText =
+        isActive ? "Usuario desactivado correctamente." : "Usuario activado correctamente.";
+
+      await loadUsers();
+
+      const inactiveModal = document.getElementById("inactiveUsersModal");
+
+      if (inactiveModal && !inactiveModal.classList.contains("hidden")) {
+        await loadInactiveUsers();
+      }
+    }
+
+    function openInactiveUsersModal() {
+      const modal = document.getElementById("inactiveUsersModal");
+
+      if (!modal) return;
+
+      modal.classList.remove("hidden");
+      loadInactiveUsers();
+    }
+
+    function closeInactiveUsersModal() {
+      const modal = document.getElementById("inactiveUsersModal");
+
+      if (!modal) return;
+
+      modal.classList.add("hidden");
+    }
+
+    async function loadInactiveUsers() {
+      const tbody = document.getElementById("inactiveUsersTable");
+      const status = document.getElementById("inactiveUsersStatus");
+
+      if (!tbody || !status) return;
+
+      tbody.innerHTML = `
+    <tr>
+      <td colspan="6" class="empty">Cargando usuarios desactivados...</td>
+    </tr>
+  `;
+
+      status.innerText = "Cargando usuarios desactivados...";
+
+      const res = await fetch("/admin/users/inactive", {
+        headers: authHeaders()
+      });
+
+      const data = await res.json().catch(() => []);
+
+      if (!res.ok) {
+        tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="empty">No se pudieron cargar usuarios desactivados.</td>
+      </tr>
+    `;
+
+        status.innerText = `Error: ${data.detail || res.status}`;
+        return;
+      }
+
+      if (!Array.isArray(data) || !data.length) {
+        tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="empty">No hay usuarios desactivados.</td>
+      </tr>
+    `;
+
+        status.innerText = "No hay usuarios desactivados.";
+        return;
+      }
+
+      tbody.innerHTML = data.map(user => `
+    <tr>
+      <td>${escapeHtml(user.username || "-")}</td>
+      <td>${escapeHtml(user.full_name || "-")}</td>
+      <td>${escapeHtml(user.company_name || "-")}</td>
+      <td>${roleBadge(user.role)}</td>
+      <td>${statusBadge(user.is_active)}</td>
+      <td>
+        <button class="secondary" onclick="reactivateInactiveUser(${user.id}, '${escapeJsString(user.username || "")}')">
+          Reactivar
+        </button>
+      </td>
+    </tr>
+  `).join("");
+
+      status.innerText = `Usuarios desactivados cargados: ${data.length}`;
+    }
+
+    async function reactivateInactiveUser(userId, username) {
+      const status = document.getElementById("inactiveUsersStatus");
+
+      if (!confirm(`¿Deseas reactivar al usuario ${username}?`)) {
+        return;
+      }
+
+      const res = await fetch(`/admin/users/${userId}/reactivate`, {
+        method: "PUT",
+        headers: authHeaders()
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        status.innerText = `No se pudo reactivar usuario: ${data.detail || res.status}`;
+        return;
+      }
+
+      status.innerText = `Usuario ${data.username || username} reactivado correctamente.`;
+
+      await loadInactiveUsers();
       await loadUsers();
     }
 
@@ -2571,37 +2693,6 @@
       return true;
     }
 
-    // async function createCompanyFromAdmin() {
-    //   const name = document.getElementById("companyNameAdmin").value.trim();
-
-    //   if (!name) {
-    //     document.getElementById("companyAdminStatus").innerText = "Escribe el nombre de la empresa.";
-    //     return;
-    //   }
-
-    //   const res = await fetch("/admin/companies", {
-    //     method: "POST",
-    //     headers: authHeaders(),
-    //     body: JSON.stringify({ name })
-    //   });
-
-    //   const data = await res.json().catch(() => ({}));
-
-    //   if (!res.ok) {
-    //     document.getElementById("companyAdminStatus").innerText =
-    //       `Error creando empresa: ${data.detail || res.status}`;
-    //     return;
-    //   }
-
-    //   document.getElementById("companyAdminStatus").innerText = `Empresa ${data.name} creada. Ahora asigna plan/licencia.`;
-
-    //   await loadCompanies();
-    //   renderCompaniesAdmin();
-
-    //   document.getElementById("companyAdminSelect").value = String(data.id);
-    //   selectCompanyForEdit();
-    // }
-
     async function saveCompanyPlanLicense() {
       const status = document.getElementById("companyModalStatus");
       const companyId = Number(document.getElementById("companyModalCompanyId").value);
@@ -3039,6 +3130,43 @@
 
     initAdminPage();
   </script>
+
+  <!-- INACTIVE USERS MODAL -->
+  <div id="inactiveUsersModal" class="password-modal-backdrop hidden">
+    <div class="password-modal" style="max-width:1100px;width:100%;max-height:90vh;overflow-y:auto;">
+      <h3>Usuarios desactivados</h3>
+      <p>Desde aquí puedes visualizar y reactivar usuarios inactivos.</p>
+
+      <div id="inactiveUsersStatus" class="status-line">
+        Cargando usuarios desactivados...
+      </div>
+
+      <div class="table-shell" style="margin-top:16px;">
+        <table class="user-table">
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>Nombre</th>
+              <th>Empresa</th>
+              <th>Rol</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="inactiveUsersTable">
+            <tr>
+              <td colspan="6" class="empty">Sin datos</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="button-row" style="margin-top:16px;">
+        <button class="secondary" onclick="closeInactiveUsersModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- COMPANY MODAL -->
   <div id="companyModal" class="password-modal-backdrop hidden">
     <div class="password-modal company-modal">

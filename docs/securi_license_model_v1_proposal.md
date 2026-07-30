@@ -1,16 +1,21 @@
-# SecuRI License Model v1 — propuesta para aprobación
+# SecuRI License Model v1 — propuesta aprobada para aplicar en código
 
 Esta propuesta adapta el licenciamiento comercial de SecuRI a 3 licencias principales sin publicar ni desplegar todavía cambios en producción.
 
-## Objetivo
+## Modelo comercial aprobado
 
-Definir un modelo de 3 licencias:
+| Licencia | Precio mensual | Setup | Contrato mínimo | Usuarios | Integraciones cloud |
+|---|---:|---:|---:|---:|---:|
+| SecuRI Essential | $399 | $500 | 6 meses | 2 | 0 |
+| SecuRI Professional | $799 | $1,000 | 6 meses | 5 | 1 |
+| SecuRI Business | $999 | $1,500 | 6 meses | 10 negociable | 2 |
 
-| Licencia | Precio mensual | Setup | Contrato mínimo |
-|---|---:|---:|---:|
-| SecuRI Essential | $399 | $500 | 6 meses |
-| SecuRI Professional | $799 | $1,000 | 6 meses |
-| SecuRI Business | $999 | $1,500 | 6 meses |
+## Decisiones confirmadas
+
+1. `Professional` incluye 1 integración cloud total.
+2. `Business` incluye 2 integraciones cloud totales.
+3. `Enterprise` se oculta del selector comercial, pero se mantiene internamente para negociación de features y casos custom.
+4. Las empresas existentes no se actualizan automáticamente; solo tomarán nuevos límites las empresas nuevas o las empresas editadas desde administración.
 
 ## Decisión técnica recomendada
 
@@ -19,13 +24,13 @@ Mantener las claves internas actuales para evitar migraciones de base de datos:
 - `starter` = SecuRI Essential
 - `professional` = SecuRI Professional
 - `business` = SecuRI Business
-- `enterprise` = se mantiene solo como compatibilidad/interno, pero se oculta del selector comercial
+- `enterprise` = Internal / Custom, oculto del UI comercial
 
 Esto evita romper compañías existentes que ya tengan `plan='starter'`, `plan='professional'`, `plan='business'` o `plan='enterprise'`.
 
 ---
 
-## Cambio propuesto en `app/main.py` — `PLAN_PRICES`
+## Cambio aprobado en `app/main.py` — `PLAN_PRICES`
 
 Reemplazar el bloque actual `PLAN_PRICES` por:
 
@@ -84,7 +89,7 @@ PLAN_PRICES = {
 
 ---
 
-## Cambio propuesto en `app/main.py` — `PLAN_LIMITS`
+## Cambio aprobado en `app/main.py` — `PLAN_LIMITS`
 
 Reemplazar el bloque actual `PLAN_LIMITS` por:
 
@@ -113,27 +118,27 @@ PLAN_LIMITS = {
     "professional": {
         "label": "SecuRI Professional",
         "max_users": 5,
-        "max_integrations": 0,
+        "max_integrations": 1,
         "features": {
             "manual_analysis": True,
             "pdf_reports": True,
             "cis8_basic": True,
             "threat_hunting": True,
-            "aws_integration": False,
-            "azure_integration": False,
-            "gcp_integration": False,
+            "aws_integration": True,
+            "azure_integration": True,
+            "gcp_integration": True,
             "soc_cases": True,
             "alert_rules": True,
             "executive_dashboard": True,
             "audit_logs": True,
-            "auto_sync": False,
+            "auto_sync": True,
             "custom_retention": False,
         },
     },
     "business": {
         "label": "SecuRI Business",
         "max_users": 10,
-        "max_integrations": 3,
+        "max_integrations": 2,
         "features": {
             "manual_analysis": True,
             "pdf_reports": True,
@@ -175,13 +180,13 @@ PLAN_LIMITS = {
 
 Notas:
 
-- `professional` queda sin integraciones cloud incluidas porque el paquete comercial no las menciona.
-- `business` queda con 3 integraciones cloud incluidas.
-- `enterprise` se mantiene solo para compatibilidad técnica y clientes custom futuros.
+- `Professional` permite 1 integración cloud total, de cualquier proveedor habilitado.
+- `Business` permite 2 integraciones cloud totales.
+- `Enterprise` queda disponible para negociación interna o clientes custom.
 
 ---
 
-## Cambio propuesto en `frontend/admin.html` — selector de planes
+## Cambio aprobado en `frontend/admin.html` — selector de planes
 
 Reemplazar el selector actual:
 
@@ -204,7 +209,7 @@ por:
 </select>
 ```
 
-Esto deja solo las 3 licencias comerciales visibles en el onboarding y edición de empresas.
+Esto deja solo las 3 licencias comerciales visibles en el onboarding y edición de empresas. `Enterprise` queda oculto del UI, pero continúa existiendo en backend.
 
 ---
 
@@ -212,8 +217,8 @@ Esto deja solo las 3 licencias comerciales visibles en el onboarding y edición 
 
 1. Nuevas empresas creadas desde Onboard Cliente tomarán los nuevos límites:
    - Essential: 2 usuarios / 0 integraciones
-   - Professional: 5 usuarios / 0 integraciones
-   - Business: 10 usuarios / 3 integraciones
+   - Professional: 5 usuarios / 1 integración cloud
+   - Business: 10 usuarios / 2 integraciones cloud
 
 2. Billing Overview mostrará los nuevos precios y labels porque usa `PLAN_PRICES` y `PLAN_LIMITS`.
 
@@ -223,13 +228,21 @@ Esto deja solo las 3 licencias comerciales visibles en el onboarding y edición 
 
 5. No se requiere migración de base de datos porque se mantienen las claves internas de plan.
 
+6. Las empresas existentes no cambian automáticamente hasta que se editen o se ajusten manualmente.
+
 ---
 
-## Pendiente antes de aprobar
+## Pendiente antes de desplegar
 
-Confirmar estas decisiones:
-
-1. ¿Professional queda sin integraciones cloud incluidas o quieres incluir 1?
-2. ¿Business queda con 3 integraciones cloud o quieres dejarlo en 5?
-3. ¿Enterprise se oculta del UI pero queda disponible internamente?
-4. ¿Quieres que empresas existentes actualicen sus `max_users` y `max_integrations` automáticamente, o solo nuevas/actualizadas?
+1. Aplicar estos cambios en `app/main.py`.
+2. Aplicar el cambio del selector en `frontend/admin.html`.
+3. Validar onboarding de cliente nuevo con cada licencia.
+4. Validar límite de usuarios:
+   - Essential: no permitir más de 2 activos.
+   - Professional: no permitir más de 5 activos.
+   - Business: no permitir más de 10 activos, salvo negociación/manual custom.
+5. Validar límite de integraciones:
+   - Essential: 0.
+   - Professional: 1.
+   - Business: 2.
+6. Revisar Billing Overview para confirmar precios, límites y labels.

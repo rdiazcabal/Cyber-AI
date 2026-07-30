@@ -9,12 +9,15 @@ existing companies:
 - business -> SecuRI Business
 - enterprise -> Internal / Custom
 
-The hook below patches app.main after it is imported so the rest of the
-application continues using the existing PLAN_PRICES and PLAN_LIMITS references.
+Important: existing companies keep their stored max_users and max_integrations.
+New companies, or companies edited from administration, receive the current
+commercial limits from this module.
 """
 
 from __future__ import annotations
 
+from copy import deepcopy
+from datetime import datetime
 import importlib.abc
 import importlib.machinery
 import sys
@@ -165,6 +168,99 @@ ADMIN_PLAN_SELECTOR = '''<select id="companyPlan">
           </select>'''
 
 
+def _plan_for_company(company):
+    """Build an effective plan while preserving company-specific stored limits."""
+    plan_name = (getattr(company, "plan", None) or "starter").lower()
+    plan = deepcopy(COMMERCIAL_PLAN_LIMITS.get(plan_name, COMMERCIAL_PLAN_LIMITS["starter"]))
+
+    stored_max_users = getattr(company, "max_users", None)
+    stored_max_integrations = getattr(company, "max_integrations", None)
+
+    if stored_max_users is not None:
+        plan["max_users"] = stored_max_users
+
+    if stored_max_integrations is not None:
+        plan["max_integrations"] = stored_max_integrations
+
+    return plan_name, plan
+
+
+def _make_get_company_subscription(main_module):
+    """Create a replacement that keeps the original license validation behavior."""
+
+    def get_company_subscription(db, company_id: int):
+        company = db.query(main_module.Company).filter(main_module.Company.id == company_id).first()
+
+        if not company:
+            raise main_module.HTTPException(status_code=404, detail="Company not found")
+
+        plan_name, plan = _plan_for_company(company)
+
+        if not plan:
+            raise main_module.HTTPException(status_code=400, detail="Invalid company plan")
+
+        # Company ID 1 is internal and does not require license validation.
+        if company.id == 1 or company.license_required is False:
+            return company, plan_name, plan
+
+        if company.subscription_status not in ["active", "trial"]:
+            raise main_module.HTTPException(
+                status_code=402,
+                detail=f"Subscription is {company.subscription_status}",
+            )
+
+        if not company.plan_started_at or not company.plan_expires_at:
+            raise main_module.HTTPException(
+                status_code=402,
+                detail="Company license dates are required",
+            )
+
+        now = datetime.utcnow()
+
+        if company.plan_expires_at <= now:
+            raise main_module.HTTPException(
+                status_code=402,
+                detail="Company license has expired",
+            )
+
+        duration_days = (company.plan_expires_at - company.plan_started_at).days
+
+        if company.subscription_status == "trial":
+            if not company.trial_ends_at:
+                raise main_module.HTTPException(
+                    status_code=402,
+                    detail="Trial expiration date is required",
+                )
+
+            if company.trial_ends_at <= datetime.utcnow():
+                raise main_module.HTTPException(
+                    status_code=402,
+                    detail="Trial period has expired",
+                )
+
+            if duration_days > 3:
+                raise main_module.HTTPException(
+                    status_code=400,
+                    detail="Trial period cannot exceed 3 days",
+                )
+        else:
+            if duration_days < 180:
+                raise main_module.HTTPException(
+                    status_code=400,
+                    detail="Plan validity must be at least 6 months",
+                )
+
+            if duration_days > 365:
+                raise main_module.HTTPException(
+                    status_code=400,
+                    detail="Plan validity cannot exceed 1 year",
+                )
+
+        return company, plan_name, plan
+
+    return get_company_subscription
+
+
 def _patch_admin_plan_selector() -> None:
     """Hide Enterprise from normal UI and display the 3 commercial licenses."""
     admin_path = Path(__file__).resolve().parent.parent / "frontend" / "admin.html"
@@ -205,6 +301,8 @@ def apply_license_model(main_module) -> None:
     if hasattr(main_module, "PLAN_LIMITS"):
         main_module.PLAN_LIMITS.clear()
         main_module.PLAN_LIMITS.update(COMMERCIAL_PLAN_LIMITS)
+
+    main_module.get_company_subscription = _make_get_company_subscription(main_module)
 
     _patch_admin_plan_selector()
 

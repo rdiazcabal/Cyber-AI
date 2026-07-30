@@ -293,7 +293,7 @@ def _patch_admin_plan_selector() -> None:
 
 
 def apply_license_model(main_module) -> None:
-    """Apply commercial pricing and limits to app.main at runtime."""
+    """Apply commercial pricing, limits and extension routes to app.main."""
     if hasattr(main_module, "PLAN_PRICES"):
         main_module.PLAN_PRICES.clear()
         main_module.PLAN_PRICES.update(COMMERCIAL_PLAN_PRICES)
@@ -303,6 +303,13 @@ def apply_license_model(main_module) -> None:
         main_module.PLAN_LIMITS.update(COMMERCIAL_PLAN_LIMITS)
 
     main_module.get_company_subscription = _make_get_company_subscription(main_module)
+
+    try:
+        from app.onprem_agent_api import register_onprem_agent_routes
+
+        register_onprem_agent_routes(main_module)
+    except Exception as exc:
+        print(f"SecuRI on-prem agent routes were not registered: {exc}")
 
     _patch_admin_plan_selector()
 

@@ -1,0 +1,40 @@
+{
+  "api_url": "https://YOUR-SECURI-DOMAIN",
+  "token": "CHANGE_ME_AGENT_TOKEN",
+  "company_id": 12,
+  "agent_id": "agent-hn-tgu-01",
+  "batch_size": 100,
+  "flush_interval_seconds": 30,
+  "heartbeat_interval_seconds": 60,
+  "queue_max_size": 10000,
+  "sources": [
+    {
+      "type": "file",
+      "enabled": true,
+      "name": "linux-auth-log",
+      "path": "/var/log/auth.log",
+      "encoding": "utf-8",
+      "follow_from_end": true,
+      "poll_seconds": 2,
+      "default_severity": "medium"
+    },
+    {
+      "type": "file",
+      "enabled": false,
+      "name": "nginx-access-log",
+      "path": "/var/log/nginx/access.log",
+      "encoding": "utf-8",
+      "follow_from_end": true,
+      "poll_seconds": 2,
+      "default_severity": "low"
+    },
+    {
+      "type": "syslog_udp",
+      "enabled": true,
+      "name": "firewall-syslog",
+      "listen_host": "0.0.0.0",
+      "listen_port": 5514,
+      "default_severity": "medium"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 /* SecuRI IOC Unified UI Fix
- * Safe runtime override loaded as a static asset. It does not rewrite HTML at build time.
+ * Loads as a normal frontend asset and renders the unified IOC panel with
+ * operational terminology instead of AI-focused wording.
  */
 (function () {
   const COUNTRY_NAMES = {
@@ -81,7 +82,7 @@
     }
 
     try {
-      const res = await fetch("/iocs/unified-analysis", {
+      const res = await fetch("/iocs/unified-analysis-v2", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

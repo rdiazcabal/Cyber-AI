@@ -19,6 +19,8 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY app ./app
 COPY frontend ./frontend
 
+RUN python -m app.build_frontend_patch
+
 EXPOSE 8080
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

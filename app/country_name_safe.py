@@ -80,22 +80,32 @@ def country_name(value: str | None) -> str | None:
 
 
 def enrich_country_fields(payload: Any) -> Any:
+    """Make country fields display-ready for the current legacy UI.
+
+    Some frontend sections still render ``country_code`` directly. To make the
+    visible UI show a full country name without touching HTML or runtime
+    injection, this enrichment keeps the ISO code in ``country_iso_code`` and
+    makes ``country``, ``country_name`` and ``country_code`` display-ready.
+    """
     if not isinstance(payload, dict):
         return payload
 
-    country_code = payload.get("country_code") or payload.get("countryCode")
+    raw_code = payload.get("country_code") or payload.get("countryCode")
     raw_country = payload.get("country")
+    raw_value = raw_code or raw_country
+    full_name = country_name(raw_value)
 
-    full_name = country_name(country_code or raw_country)
-
-    if country_code and len(str(country_code).strip()) == 2:
-        payload["country_code"] = str(country_code).strip().upper()
+    if raw_code and len(str(raw_code).strip()) == 2:
+        iso_code = str(raw_code).strip().upper()
+        payload["country_iso_code"] = iso_code
 
     if full_name:
         payload["country_name"] = full_name
-        # Keep country as a display-ready value for legacy frontend code that
-        # still renders summary.country directly.
         payload["country"] = full_name
+        # Current legacy frontend renders country_code in Unified IOC.
+        # Use a display-ready value here and keep the original ISO code above.
+        payload["country_code"] = full_name
+        payload["countryCode"] = full_name
 
     return payload
 

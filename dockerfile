@@ -20,6 +20,7 @@ COPY app ./app
 COPY frontend ./frontend
 
 RUN python -m app.build_frontend_patch
+RUN python -m app.ioc_ui_patch
 
 EXPOSE 8080
 

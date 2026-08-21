@@ -9,6 +9,11 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
+try:
+    from app.country_name_safe import country_name as _safe_country_name
+except Exception:  # pragma: no cover - fallback during partial imports
+    _safe_country_name = None
+
 
 COUNTRY_NAMES = {
     "AF": "Afghanistan", "AL": "Albania", "DZ": "Algeria", "AD": "Andorra", "AO": "Angola",
@@ -42,9 +47,50 @@ def country_name(value: str | None) -> str | None:
     if not value:
         return None
     clean = str(value).strip()
+    if not clean:
+        return None
+    if _safe_country_name:
+        try:
+            return _safe_country_name(clean)
+        except Exception:
+            pass
     if len(clean) == 2:
         return COUNTRY_NAMES.get(clean.upper(), clean.upper())
     return clean
+
+
+def _country_display_fields(reputation: dict | None) -> dict:
+    """Return display-safe country fields for legacy frontend sections.
+
+    The current UI still prints country_code in some IOC v2 blocks. To avoid
+    showing ISO abbreviations like VE/ZA, country_code is intentionally returned
+    as the display name while the original ISO value is preserved in
+    country_iso_code.
+    """
+    rep = reputation or {}
+    raw_value = (
+        rep.get("country_iso_code")
+        or rep.get("country_code")
+        or rep.get("countryCode")
+        or rep.get("country")
+    )
+
+    iso_code = None
+    if raw_value and len(str(raw_value).strip()) == 2:
+        iso_code = str(raw_value).strip().upper()
+
+    display_name = rep.get("country_name") or country_name(raw_value)
+
+    if not display_name:
+        display_name = "N/A"
+
+    return {
+        "country": display_name,
+        "country_name": display_name,
+        "country_code": display_name,
+        "countryCode": display_name,
+        "country_iso_code": iso_code,
+    }
 
 
 def _risk_label(score: int) -> str:
@@ -115,8 +161,9 @@ def install_ioc_runtime_hotfix(main_module) -> None:
                         "source": "Validación local" if lang == "es" else "Local validation",
                         "pulse_count": 0,
                         "country": "N/A",
-                        "country_code": None,
+                        "country_code": "N/A",
                         "country_name": "N/A",
+                        "country_iso_code": None,
                         "asn": "N/A",
                         "tags": [],
                         "malware_families": [],
@@ -127,8 +174,7 @@ def install_ioc_runtime_hotfix(main_module) -> None:
 
             rep = main_module.check_ip_abuse(ip) or {}
             score = int(rep.get("abuse_confidence_score") or rep.get("security_feed_score") or 0)
-            code = rep.get("country_code") or rep.get("country")
-            full_country = rep.get("country_name") or country_name(code)
+            country_fields = _country_display_fields(rep)
             reasons = []
             if rep.get("total_reports") is not None:
                 reasons.append(f"Total reports: {rep.get('total_reports')}")
@@ -144,9 +190,7 @@ def install_ioc_runtime_hotfix(main_module) -> None:
                 "summary": {
                     "source": rep.get("source") or "Security Feeds",
                     "pulse_count": rep.get("total_reports", 0),
-                    "country": full_country or code or "N/A",
-                    "country_code": code,
-                    "country_name": full_country or code or "N/A",
+                    **country_fields,
                     "asn": rep.get("isp") or rep.get("asn") or "N/A",
                     "tags": [rep.get("usage_type")] if rep.get("usage_type") else [],
                     "malware_families": [],
@@ -210,10 +254,7 @@ def install_ioc_runtime_hotfix(main_module) -> None:
                 if main_module.is_public_ip(query):
                     external = main_module.check_ip_abuse(query) or {}
                     reputation_score = int(external.get("abuse_confidence_score") or external.get("security_feed_score") or 0)
-                    code = external.get("country_code") or external.get("country")
-                    external["country_code"] = code
-                    external["country_name"] = external.get("country_name") or country_name(code)
-                    external["country"] = external.get("country_name") or code
+                    external.update(_country_display_fields(external))
                     external["available"] = True
                 else:
                     external = {
@@ -221,7 +262,9 @@ def install_ioc_runtime_hotfix(main_module) -> None:
                         "source": "Validación local" if language == "es" else "Local validation",
                         "available": False,
                         "country": "N/A",
+                        "country_code": "N/A",
                         "country_name": "N/A",
+                        "country_iso_code": None,
                         "error": "IP privada, reservada, local o no pública." if language == "es" else "Private, reserved, local or non-public IP.",
                     }
 

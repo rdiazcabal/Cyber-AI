@@ -15,7 +15,7 @@ def analyze_security_event(event) -> str:
         if isinstance(event, str):
             event_text = event
         else:
-            event_text = json.dumps(event, indent=2)
+            event_text = json.dumps(event, indent=2, ensure_ascii=False)
 
         prompt = f"""
             Eres un analista SOC senior especializado en multi-cloud security.
@@ -78,6 +78,7 @@ def analyze_security_event(event) -> str:
     except Exception as e:
         return f"ERROR GROQ: {str(e)}"
 
+
 def analyze_security_event_structured(event) -> dict:
     """
     Structured Groq analysis for internal scoring, IOC extraction and threat search.
@@ -88,13 +89,15 @@ def analyze_security_event_structured(event) -> dict:
         if isinstance(event, str):
             event_text = event
         else:
-            event_text = json.dumps(event, indent=2)
+            event_text = json.dumps(event, indent=2, ensure_ascii=False)
 
         prompt = f"""
 Eres un analista SOC senior especializado en multi-cloud security.
 
 Analiza el siguiente evento/log y responde SOLO en JSON válido.
 No agregues markdown, no agregues explicaciones fuera del JSON.
+No inventes evidencia.
+Las recomendaciones deben ser acciones resolutivas de contención, investigación y remediación.
 
 INPUT:
 {event_text}
@@ -102,7 +105,7 @@ INPUT:
 OUTPUT JSON EXACTO:
 {{
   "provider": "AWS|Azure|GCP|Linux|Web|Firewall|Generic",
-  "summary": "",
+  "summary": "Resumen ejecutivo breve sin repetir IA.",
   "severity": "Low|Medium|High|Critical",
   "risk_score": 0,
   "ips": [],
@@ -116,7 +119,7 @@ OUTPUT JSON EXACTO:
   "recommendations": [],
   "confidence": 0.0,
   "model_used": "{MODEL}",
-  "prompt_version": "structured-v1"
+  "prompt_version": "structured-v2"
 }}
 """
 
@@ -129,7 +132,8 @@ OUTPUT JSON EXACTO:
                         "Eres un analista SOC senior. "
                         "Devuelve SOLO JSON válido. "
                         "No inventes evidencia. "
-                        "No uses markdown."
+                        "No uses markdown. "
+                        "Todas las recomendaciones deben ser accionables y resolutivas."
                     )
                 },
                 {
@@ -143,7 +147,6 @@ OUTPUT JSON EXACTO:
 
         content = completion.choices[0].message.content.strip()
 
-        # Remove accidental markdown fences if the model returns them
         if content.startswith("```"):
             content = content.replace("```json", "").replace("```", "").strip()
 
@@ -165,13 +168,13 @@ OUTPUT JSON EXACTO:
             "recommendations": parsed.get("recommendations", []) or [],
             "confidence": float(parsed.get("confidence", 0.5) or 0.5),
             "model_used": parsed.get("model_used", MODEL),
-            "prompt_version": parsed.get("prompt_version", "structured-v1"),
+            "prompt_version": parsed.get("prompt_version", "structured-v2"),
         }
 
     except Exception as e:
         return {
             "provider": "Generic",
-            "summary": "Structured AI analysis unavailable.",
+            "summary": "No se obtuvo análisis técnico estructurado. Se debe continuar con revisión operacional basada en la evidencia disponible.",
             "severity": "Medium",
             "risk_score": 50,
             "ips": [],
@@ -181,13 +184,17 @@ OUTPUT JSON EXACTO:
             "resources": [],
             "actions": [],
             "mitre_techniques": [],
-            "evidence": [],
+            "evidence": [
+                "El motor estructurado no devolvió una respuesta válida para este evento."
+            ],
             "recommendations": [
-                "Review the raw event manually.",
-                "Validate whether Groq API credentials and model configuration are correct."
+                "Revisar el evento original y confirmar origen, usuario, activo, hora y acción observada.",
+                "Correlacionar el indicador con logs de firewall, proxy, DNS, autenticación, EDR y sistemas críticos.",
+                "Aplicar bloqueo preventivo si el indicador tiene reputación externa crítica o actividad interna asociada.",
+                "Crear o actualizar un caso de investigación con evidencias, responsables y acciones de cierre."
             ],
             "confidence": 0.5,
             "model_used": MODEL,
-            "prompt_version": "structured-v1",
+            "prompt_version": "structured-v2",
             "error": str(e)
         }

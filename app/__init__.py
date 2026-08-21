@@ -8,7 +8,6 @@ from app.license_model import install_license_model_patch
 from app.spanish_analysis_patch import install_spanish_analysis_patch
 from app.country_name_safe import install_country_name_safe_patch
 from app.ioc_runtime_hotfix import install_ioc_runtime_hotfix
-from app.frontend_ioc_override import install_frontend_ioc_override
 from app.groq_safe_analysis import install_groq_safe_analysis_patch
 
 
@@ -24,7 +23,6 @@ class _IocRuntimeHotfixLoader(importlib.abc.Loader):
     def exec_module(self, module):
         self.wrapped_loader.exec_module(module)
         install_ioc_runtime_hotfix(module)
-        install_frontend_ioc_override(module)
 
 
 class _IocRuntimeHotfixFinder(importlib.abc.MetaPathFinder):
@@ -48,7 +46,6 @@ def install_ioc_runtime_hotfix_hook() -> None:
     loaded_main = sys.modules.get("app.main")
     if loaded_main:
         install_ioc_runtime_hotfix(loaded_main)
-        install_frontend_ioc_override(loaded_main)
         return
 
     if not any(isinstance(finder, _IocRuntimeHotfixFinder) for finder in sys.meta_path):

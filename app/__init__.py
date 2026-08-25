@@ -9,6 +9,7 @@ from app.spanish_analysis_patch import install_spanish_analysis_patch
 from app.country_name_safe import install_country_name_safe_patch
 from app.ioc_runtime_hotfix import install_ioc_runtime_hotfix
 from app.ioc_groq_analysis import install_ioc_groq_analysis
+from app.report_workflow_patch import install_report_workflow_patch
 from app.groq_safe_analysis import install_groq_safe_analysis_patch
 from app.frontend_ioc_override import install_frontend_ioc_override
 
@@ -26,6 +27,7 @@ class _IocRuntimeHotfixLoader(importlib.abc.Loader):
         self.wrapped_loader.exec_module(module)
         install_ioc_runtime_hotfix(module)
         install_ioc_groq_analysis(module)
+        install_report_workflow_patch(module)
         install_frontend_ioc_override(module)
 
 
@@ -51,6 +53,7 @@ def install_ioc_runtime_hotfix_hook() -> None:
     if loaded_main:
         install_ioc_runtime_hotfix(loaded_main)
         install_ioc_groq_analysis(loaded_main)
+        install_report_workflow_patch(loaded_main)
         install_frontend_ioc_override(loaded_main)
         return
 

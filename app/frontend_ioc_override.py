@@ -2,9 +2,10 @@
 
 This module does not use middleware and does not modify compressed responses.
 It installs a high-priority route for `/` that reads the static index.html,
-applies exact text-only replacements for the IOC unified analysis panel, and
-then returns normal HTMLResponse content. Starlette/FastAPI middleware can then
-apply compression safely after the route response is created.
+applies exact text-only replacements for the IOC unified analysis panel, appends
+safe frontend assets, and then returns normal HTMLResponse content. Starlette /
+FastAPI middleware can then apply compression safely after the route response is
+created.
 """
 
 from __future__ import annotations
@@ -16,6 +17,8 @@ from starlette.routing import Route
 
 
 INDEX_PATH = Path("frontend/index.html")
+IOC_FIX_SCRIPT = '<script src="/assets/ioc_unified_fix.js?v=20260821-1"></script>'
+REPORT_WORKFLOW_SCRIPT = '<script src="/assets/report_workflow_fix.js?v=20260825-1"></script>'
 
 REPLACEMENTS = {
     'panel.innerText = "Consultando historial interno, reputación externa y análisis AI...";':
@@ -53,10 +56,20 @@ REPLACEMENTS = {
 }
 
 
+def _append_script(html: str, script_tag: str) -> str:
+    if script_tag in html:
+        return html
+    if "</body>" in html:
+        return html.replace("</body>", f"{script_tag}\n</body>", 1)
+    return html + "\n" + script_tag
+
+
 def _patched_index_html() -> str:
     html = INDEX_PATH.read_text(encoding="utf-8")
     for old, new in REPLACEMENTS.items():
         html = html.replace(old, new)
+    html = _append_script(html, IOC_FIX_SCRIPT)
+    html = _append_script(html, REPORT_WORKFLOW_SCRIPT)
     return html
 
 

@@ -1,8 +1,9 @@
 """Safe Groq analysis wrapper for SecuRI.
 
-The previous default model could return 400 if the account/model combination is
-not available. This wrapper keeps GROQ_MODEL configurable, but retries with a
-small list of known Groq model IDs before falling back to operational guidance.
+Keeps GROQ_MODEL configurable but avoids known deprecated / unsuitable models
+and retries only against analysis-capable models. If the Groq project blocks all
+candidate models, SecuRI falls back to operational guidance instead of breaking
+the workflow.
 """
 
 from __future__ import annotations
@@ -13,11 +14,18 @@ from typing import Iterable
 
 from groq import Groq
 
-DEFAULT_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
-FALLBACK_MODELS = [
-    DEFAULT_MODEL,
-    "openai/gpt-oss-20b",
+DEFAULT_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
+
+DEPRECATED_OR_UNSUITABLE_MODELS = {
     "llama-3.1-8b-instant",
+    "llama-3.3-70b-versatile",
+    "meta-llama/llama-prompt-guard-2-22m",
+}
+
+SAFE_FALLBACK_MODELS = [
+    "qwen/qwen3.6-27b",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
 ]
 
 
@@ -25,9 +33,17 @@ def _unique_models(models: Iterable[str]) -> list[str]:
     result = []
     for model in models:
         clean = (model or "").strip()
-        if clean and clean not in result:
+        if not clean:
+            continue
+        if clean in DEPRECATED_OR_UNSUITABLE_MODELS:
+            continue
+        if clean not in result:
             result.append(clean)
     return result
+
+
+def _candidate_models() -> list[str]:
+    return _unique_models([DEFAULT_MODEL, *SAFE_FALLBACK_MODELS])
 
 
 def _client() -> Groq:
@@ -37,10 +53,42 @@ def _client() -> Groq:
     return Groq(api_key=api_key)
 
 
-def _chat_completion(messages: list[dict], temperature: float, max_tokens: int) -> tuple[str, str]:
-    last_error: Exception | None = None
+def _is_retryable_model_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    name = exc.__class__.__name__.lower()
+    return (
+        "400" in text
+        or "403" in text
+        or "404" in text
+        or "badrequest" in name
+        or "permission" in text
+        or "blocked" in text
+        or "model_permission_blocked_project" in text
+        or "model_not_found" in text
+        or "invalid_request_error" in text
+        or "model" in text
+        or "decommission" in text
+        or "deprecated" in text
+    )
 
-    for model in _unique_models(FALLBACK_MODELS):
+
+def _summarize_model_errors(errors: list[tuple[str, Exception]]) -> str:
+    if not errors:
+        return "sin detalle"
+
+    parts = []
+    for model, exc in errors:
+        message = str(exc).replace("\n", " ").strip()
+        if len(message) > 220:
+            message = message[:217] + "..."
+        parts.append(f"{model}: {message}")
+    return " | ".join(parts)
+
+
+def _chat_completion(messages: list[dict], temperature: float, max_tokens: int) -> tuple[str, str]:
+    errors: list[tuple[str, Exception]] = []
+
+    for model in _candidate_models():
         try:
             completion = _client().chat.completions.create(
                 model=model,
@@ -51,26 +99,17 @@ def _chat_completion(messages: list[dict], temperature: float, max_tokens: int) 
             content = completion.choices[0].message.content or ""
             return content, model
         except Exception as exc:
-            last_error = exc
-            text = str(exc).lower()
-            name = exc.__class__.__name__.lower()
-
-            retryable_model_error = (
-                "400" in text
-                or "badrequest" in name
-                or "model" in text
-                or "decommission" in text
-                or "deprecated" in text
-            )
-
-            if retryable_model_error:
+            errors.append((model, exc))
+            if _is_retryable_model_error(exc):
                 continue
             raise
 
-    if last_error:
-        raise last_error
-
-    raise RuntimeError("No se pudo ejecutar Groq")
+    raise RuntimeError(
+        "No hay un modelo Groq disponible para este proyecto. "
+        "Habilita en Groq Project Model Permissions uno de estos modelos: "
+        f"{', '.join(SAFE_FALLBACK_MODELS)}. "
+        f"Intentos fallidos: {_summarize_model_errors(errors)}"
+    )
 
 
 def analyze_security_event(event) -> str:

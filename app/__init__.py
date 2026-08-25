@@ -10,6 +10,7 @@ from app.country_name_safe import install_country_name_safe_patch
 from app.ioc_runtime_hotfix import install_ioc_runtime_hotfix
 from app.ioc_groq_analysis import install_ioc_groq_analysis
 from app.report_workflow_patch import install_report_workflow_patch
+from app.report_frontend_loader import install_report_frontend_loader
 from app.groq_safe_analysis import install_groq_safe_analysis_patch
 
 
@@ -27,6 +28,7 @@ class _IocRuntimeHotfixLoader(importlib.abc.Loader):
         install_ioc_runtime_hotfix(module)
         install_ioc_groq_analysis(module)
         install_report_workflow_patch(module)
+        install_report_frontend_loader(module)
 
 
 class _IocRuntimeHotfixFinder(importlib.abc.MetaPathFinder):
@@ -52,6 +54,7 @@ def install_ioc_runtime_hotfix_hook() -> None:
         install_ioc_runtime_hotfix(loaded_main)
         install_ioc_groq_analysis(loaded_main)
         install_report_workflow_patch(loaded_main)
+        install_report_frontend_loader(loaded_main)
         return
 
     if not any(isinstance(finder, _IocRuntimeHotfixFinder) for finder in sys.meta_path):
